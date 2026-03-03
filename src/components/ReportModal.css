@@ -1,0 +1,153 @@
+/* Report Modal Styles */
+
+.modal {
+    overflow-y: auto;
+}
+
+.modal-content {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    border-radius: 15px 15px 0 0;
+    padding: 1rem 1.5rem;
+}
+
+.modal-header .btn-close-white {
+    filter: brightness(0) invert(1);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Report type buttons */
+.btn-group {
+    gap: 5px;
+}
+
+.btn-group .btn {
+    flex: 1;
+    margin: 0;
+    border-radius: 5px !important;
+}
+
+.btn-nigerian {
+    background-color: #008753;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.btn-nigerian:hover {
+    background-color: #003366;
+    color: #FFD700;
+}
+
+.btn-outline-nigerian {
+    background-color: transparent;
+    color: #008753;
+    border: 2px solid #008753;
+    padding: 6px 18px;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.btn-outline-nigerian:hover {
+    background-color: #008753;
+    color: white;
+}
+
+/* Report preview */
+.report-preview {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+    border: 1px solid #dee2e6;
+}
+
+.report-preview h6 {
+    color: #003366;
+    font-weight: bold;
+}
+
+.preview-content .alert {
+    border-left: 4px solid #008753;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+}
+
+/* Spinner animation */
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Form controls */
+.form-control:focus, .form-select:focus {
+    border-color: #008753;
+    box-shadow: 0 0 0 0.2rem rgba(0, 135, 83, 0.25);
+}
+
+/* Print styles */
+@media print {
+    .modal {
+        position: absolute;
+        left: 0;
+        top: 0;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        background: white;
+    }
+    
+    .modal-header,
+    .btn-group,
+    .btn,
+    .modal-footer {
+        display: none !important;
+    }
+    
+    .modal-body {
+        padding: 1cm;
+        max-height: none;
+        overflow: visible;
+    }
+    
+    .report-preview {
+        border: none;
+        background: white;
+        padding: 0;
+    }
+}

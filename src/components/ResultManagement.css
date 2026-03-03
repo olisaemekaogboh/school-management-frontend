@@ -1,0 +1,753 @@
+/* src/components/ResultManagement.css */
+
+.result-management {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Content Header */
+.content-header {
+  margin-bottom: 2rem;
+}
+
+.content-header h2 {
+  color: var(--school-navy, #003366);
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.content-header p {
+  color: #666;
+}
+
+/* Tabs Container */
+.tabs-container {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #666;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.tab-btn:hover {
+  background: #f0f0f0;
+  color: var(--school-navy);
+}
+
+.tab-btn.active {
+  background: var(--school-navy, #003366);
+  color: white;
+}
+
+/* Filters Section */
+.filters-section {
+  background: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-group label {
+  font-weight: 500;
+  color: var(--school-navy);
+  font-size: 0.9rem;
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+  border-color: var(--school-navy);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0,51,102,0.1);
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.search-box svg {
+  color: #999;
+}
+
+.search-box input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+}
+
+/* Section Header */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.section-header h3 {
+  color: var(--school-navy);
+  font-size: 1.25rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Buttons */
+.btn-primary {
+  background: var(--school-navy, #003366);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:hover {
+  background: #002244;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,51,102,0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-success:hover {
+  background: #218838;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}
+
+.btn-info {
+  background: #17a2b8;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-info:hover {
+  background: #138496;
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+  transform: translateY(-2px);
+}
+
+.btn-large {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+}
+
+.btn-icon.btn-danger {
+  background: #dc3545;
+}
+
+.btn-icon.btn-danger:hover {
+  background: #c82333;
+  transform: scale(1.1);
+}
+
+/* Subject Card */
+.subject-card {
+  background: white;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.subject-header {
+  background: #f8f9fa;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+}
+
+.subject-header h6 {
+  color: var(--school-navy);
+  font-weight: 600;
+  margin: 0;
+}
+
+.subject-body {
+  padding: 1rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: var(--school-navy);
+  outline: none;
+}
+
+.total-field {
+  background: #f8f9fa;
+  font-weight: bold;
+  color: var(--school-navy);
+}
+
+/* Form Actions */
+.form-actions {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+/* Alert Styles */
+.alert-info {
+  background: #e3f2fd;
+  color: #0c5460;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid #bee5eb;
+}
+
+.alert-warning {
+  background: #fff3cd;
+  color: #856404;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid #ffeeba;
+}
+
+/* Result Card */
+.result-card {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.result-header {
+  background: var(--school-navy, #003366);
+  color: white;
+  padding: 1rem;
+}
+
+.result-body {
+  padding: 1.5rem;
+}
+
+.student-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.student-info p {
+  margin-bottom: 0.5rem;
+}
+
+/* Tables */
+.table-responsive {
+  overflow-x: auto;
+  margin-bottom: 2rem;
+}
+
+.result-table,
+.rankings-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.result-table th,
+.rankings-table th {
+  background: #f8f9fa;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--school-navy);
+  border-bottom: 2px solid #dee2e6;
+}
+
+.result-table td,
+.rankings-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.result-table tbody tr:hover,
+.rankings-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+/* Summary Cards */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.summary-card {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.summary-card h6 {
+  color: #666;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.summary-card p {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+/* Rankings Tab */
+.rankings-tab {
+  background: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.filters-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filters-row select {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.rankings-card {
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rankings-header {
+  background: var(--school-navy, #003366);
+  color: white;
+  padding: 1rem;
+}
+
+.rankings-body {
+  padding: 1rem;
+}
+
+.total-count {
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  text-align: right;
+  color: #666;
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge.bg-success {
+  background: #28a745;
+  color: white;
+}
+
+.badge.bg-primary {
+  background: var(--school-navy, #003366);
+  color: white;
+}
+
+.badge.bg-info {
+  background: #17a2b8;
+  color: white;
+}
+
+.badge.bg-warning {
+  background: #ffc107;
+  color: #333;
+}
+
+.badge.bg-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.badge.bg-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+/* Statistics Tab */
+.statistics-tab {
+  background: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  padding: 1.5rem;
+  border-radius: 8px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat-card.primary {
+  background: var(--school-navy, #003366);
+}
+
+.stat-card.success {
+  background: #28a745;
+}
+
+.stat-card.danger {
+  background: #dc3545;
+}
+
+.stat-card.warning {
+  background: #ffc107;
+  color: #333;
+}
+
+.stat-card h3 {
+  font-size: 2rem;
+  margin: 0;
+}
+
+.stat-card p {
+  margin: 0;
+  opacity: 0.9;
+}
+
+.stat-card .progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255,255,255,0.3);
+}
+
+.stat-card .progress div {
+  height: 100%;
+  background: rgba(255,255,255,0.8);
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.card {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.card-header {
+  background: #f8f9fa;
+  padding: 1rem;
+  font-weight: 600;
+  color: var(--school-navy);
+  border-bottom: 1px solid #eee;
+}
+
+.card-body {
+  padding: 1rem;
+}
+
+.metric {
+  margin-bottom: 1rem;
+}
+
+.metric span {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #666;
+}
+
+.metric strong {
+  display: block;
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.metric .progress {
+  height: 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.metric .progress div {
+  height: 100%;
+  background: var(--school-navy);
+}
+
+.grade-item {
+  margin-bottom: 1rem;
+}
+
+.grade-item .badge {
+  margin-right: 0.5rem;
+}
+
+.grade-item .progress {
+  height: 4px;
+  background: #f0f0f0;
+  margin-top: 0.25rem;
+}
+
+/* Graduates Tab */
+.graduates-tab {
+  background: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  background: #f8f9fa;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--school-navy);
+}
+
+.table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #eee;
+}
+
+/* Spinner */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .result-management {
+    padding: 1rem;
+  }
+
+  .tabs-container {
+    flex-direction: column;
+  }
+
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    flex-direction: column;
+  }
+
+  .form-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filters-row {
+    flex-direction: column;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .performance-grid {
+    grid-template-columns: 1fr;
+  }
+}

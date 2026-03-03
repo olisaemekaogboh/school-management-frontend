@@ -1,0 +1,341 @@
+/* Add to App.css */
+
+/* Navbar scroll effect */
+.navbar-school {
+  transition: all 0.3s ease;
+  padding: 0.75rem 1rem !important;
+}
+
+.navbar-school.scrolled {
+  padding: 0.5rem 1rem !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Brand styling */
+.school-logo {
+  display: flex;
+  align-items: center;
+  font-size: 1.2rem !important;
+}
+
+.brand-full {
+  color: var(--school-gold);
+  font-size: 0.9rem;
+  margin-left: 0.25rem;
+}
+
+@media (min-width: 992px) {
+  .school-logo {
+    font-size: 1.5rem !important;
+  }
+}
+
+/* Nav items */
+.navbar-nav {
+  gap: 0.25rem;
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-link {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 1200px) {
+  .nav-link {
+    padding: 0.5rem 1rem !important;
+    font-size: 0.95rem;
+  }
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--school-gold) !important;
+  transform: translateY(-2px);
+}
+
+.nav-link.active {
+  background: rgba(255, 215, 0, 0.15);
+  color: var(--school-gold) !important;
+  position: relative;
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background: var(--school-gold);
+  border-radius: 3px 3px 0 0;
+}
+
+.nav-icon {
+  font-size: 1rem;
+}
+
+/* Dropdown styling */
+.dropdown {
+  position: relative;
+}
+
+.dropdown-toggle {
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.dropdown-arrow {
+  margin-left: auto;
+  font-size: 0.8rem;
+  transition: transform 0.3s ease;
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 220px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  padding: 0.5rem 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.dropdown-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  color: var(--dark-gray);
+  text-decoration: none;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  border: none;
+  background: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+.dropdown-item:hover {
+  background: rgba(0, 135, 83, 0.1);
+  color: var(--nigerian-green);
+  padding-left: 1.5rem;
+}
+
+.dropdown-item.active {
+  background: rgba(0, 135, 83, 0.15);
+  color: var(--nigerian-green);
+  font-weight: 500;
+}
+
+.dropdown-icon {
+  color: var(--school-navy);
+  font-size: 0.9rem;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 0.5rem 0;
+}
+
+/* User menu */
+.user-menu {
+  position: relative;
+}
+
+.user-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 30px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.user-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--school-gold);
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  background: var(--school-gold);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--school-navy);
+  font-size: 0.9rem;
+}
+
+.user-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.user-arrow {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.user-dropdown-menu {
+  left: auto;
+  right: 0;
+  min-width: 180px;
+}
+
+/* Mobile responsive */
+@media (max-width: 991px) {
+  .navbar-collapse {
+    background: var(--school-navy);
+    padding: 1rem;
+    margin-top: 1rem;
+    border-radius: 10px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .nav-link {
+    padding: 0.75rem !important;
+  }
+
+  .nav-link.active::after {
+    display: none;
+  }
+
+  .dropdown-menu {
+    position: static;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    display: none;
+  }
+
+  .dropdown-menu.show {
+    display: block;
+  }
+
+  .dropdown-item {
+    color: rgba(255, 255, 255, 0.9);
+    padding: 0.75rem 1rem;
+  }
+
+  .dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--school-gold);
+  }
+
+  .dropdown-item.active {
+    background: rgba(255, 215, 0, 0.2);
+    color: var(--school-gold);
+  }
+
+  .dropdown-icon {
+    color: var(--school-gold);
+  }
+
+  .user-menu {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .user-menu-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .user-dropdown-menu {
+    position: static;
+    background: rgba(255, 255, 255, 0.1);
+    margin-top: 0.5rem;
+  }
+}
+
+/* Tooltip */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+/* Animation for nav items */
+.nav-item {
+  animation: fadeIn 0.5s ease forwards;
+  opacity: 0;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Stagger animation */
+.nav-item:nth-child(1) { animation-delay: 0.1s; }
+.nav-item:nth-child(2) { animation-delay: 0.15s; }
+.nav-item:nth-child(3) { animation-delay: 0.2s; }
+.nav-item:nth-child(4) { animation-delay: 0.25s; }
+.nav-item:nth-child(5) { animation-delay: 0.3s; }
+.nav-item:nth-child(6) { animation-delay: 0.35s; }
+.nav-item:nth-child(7) { animation-delay: 0.4s; }

@@ -1,0 +1,23 @@
+/* src/components/ClassManagement.css */
+.class-management {
+  padding: 2rem;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.table th {
+  background: var(--school-navy, #003366);
+  color: white;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}

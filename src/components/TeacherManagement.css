@@ -1,0 +1,906 @@
+/* src/components/TeacherManagement.css */
+
+.teacher-management {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header */
+.header-section {
+  background: white;
+  border-radius: 15px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.header-top h1 {
+  color: var(--school-navy, #003366);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btn-refresh,
+.btn-export {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.btn-refresh:hover {
+  background: #f0f0f0;
+  transform: translateY(-2px);
+}
+
+.btn-export:hover {
+  background: var(--school-navy, #003366);
+  color: white;
+  border-color: var(--school-navy);
+}
+
+/* Statistics Cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  padding: 1.5rem;
+  border-radius: 10px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat-card.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-card.success {
+  background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+  color: #333;
+}
+
+.stat-card.warning {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.stat-card.info {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: #333;
+}
+
+.stat-card h3 {
+  font-size: 2rem;
+  margin: 0;
+}
+
+.stat-card p {
+  margin: 0;
+  opacity: 0.9;
+}
+
+/* Mobile Filter Toggle */
+.mobile-filter-toggle {
+  display: none;
+  width: 100%;
+  padding: 1rem;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Filters Section */
+.filters-section {
+  background: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-group label {
+  font-weight: 500;
+  color: var(--school-navy);
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.search-box input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+}
+
+.filter-group select {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  outline: none;
+}
+
+/* Buttons */
+.btn-primary {
+  background: var(--school-navy, #003366);
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: #002244;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,51,102,0.3);
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
+/* Table Section */
+.table-section {
+  background: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.teacher-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.teacher-table th {
+  background: #f8f9fa;
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--school-navy);
+  border-bottom: 2px solid #dee2e6;
+}
+
+.teacher-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+
+.teacher-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.teacher-name {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.teacher-avatar-small {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.badge-success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.badge-warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.badge-danger {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.badge-info {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.badge-secondary {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-view,
+.btn-edit,
+.btn-delete {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  color: white;
+}
+
+.btn-view {
+  background: #17a2b8;
+}
+
+.btn-edit {
+  background: #ffc107;
+  color: #333;
+}
+
+.btn-delete {
+  background: #dc3545;
+}
+
+.btn-view:hover,
+.btn-edit:hover,
+.btn-delete:hover {
+  transform: translateY(-2px) scale(1.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.btn-expand {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+/* Expanded Row */
+.expanded-row td {
+  background: #f8f9fa;
+  padding: 1.5rem !important;
+}
+
+.expanded-content {
+  padding: 1rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.detail-grid h4 {
+  color: var(--school-navy);
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.detail-grid p {
+  margin: 0.5rem 0;
+  color: #666;
+}
+
+.detail-grid strong {
+  color: #333;
+}
+
+.subjects-section,
+.biography-section {
+  margin-top: 1.5rem;
+}
+
+.subjects-section h4,
+.biography-section h4 {
+  color: var(--school-navy);
+  margin-bottom: 1rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tag {
+  background: #e9ecef;
+  color: #495057;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tag button {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.pagination button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--school-navy);
+  color: white;
+  border-color: var(--school-navy);
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  text-align: center;
+  padding: 3rem;
+  color: var(--school-navy);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 10px;
+  max-height: 90vh;
+  overflow: hidden;
+  animation: slideIn 0.3s ease;
+}
+
+.modal-content.large {
+  width: 90%;
+  max-width: 1200px;
+}
+
+.modal-content.small {
+  width: 400px;
+  max-width: 100%;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  padding: 1rem 1.5rem;
+  background: var(--school-navy);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header.danger {
+  background: #dc3545;
+}
+
+.modal-header h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.25rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.modal-close:hover {
+  transform: scale(1.2);
+}
+
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  max-height: calc(90vh - 130px);
+}
+
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+/* Form Styles */
+.form-tabs {
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-content {
+  padding: 1rem 0;
+}
+
+.form-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-section h3 {
+  color: var(--school-navy);
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  border-bottom: 2px solid #dee2e6;
+  padding-bottom: 0.5rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-group label {
+  font-weight: 500;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--school-navy);
+  box-shadow: 0 0 0 3px rgba(0,51,102,0.1);
+}
+
+/* Profile Upload */
+.profile-upload {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+}
+
+.profile-preview {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--school-navy);
+}
+
+.profile-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #e9ecef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #adb5bd;
+}
+
+.profile-upload-controls {
+  flex: 1;
+}
+
+.btn-upload {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: var(--school-navy);
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.btn-upload:hover {
+  background: #002244;
+}
+
+.profile-upload-controls small {
+  display: block;
+  color: #666;
+  font-size: 0.8rem;
+}
+
+/* Tags Input */
+.tags-input {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  min-height: 2rem;
+}
+
+.tag-add {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tag-add input,
+.tag-add select {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.btn-add-tag {
+  padding: 0.5rem 1rem;
+  background: var(--school-navy);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.btn-add-tag:hover {
+  background: #002244;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dee2e6;
+}
+
+/* View Modal */
+.teacher-profile {
+  padding: 1rem;
+}
+
+.profile-header {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.profile-image {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--school-navy);
+}
+
+.profile-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-title h2 {
+  margin: 0 0 0.5rem 0;
+  color: var(--school-navy);
+}
+
+.teacher-id {
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.detail-section {
+  margin-bottom: 2rem;
+}
+
+.detail-section h3 {
+  color: var(--school-navy);
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  border-bottom: 2px solid #dee2e6;
+  padding-bottom: 0.5rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.detail-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+.detail-grid label {
+  display: block;
+  font-weight: 500;
+  color: #666;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.detail-grid p {
+  margin: 0;
+  color: #333;
+}
+
+.detail-grid a {
+  color: var(--school-navy);
+  text-decoration: none;
+}
+
+.detail-grid a:hover {
+  text-decoration: underline;
+}
+
+.subjects-list,
+.qualifications-list,
+.biography {
+  margin-top: 1rem;
+}
+
+.subjects-list label,
+.qualifications-list label,
+.biography label {
+  display: block;
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.qualifications-list ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #333;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .teacher-management {
+    padding: 1rem;
+  }
+
+  .header-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    justify-content: stretch;
+  }
+
+  .header-actions button {
+    flex: 1;
+  }
+
+  .mobile-filter-toggle {
+    display: flex;
+  }
+
+  .filters-section {
+    display: none;
+  }
+
+  .filters-section.show {
+    display: block;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-upload {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .modal-content.large {
+    width: 95%;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
