@@ -1,248 +1,251 @@
-import React, { useEffect, useMemo, useState } from "react";
+// src/components/SessionManagement.js
+import React, { useMemo, useState } from "react";
 import { sessionAPI } from "../services/api";
+import { useSession } from "../contexts/SessionContext";
 import { toast } from "react-toastify";
-import {
-  FaPlus,
-  FaCheckCircle,
-  FaTrash,
-  FaSearch,
-  FaCalendarAlt,
-} from "react-icons/fa";
+import { FiPlus, FiCheckCircle, FiTrash2, FiRefreshCw } from "react-icons/fi";
 
-function normalizeSessionName(name) {
-  return (name || "").trim().replace(/\s+/g, "");
-}
-
-function isValidSessionName(name) {
-  // Accepts formats like 2025/2026
-  return /^\d{4}\/\d{4}$/.test(name);
-}
+const guessYearsFromName = (name) => {
+  // "2025/2026"
+  const parts = (name || "").split("/");
+  const startYear = Number(parts?.[0]);
+  const endYear = Number(parts?.[1]);
+  if (!Number.isFinite(startYear) || !Number.isFinite(endYear)) return null;
+  return { startYear, endYear };
+};
 
 export default function SessionManagement() {
-  const [loading, setLoading] = useState(true);
-  const [sessions, setSessions] = useState([]);
-  const [activeSession, setActiveSession] = useState(null);
+  const {
+    sessions,
+    selectedSession,
+    setSelectedSession,
+    reloadSessions,
+    loadingSessions,
+  } = useSession();
 
-  const [name, setName] = useState("");
-  const [search, setSearch] = useState("");
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [busyId, setBusyId] = useState(null);
 
-  const filtered = useMemo(() => {
-    const t = search.trim().toLowerCase();
-    if (!t) return sessions;
-    return sessions.filter((s) => (s.name || "").toLowerCase().includes(t));
-  }, [sessions, search]);
+  const activeSession = useMemo(
+    () => sessions.find((s) => s.active),
+    [sessions],
+  );
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [allRes, activeRes] = await Promise.all([
-        sessionAPI.getAll(),
-        sessionAPI.getActive(),
-      ]);
-      setSessions(allRes.data || []);
-      setActiveSession(activeRes.data || null);
-    } catch (e) {
-      toast.error("Failed to load sessions");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const create = async (e) => {
+  const onCreate = async (e) => {
     e.preventDefault();
-    const v = normalizeSessionName(name);
+    const name = newName.trim();
+    if (!name) return toast.error("Enter a session name (e.g. 2025/2026)");
 
-    if (!v) return toast.error("Session name is required");
-    if (!isValidSessionName(v)) {
-      toast.error("Use format like 2025/2026");
-      return;
-    }
-
-    const [start, end] = v.split("/").map(Number);
-    if (end !== start + 1) {
-      toast.error("Session should be consecutive years, e.g. 2025/2026");
-      return;
-    }
+    const years = guessYearsFromName(name);
+    if (!years) return toast.error("Use format like 2025/2026");
 
     try {
-      await sessionAPI.create({ name: v });
+      setCreating(true);
+      await sessionAPI.createSession({
+        name,
+        ...years,
+        active: sessions.length === 0,
+      });
       toast.success("Session created");
-      setName("");
-      await load();
+      setNewName("");
+      await reloadSessions();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Create failed");
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to create session",
+      );
+    } finally {
+      setCreating(false);
     }
   };
 
-  const setActive = async (id) => {
+  const onActivate = async (id) => {
     try {
-      const res = await sessionAPI.setActive(id);
-      setActiveSession(res.data);
-      toast.success("Active session updated");
-      await load();
-    } catch (e) {
-      toast.error("Failed to set active session");
+      setBusyId(id);
+      const res = await sessionAPI.activateSession(id);
+      toast.success(`Activated ${res.data?.name || "session"}`);
+      await reloadSessions();
+      if (res.data?.name) setSelectedSession(res.data.name);
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to activate session",
+      );
+    } finally {
+      setBusyId(null);
     }
   };
 
-  const remove = async (id) => {
-    if (!window.confirm("Delete this session?")) return;
+  const onDelete = async (id, name) => {
+    if (!window.confirm(`Delete session "${name}"?`)) return;
     try {
-      await sessionAPI.delete(id);
-      toast.success("Deleted");
-      await load();
-    } catch (e) {
-      toast.error(e?.response?.data?.message || "Delete failed");
+      setBusyId(id);
+      await sessionAPI.deleteSession(id);
+      toast.success("Session deleted");
+      await reloadSessions();
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to delete session",
+      );
+    } finally {
+      setBusyId(null);
     }
   };
 
   return (
     <div className="content-wrapper earth-pattern">
-      <div className="hero-section p-4">
-        <h2 className="mb-2">
-          <FaCalendarAlt className="me-2" />
-          Academic Sessions
-        </h2>
-        <p className="mb-0">
-          Create sessions and set the active session (used for timetable,
-          attendance, results, fees).
-        </p>
-      </div>
-
-      <div className="news-ticker">
-        <b>Active Session:</b>{" "}
-        <span className="nigeria-flag-badge">
-          {activeSession?.name || "Not set"}
-        </span>
-      </div>
-
-      {/* Create session */}
-      <div className="form-container mb-4">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="mb-0">Create Session</h4>
+      <div className="school-card card">
+        <div className="card-header d-flex justify-content-between align-items-center">
+          <span>Academic Sessions</span>
+          <button
+            className="btn btn-outline-light btn-sm"
+            onClick={reloadSessions}
+            disabled={loadingSessions}
+            title="Reload"
+          >
+            <FiRefreshCw /> Refresh
+          </button>
         </div>
 
-        <form onSubmit={create}>
-          <div className="row align-items-end">
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Session Name *</label>
+        <div className="card-body">
+          <div className="fee-structure mb-3">
+            <strong>Current selected session:</strong>{" "}
+            <span style={{ color: "var(--nigerian-green)" }}>
+              {selectedSession || "None"}
+            </span>
+            {activeSession?.name ? (
+              <>
+                {" "}
+                <span
+                  className="ms-2 badge"
+                  style={{
+                    background: "var(--school-gold)",
+                    color: "var(--school-navy)",
+                  }}
+                >
+                  Active: {activeSession.name}
+                </span>
+              </>
+            ) : null}
+          </div>
+
+          <form onSubmit={onCreate} className="form-container mb-4">
+            <label className="form-label">Create a new session</label>
+            <div className="d-flex gap-2 flex-wrap">
               <input
                 className="form-control"
-                placeholder="e.g. 2025/2026"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. 2026/2027"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
               />
-              <small className="text-muted">
-                Format: <b>YYYY/YYYY</b> (example: 2025/2026)
-              </small>
-            </div>
-
-            <div className="col-md-6 mb-3 d-grid">
-              <button type="submit" className="btn-nigerian">
-                <FaPlus className="me-2" />
-                Create Session
+              <button
+                className="btn-nigerian"
+                type="submit"
+                disabled={creating}
+              >
+                <FiPlus /> {creating ? "Creating..." : "Create"}
               </button>
             </div>
-          </div>
-        </form>
-      </div>
+            <small className="text-muted d-block mt-2">
+              Tip: Use format like <b>2025/2026</b>. The backend saves
+              startYear/endYear too.
+            </small>
+          </form>
 
-      {/* List sessions */}
-      <div className="table-container">
-        <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-          <h4 className="mb-0">All Sessions</h4>
-
-          <div className="d-flex align-items-center gap-2">
-            <FaSearch />
-            <input
-              className="form-control"
-              style={{ maxWidth: 320 }}
-              placeholder="Search sessions..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="spinner-container">
-            <div className="spinner-border-nigerian" />
-          </div>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-striped">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Session</th>
-                  <th>Status</th>
-                  <th style={{ width: 320 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => {
-                  const isActive = s.status === "ACTIVE";
-                  return (
-                    <tr key={s.id}>
-                      <td>#{s.id}</td>
-                      <td>
-                        <b>{s.name}</b>
-                      </td>
-                      <td>
-                        {isActive ? (
-                          <span className="nigeria-flag-badge">ACTIVE</span>
-                        ) : (
-                          <span className="text-muted">INACTIVE</span>
-                        )}
-                      </td>
-                      <td className="d-flex flex-wrap gap-2">
-                        <button
-                          className={
-                            isActive ? "btn-nigerian" : "btn-outline-nigerian"
-                          }
-                          type="button"
-                          onClick={() => setActive(s.id)}
-                          disabled={isActive}
-                          title={isActive ? "Already active" : "Set active"}
-                        >
-                          <FaCheckCircle className="me-1" />
-                          {isActive ? "Active" : "Set Active"}
-                        </button>
-
-                        <button
-                          className="btn-outline-nigerian"
-                          type="button"
-                          onClick={() => remove(s.id)}
-                          disabled={isActive}
-                          title={
-                            isActive
-                              ? "You can’t delete the active session"
-                              : "Delete"
-                          }
-                        >
-                          <FaTrash className="me-1" />
-                          Delete
-                        </button>
+          <div className="table-container">
+            <div className="table-responsive">
+              <table className="table table-striped">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Years</th>
+                    <th>Status</th>
+                    <th style={{ width: 280 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessions.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="text-center py-4">
+                        No sessions yet. Create one above.
                       </td>
                     </tr>
-                  );
-                })}
-
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan="4" className="text-center py-4">
-                      No sessions found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    sessions.map((s) => (
+                      <tr key={s.id}>
+                        <td>
+                          <b>{s.name}</b>
+                          {selectedSession === s.name ? (
+                            <span
+                              className="ms-2 badge"
+                              style={{ background: "var(--nigerian-green)" }}
+                            >
+                              Selected
+                            </span>
+                          ) : null}
+                        </td>
+                        <td>
+                          {s.startYear} / {s.endYear}
+                        </td>
+                        <td>
+                          {s.active ? (
+                            <span
+                              className="badge"
+                              style={{
+                                background: "var(--school-gold)",
+                                color: "var(--school-navy)",
+                              }}
+                            >
+                              Active
+                            </span>
+                          ) : (
+                            <span className="badge bg-secondary">Inactive</span>
+                          )}
+                        </td>
+                        <td className="d-flex gap-2 flex-wrap">
+                          <button
+                            className="btn-outline-nigerian"
+                            type="button"
+                            onClick={() => setSelectedSession(s.name)}
+                          >
+                            Select
+                          </button>
+                          <button
+                            className="btn-nigerian"
+                            type="button"
+                            onClick={() => onActivate(s.id)}
+                            disabled={busyId === s.id}
+                            title="Make active"
+                          >
+                            <FiCheckCircle /> Activate
+                          </button>
+                          <button
+                            className="btn btn-danger"
+                            type="button"
+                            onClick={() => onDelete(s.id, s.name)}
+                            disabled={busyId === s.id}
+                          >
+                            <FiTrash2 /> Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
+
+          <div className="news-ticker mt-3">
+            When you change the selected session here, your
+            Fees/Results/Attendance pages will use it automatically.
+          </div>
+        </div>
       </div>
     </div>
   );

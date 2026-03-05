@@ -517,16 +517,6 @@ export const timetableAPI = {
       `/timetable/check-availability?teacherId=${teacherId}&day=${day}&session=${session}&term=${term}&startTime=${startTime}&endTime=${endTime}`,
     ),
 };
-/* ================================
-   SESSION API
-================================ */
-export const sessionAPI = {
-  create: (data) => api.post("/sessions", data),
-  getAll: () => api.get("/sessions"),
-  getActive: () => api.get("/sessions/active"),
-  setActive: (id) => api.post(`/sessions/active/${id}`),
-  delete: (id) => api.delete(`/sessions/${id}`), // optional (backend supports it)
-};
 
 /* ================================
    PARENT API
@@ -570,7 +560,35 @@ export const libraryAPI = {
   getOverdueBorrowings: () => api.get("/library/borrowings/overdue"),
   getLibraryStatistics: () => api.get("/library/statistics"),
 };
+// ================================
+// SESSION API
+// ================================
+export const sessionAPI = {
+  createSession: (data) => api.post("/sessions", data),
+  updateSession: (id, data) => api.put(`/sessions/${id}`, data),
+  deleteSession: (id) => api.delete(`/sessions/${id}`),
+  getAllSessions: () => api.get("/sessions"),
 
+  // ✅ IMPORTANT: do not throw when there is no active session yet
+  getActiveSession: async () => {
+    try {
+      return await api.get("/sessions/active");
+    } catch (err) {
+      const status = err?.response?.status;
+
+      // Your backend currently throws ResourceNotFound => 404
+      // Some backends may return 204 when empty
+      if (status === 404 || status === 204) {
+        // return a fake axios-like response so your context code works unchanged
+        return { data: null };
+      }
+
+      throw err; // real errors still bubble up
+    }
+  },
+
+  activateSession: (id) => api.put(`/sessions/${id}/activate`),
+};
 /* ================================
    TRANSPORT API
 ================================ */

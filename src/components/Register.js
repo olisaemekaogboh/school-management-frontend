@@ -71,41 +71,41 @@ function Register() {
     setVerifying(true);
     try {
       const response = await fetch(
-        `http://localhost:8080/api/public/verify-student?admissionNumber=${encodeURIComponent(verificationData.admissionNumber)}`,
+        `http://localhost:8080/api/public/verify-student?admissionNumber=${encodeURIComponent(
+          verificationData.admissionNumber.trim(),
+        )}`,
       );
 
-      const data = await response.json();
-      console.log("Student verification response:", data);
-
-      if (data.success && data.data) {
-        const student = data.data;
-        setVerifiedData({
-          id: student.id,
-          firstName: student.firstName,
-          lastName: student.lastName,
-          admissionNumber: student.admissionNumber,
-          studentClass: student.studentClass,
-          classArm: student.classArm,
-        });
-
-        setFormData({
-          ...formData,
-          firstName: student.firstName || "",
-          lastName: student.lastName || "",
-          email: student.email || "",
-          phoneNumber: student.phoneNumber || "",
-          username: student.admissionNumber
-            ? student.admissionNumber.replace(/\//g, "_")
-            : verificationData.admissionNumber.replace(/\//g, "_"),
-        });
-
-        setStep(3);
-        toast.success(
-          `Student ${student.firstName} ${student.lastName} verified successfully!`,
-        );
-      } else {
-        toast.error(data.message || "Student not found");
+      if (!response.ok) {
+        throw new Error("Student not found");
       }
+
+      const student = await response.json(); // ✅ backend returns the student object directly
+
+      setVerifiedData({
+        id: student.id,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        admissionNumber: student.admissionNumber,
+        studentClass: student.studentClass,
+        classArm: student.classArm,
+      });
+
+      setFormData((prev) => ({
+        ...prev,
+        firstName: student.firstName || "",
+        lastName: student.lastName || "",
+        email: student.email || "", // may be undefined (fine)
+        phoneNumber: student.phoneNumber || "",
+        username: (
+          student.admissionNumber || verificationData.admissionNumber
+        ).replace(/\//g, "_"),
+      }));
+
+      setStep(3);
+      toast.success(
+        `Student ${student.firstName} ${student.lastName} verified successfully!`,
+      );
     } catch (error) {
       console.error("Verification error:", error);
       toast.error("Student not found with this admission number");
@@ -113,7 +113,6 @@ function Register() {
       setVerifying(false);
     }
   };
-
   const verifyParent = async () => {
     if (!verificationData.parentEmail && !verificationData.parentPhone) {
       toast.error("Please enter either email or phone number");

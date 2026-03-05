@@ -107,11 +107,13 @@ import { ParentProvider } from "./contexts/ParentContext";
 import "./App.css";
 import TeacherRegistrationCompletion from "./components/TeacherRegistrationCompletion";
 
+// ✅ NEW: public student verification page
+import VerifyStudent from "./components/VerifyStudent";
+
 function App() {
   return (
     <Router>
       <AuthProvider>
-        {/* Wrap with ParentProvider to use parent hooks */}
         <ParentProvider>
           <div className="app-container">
             <Navbar />
@@ -128,7 +130,6 @@ function App() {
                   <Route path="/register" element={<Register />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
 
-                  {/* FIXED: Handle both token formats for password reset */}
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route
                     path="/reset-password/:token"
@@ -141,9 +142,11 @@ function App() {
                     element={<ParentEmailVerification />}
                   />
 
+                  {/* ✅ Public Student Verification */}
+                  <Route path="/verify-student" element={<VerifyStudent />} />
+
                   {/* ========== PROTECTED ROUTES ========== */}
 
-                  {/* Dashboard */}
                   <Route
                     path="/"
                     element={
@@ -153,7 +156,6 @@ function App() {
                     }
                   />
 
-                  {/* Role-Specific Dashboards */}
                   <Route
                     path="/student-dashboard"
                     element={
@@ -179,7 +181,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== USER MANAGEMENT ===== */}
                   <Route
                     path="/users"
                     element={
@@ -189,7 +190,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== PARENT MANAGEMENT ROUTES ===== */}
                   <Route
                     path="/parents"
                     element={
@@ -225,7 +225,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== STUDENT MANAGEMENT ===== */}
                   <Route
                     path="/students"
                     element={
@@ -267,7 +266,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== TEACHER MANAGEMENT ===== */}
                   <Route
                     path="/teachers"
                     element={
@@ -301,7 +299,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== CLASS MANAGEMENT ===== */}
                   <Route
                     path="/classes"
                     element={
@@ -335,7 +332,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== ACADEMIC MANAGEMENT ===== */}
                   <Route
                     path="/results"
                     element={
@@ -361,7 +357,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== FEE MANAGEMENT ===== */}
                   <Route
                     path="/fees"
                     element={
@@ -387,7 +382,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== ANNOUNCEMENT MANAGEMENT ===== */}
                   <Route
                     path="/announcements"
                     element={
@@ -421,7 +415,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== LIBRARY MANAGEMENT ===== */}
                   <Route
                     path="/library"
                     element={
@@ -447,7 +440,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== TRANSPORT MANAGEMENT ===== */}
                   <Route
                     path="/transport"
                     element={
@@ -473,7 +465,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== PARENT PORTAL ===== */}
                   <Route
                     path="/parent"
                     element={
@@ -491,7 +482,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== USER PROFILE ===== */}
                   <Route
                     path="/profile"
                     element={
@@ -509,7 +499,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== REPORTS ===== */}
                   <Route
                     path="/reports"
                     element={
@@ -527,7 +516,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== SEARCH ===== */}
                   <Route
                     path="/search"
                     element={
@@ -537,7 +525,6 @@ function App() {
                     }
                   />
 
-                  {/* ===== ERROR ROUTES ===== */}
                   <Route path="/401" element={<Unauthorized />} />
                   <Route path="/404" element={<PageNotFound />} />
                   <Route path="*" element={<Navigate to="/404" replace />} />

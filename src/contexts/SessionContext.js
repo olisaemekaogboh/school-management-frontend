@@ -1,3 +1,4 @@
+// src/contexts/SessionContext.js
 import React, {
   createContext,
   useContext,
@@ -5,67 +6,73 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { SessionAPI } from "../services/api";
+import { sessionAPI } from "../services/api";
 import { toast } from "react-toastify";
 
 const SessionContext = createContext(null);
 
-const LS_KEY = "sms_active_session_term_v1";
+const STORAGE_KEY = "sms.selectedSession";
 
 export function SessionProvider({ children }) {
-  const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState([]);
-  const [activeSession, setActiveSession] = useState(null); // {name, currentTerm}
-  const [selection, setSelection] = useState({ session: "", term: "" });
+  const [selectedSession, setSelectedSessionState] = useState(
+    localStorage.getItem(STORAGE_KEY) || "",
+  );
+  const [loadingSessions, setLoadingSessions] = useState(true);
 
-  const load = async () => {
+  const setSelectedSession = (sessionName) => {
+    setSelectedSessionState(sessionName);
+    localStorage.setItem(STORAGE_KEY, sessionName);
+  };
+
+  const loadSessions = async () => {
+    setLoadingSessions(true);
     try {
-      setLoading(true);
-      const [allRes, activeRes] = await Promise.all([
-        SessionAPI.getAll(),
-        SessionAPI.getActive(),
+      const [allRes, activeRes] = await Promise.allSettled([
+        sessionAPI.getAllSessions(),
+        sessionAPI.getActiveSession(),
       ]);
 
-      setSessions(allRes.data || []);
-      setActiveSession(activeRes.data || null);
+      const all = allRes.status === "fulfilled" ? allRes.value.data || [] : [];
+      const active =
+        activeRes.status === "fulfilled" ? activeRes.value.data : null;
 
-      // restore selection from localStorage, else use backend active defaults
-      const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
-      if (saved?.session && saved?.term) {
-        setSelection(saved);
-      } else if (activeRes.data?.name && activeRes.data?.currentTerm) {
-        setSelection({
-          session: activeRes.data.name,
-          term: activeRes.data.currentTerm,
-        });
+      setSessions(all);
+
+      // pick selected session
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const storedExists = stored && all.some((s) => s.name === stored);
+
+      if (storedExists) {
+        setSelectedSessionState(stored);
+      } else if (active?.name) {
+        setSelectedSession(active.name);
+      } else if (all?.[0]?.name) {
+        setSelectedSession(all[0].name);
+      } else {
+        setSelectedSessionState("");
       }
     } catch (e) {
-      console.error(e);
-      toast.error("Failed to load academic session settings");
+      toast.error(e?.message || "Failed to load sessions");
     } finally {
-      setLoading(false);
+      setLoadingSessions(false);
     }
   };
 
   useEffect(() => {
-    load();
+    loadSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const setSessionTerm = (next) => {
-    setSelection(next);
-    localStorage.setItem(LS_KEY, JSON.stringify(next));
-  };
 
   const value = useMemo(
     () => ({
-      loading,
       sessions,
-      activeSession,
-      selection,
-      setSessionTerm,
-      refreshSessions: load,
+      selectedSession,
+      setSelectedSession,
+      loadingSessions,
+      reloadSessions: loadSessions,
     }),
-    [loading, sessions, activeSession, selection],
+    [sessions, selectedSession, loadingSessions],
   );
 
   return (
