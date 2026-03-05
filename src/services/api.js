@@ -498,20 +498,34 @@ export const feeAPI = {
    TIMETABLE API
 ================================ */
 export const timetableAPI = {
-  createEntry: (data) => api.post("/timetable", data),
-  updateEntry: (id, data) => api.put(`/timetable/${id}`, data),
-  getEntry: (id) => api.get(`/timetable/${id}`),
-  deleteEntry: (id) => api.delete(`/timetable/${id}`),
+  createTimetableEntry: (data) => api.post("/timetable", data),
+  updateTimetableEntry: (id, data) => api.put(`/timetable/${id}`, data),
+  getTimetableEntry: (id) => api.get(`/timetable/${id}`),
+  deleteTimetableEntry: (id) => api.delete(`/timetable/${id}`),
+
   getClassTimetable: (classId, session, term) =>
     api.get(`/timetable/class/${classId}?session=${session}&term=${term}`),
+
   getTeacherTimetable: (teacherId, session, term) =>
     api.get(`/timetable/teacher/${teacherId}?session=${session}&term=${term}`),
+
   getSchoolTimetable: (session, term) =>
     api.get(`/timetable/school?session=${session}&term=${term}`),
-  checkAvailability: (teacherId, day, startTime, endTime) =>
+
+  checkAvailability: ({ teacherId, day, session, term, startTime, endTime }) =>
     api.get(
-      `/timetable/check-availability?teacherId=${teacherId}&day=${day}&startTime=${startTime}&endTime=${endTime}`,
+      `/timetable/check-availability?teacherId=${teacherId}&day=${day}&session=${session}&term=${term}&startTime=${startTime}&endTime=${endTime}`,
     ),
+};
+/* ================================
+   SESSION API
+================================ */
+export const sessionAPI = {
+  create: (data) => api.post("/sessions", data),
+  getAll: () => api.get("/sessions"),
+  getActive: () => api.get("/sessions/active"),
+  setActive: (id) => api.post(`/sessions/active/${id}`),
+  delete: (id) => api.delete(`/sessions/${id}`), // optional (backend supports it)
 };
 
 /* ================================

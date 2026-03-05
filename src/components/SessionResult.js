@@ -18,14 +18,8 @@ import {
   FaCalendarAlt,
   FaCheckCircle,
   FaTimesCircle,
-  FaPlus,
-  FaFilter,
-  FaSync,
-  FaFilePdf,
-  FaFileExcel,
 } from "react-icons/fa";
 import moment from "moment";
-import "./SessionResult.css";
 
 function SessionResult() {
   const navigate = useNavigate();
@@ -38,26 +32,9 @@ function SessionResult() {
   const [graduates, setGraduates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("view");
-  const [selectedClass, setSelectedClass] = useState("");
-  const [selectedArm, setSelectedArm] = useState("");
 
   const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
   const terms = ["FIRST", "SECOND", "THIRD"];
-  const classes = [
-    "Nursery",
-    "Primary 1",
-    "Primary 2",
-    "Primary 3",
-    "Primary 4",
-    "Primary 5",
-    "Primary 6",
-    "JSS 1",
-    "JSS 2",
-    "JSS 3",
-    "SSS 1",
-    "SSS 2",
-    "SSS 3",
-  ];
 
   useEffect(() => {
     fetchStudents();
@@ -227,126 +204,112 @@ function SessionResult() {
   };
 
   return (
-    <div className="session-result">
-      <div className="content-header">
-        <h2>
-          <FaGraduationCap className="me-2" /> Session Result Management
-        </h2>
-        <p className="text-muted">Manage annual results and promotions</p>
-      </div>
-
+    <div className="session-result container-fluid py-4">
+      <h2 className="mb-4">Session Result Management</h2>
       {/* Tabs */}
-      <div className="tabs-container">
-        <button
-          className={`tab-btn ${activeTab === "view" ? "active" : ""}`}
-          onClick={() => setActiveTab("view")}
-        >
-          <FaEye /> View Results
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "rankings" ? "active" : ""}`}
-          onClick={() => setActiveTab("rankings")}
-        >
-          <FaTrophy /> Rankings
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "statistics" ? "active" : ""}`}
-          onClick={() => setActiveTab("statistics")}
-        >
-          <FaChartBar /> Statistics
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "graduates" ? "active" : ""}`}
-          onClick={() => {
-            setActiveTab("graduates");
-            fetchGraduates();
-          }}
-        >
-          <FaGraduationCap /> Graduates
-        </button>
-      </div>
-
+      <ul className="nav nav-tabs mb-4">
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeTab === "view" ? "active" : ""}`}
+            onClick={() => setActiveTab("view")}
+          >
+            <FaEye className="me-2" /> View Results
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeTab === "rankings" ? "active" : ""}`}
+            onClick={() => setActiveTab("rankings")}
+          >
+            <FaTrophy className="me-2" /> Rankings
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeTab === "statistics" ? "active" : ""}`}
+            onClick={() => setActiveTab("statistics")}
+          >
+            <FaChartBar className="me-2" /> Statistics
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeTab === "graduates" ? "active" : ""}`}
+            onClick={() => {
+              setActiveTab("graduates");
+              fetchGraduates();
+            }}
+          >
+            <FaGraduationCap className="me-2" /> Graduates
+          </button>
+        </li>
+      </ul>
       {/* Controls */}
-      <div className="filters-section">
-        <div className="filters-grid">
-          <div className="filter-group">
-            <label>Session</label>
-            <select
-              value={session}
-              onChange={(e) => setSession(e.target.value)}
-            >
-              {sessions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Student</label>
-            <select
-              value={selectedStudent?.id || ""}
-              onChange={(e) => {
-                const student = students.find(
-                  (s) => s.id === parseInt(e.target.value),
-                );
-                setSelectedStudent(student);
-              }}
-            >
-              <option value="">Select Student</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.fullName} - {s.admissionNumber}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>&nbsp;</label>
-            <button
-              className="btn-primary"
-              onClick={calculateAllResults}
-              disabled={loading}
-            >
-              {loading ? <FaSpinner className="spin" /> : <FaPlus />}
-              Calculate All
-            </button>
-          </div>
-
-          <div className="filter-group">
-            <label>&nbsp;</label>
-            <button
-              className="btn-success"
-              onClick={promoteStudents}
-              disabled={loading}
-            >
-              <FaGraduationCap /> Promote Students
-            </button>
-          </div>
-
-          <div className="filter-group">
-            <label>&nbsp;</label>
-            <button className="btn-info" onClick={() => fetchStatistics()}>
-              <FaSync /> Refresh Stats
-            </button>
-          </div>
+      <div className="row mb-4">
+        <div className="col-md-3">
+          <select
+            className="form-select"
+            value={session}
+            onChange={(e) => setSession(e.target.value)}
+          >
+            {sessions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="col-md-4">
+          <select
+            className="form-select"
+            value={selectedStudent?.id || ""}
+            onChange={(e) => {
+              const student = students.find(
+                (s) => s.id === parseInt(e.target.value),
+              );
+              setSelectedStudent(student);
+            }}
+          >
+            <option value="">Select Student</option>
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.fullName} - {s.admissionNumber}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="col-md-5">
+          <button
+            className="btn btn-primary me-2"
+            onClick={calculateAllResults}
+            disabled={loading}
+          >
+            {loading ? <FaSpinner className="spinner" /> : "Calculate All"}
+          </button>
+          <button
+            className="btn btn-success me-2"
+            onClick={promoteStudents}
+            disabled={loading}
+          >
+            Promote Students
+          </button>
+          <button className="btn btn-info" onClick={() => fetchStatistics()}>
+            Refresh Stats
+          </button>
         </div>
       </div>
-
       {/* View Results Tab */}
       {activeTab === "view" && (
         <div className="view-results">
           {selectedStudent && sessionResult ? (
-            <div className="result-card">
-              <div className="result-header">
-                <h4>Annual Session Result: {session}</h4>
+            <div className="card">
+              <div className="card-header bg-primary text-white">
+                <h5 className="mb-0">Annual Session Result: {session}</h5>
               </div>
-              <div className="result-body">
-                {/* Student Info */}
-                <div className="student-info">
-                  <div>
+              <div className="card-body">
+                {/* Student Info - FIXED: Added null checks */}
+                <div className="row mb-4">
+                  <div className="col-md-6">
                     <h6>Student Information</h6>
                     <p>
                       <strong>Name:</strong>{" "}
@@ -362,7 +325,7 @@ function SessionResult() {
                       {selectedStudent?.classArm || ""}
                     </p>
                   </div>
-                  <div>
+                  <div className="col-md-6">
                     <h6>Promotion Status</h6>
                     <p>
                       <strong>Status:</strong>{" "}
@@ -379,182 +342,203 @@ function SessionResult() {
                   </div>
                 </div>
 
-                {/* Term Summaries */}
-                <div className="summary-cards">
-                  <div className="summary-card">
-                    <h6>First Term</h6>
-                    <p className="text-primary">
-                      {formatNumber(sessionResult.firstTermAverage)}%
-                    </p>
-                    <small>
-                      Position: {sessionResult.firstTermPosition || "N/A"}
-                    </small>
-                  </div>
-                  <div className="summary-card">
-                    <h6>Second Term</h6>
-                    <p className="text-success">
-                      {formatNumber(sessionResult.secondTermAverage)}%
-                    </p>
-                    <small>
-                      Position: {sessionResult.secondTermPosition || "N/A"}
-                    </small>
-                  </div>
-                  <div className="summary-card">
-                    <h6>Third Term</h6>
-                    <p className="text-warning">
-                      {formatNumber(sessionResult.thirdTermAverage)}%
-                    </p>
-                    <small>
-                      Position: {sessionResult.thirdTermPosition || "N/A"}
-                    </small>
-                  </div>
-                </div>
-
-                {/* Subject Performance */}
-                {sessionResult.subjectAverages &&
-                  Object.keys(sessionResult.subjectAverages).length > 0 && (
-                    <div className="subject-section">
-                      <h6>Subject Performance (Annual Averages)</h6>
-                      <div className="table-responsive">
-                        <table className="result-table">
-                          <thead>
-                            <tr>
-                              <th>Subject</th>
-                              <th>Annual Average</th>
-                              <th>Grade</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {Object.entries(sessionResult.subjectAverages).map(
-                              ([subject, average], index) => {
-                                const grade = getGradeFromAverage(average);
-                                return (
-                                  <tr key={index}>
-                                    <td className="fw-bold">{subject}</td>
-                                    <td className="fw-bold">
-                                      {formatNumber(average)}%
-                                    </td>
-                                    <td>
-                                      <span
-                                        className={`badge bg-${grade.class}`}
-                                      >
-                                        {grade.grade}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              },
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                {/* Term Summaries - FIXED: Added null checks */}
+                <div className="row mb-4">
+                  <div className="col-md-4">
+                    <div className="border p-3 rounded text-center">
+                      <h6>First Term</h6>
+                      <h3 className="text-primary">
+                        {formatNumber(sessionResult.firstTermAverage)}%
+                      </h3>
+                      <p>
+                        Position: {sessionResult.firstTermPosition || "N/A"}
+                      </p>
                     </div>
-                  )}
-
-                {/* Annual Summary */}
-                <div className="summary-cards">
-                  <div className="summary-card">
-                    <h6>Annual Total</h6>
-                    <p className="text-primary">
-                      {sessionResult.annualTotal || 0}
-                    </p>
                   </div>
-                  <div className="summary-card">
-                    <h6>Annual Average</h6>
-                    <p className="text-success">
-                      {formatNumber(sessionResult.annualAverage)}%
-                    </p>
+                  <div className="col-md-4">
+                    <div className="border p-3 rounded text-center">
+                      <h6>Second Term</h6>
+                      <h3 className="text-success">
+                        {formatNumber(sessionResult.secondTermAverage)}%
+                      </h3>
+                      <p>
+                        Position: {sessionResult.secondTermPosition || "N/A"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="summary-card">
-                    <h6>Class Position</h6>
-                    <p className="text-warning">
-                      {sessionResult.annualPositionInClass || "N/A"}
-                    </p>
+                  <div className="col-md-4">
+                    <div className="border p-3 rounded text-center">
+                      <h6>Third Term</h6>
+                      <h3 className="text-warning">
+                        {formatNumber(sessionResult.thirdTermAverage)}%
+                      </h3>
+                      <p>
+                        Position: {sessionResult.thirdTermPosition || "N/A"}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Attendance Summary */}
-                <div className="summary-cards">
-                  <div className="summary-card">
-                    <h6>Attendance Summary</h6>
-                    <table className="attendance-table">
-                      <tbody>
-                        <tr>
-                          <th>Total School Days:</th>
-                          <td className="fw-bold">
-                            {sessionResult.totalSchoolDays || 0}
-                          </td>
-                        </tr>
-                        <tr>
-                          <th>Days Present:</th>
-                          <td className="fw-bold text-success">
-                            {sessionResult.daysPresent || 0}
-                          </td>
-                        </tr>
-                        <tr>
-                          <th>Days Absent:</th>
-                          <td className="fw-bold text-danger">
-                            {sessionResult.daysAbsent || 0}
-                          </td>
-                        </tr>
-                        <tr>
-                          <th>Attendance Rate:</th>
-                          <td className="fw-bold">
-                            {sessionResult.attendancePercentage?.toFixed(1) ||
-                              0}
-                            %
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                {/* Subject Performance - FIXED: Added null checks */}
+                {sessionResult.subjectAverages &&
+                Object.keys(sessionResult.subjectAverages).length > 0 ? (
+                  <div className="mb-4">
+                    <h6>Subject Performance (Annual Averages)</h6>
+                    <div className="table-responsive">
+                      <table className="table table-bordered">
+                        <thead className="bg-light">
+                          <tr>
+                            <th>Subject</th>
+                            <th>Annual Average</th>
+                            <th>Grade</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(sessionResult.subjectAverages).map(
+                            ([subject, average], index) => {
+                              const grade = getGradeFromAverage(average);
+                              return (
+                                <tr key={index}>
+                                  <td>{subject}</td>
+                                  <td className="fw-bold">
+                                    {formatNumber(average)}%
+                                  </td>
+                                  <td>
+                                    <span className={`badge bg-${grade.class}`}>
+                                      {grade.grade}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            },
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                  <div className="summary-card">
-                    <h6>Attendance Performance</h6>
-                    <div className="text-center mb-3">
-                      <div className="progress" style={{ height: "20px" }}>
-                        <div
-                          className={`progress-bar ${
-                            (sessionResult.attendancePercentage || 0) >= 90
-                              ? "bg-success"
-                              : (sessionResult.attendancePercentage || 0) >= 75
-                                ? "bg-primary"
+                ) : (
+                  <div className="alert alert-info">
+                    No subject performance data available
+                  </div>
+                )}
+
+                {/* Annual Summary - FIXED: Added null checks */}
+                <div className="row">
+                  <div className="col-md-4">
+                    <div className="border p-3 rounded bg-light">
+                      <h6>Annual Total</h6>
+                      <h3 className="text-primary">
+                        {sessionResult.annualTotal || 0}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="border p-3 rounded bg-light">
+                      <h6>Annual Average</h6>
+                      <h3 className="text-success">
+                        {formatNumber(sessionResult.annualAverage)}%
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="border p-3 rounded bg-light">
+                      <h6>Class Position</h6>
+                      <h3 className="text-warning">
+                        {sessionResult.annualPositionInClass || "N/A"}
+                      </h3>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Attendance Summary - Add to the annual summary section */}
+                <div className="row mt-3">
+                  <div className="col-md-6">
+                    <div className="border p-3 rounded bg-light">
+                      <h6>Attendance Summary</h6>
+                      <table className="table table-sm">
+                        <tbody>
+                          <tr>
+                            <th>Total School Days:</th>
+                            <td className="fw-bold">
+                              {sessionResult.totalSchoolDays || 0}
+                            </td>
+                          </tr>
+                          <tr>
+                            <th>Days Present:</th>
+                            <td className="fw-bold text-success">
+                              {sessionResult.daysPresent || 0}
+                            </td>
+                          </tr>
+                          <tr>
+                            <th>Days Absent:</th>
+                            <td className="fw-bold text-danger">
+                              {sessionResult.daysAbsent || 0}
+                            </td>
+                          </tr>
+                          <tr>
+                            <th>Attendance Rate:</th>
+                            <td className="fw-bold">
+                              {sessionResult.attendancePercentage?.toFixed(1) ||
+                                0}
+                              %
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="border p-3 rounded bg-light">
+                      <h6>Attendance Performance</h6>
+                      <div className="text-center mb-3">
+                        <div className="progress" style={{ height: "20px" }}>
+                          <div
+                            className={`progress-bar ${
+                              (sessionResult.attendancePercentage || 0) >= 90
+                                ? "bg-success"
                                 : (sessionResult.attendancePercentage || 0) >=
-                                    60
-                                  ? "bg-warning"
-                                  : "bg-danger"
-                          }`}
-                          style={{
-                            width: `${sessionResult.attendancePercentage || 0}%`,
-                          }}
-                        >
-                          {sessionResult.attendancePercentage?.toFixed(1)}%
+                                    75
+                                  ? "bg-primary"
+                                  : (sessionResult.attendancePercentage || 0) >=
+                                      60
+                                    ? "bg-warning"
+                                    : "bg-danger"
+                            }`}
+                            style={{
+                              width: `${sessionResult.attendancePercentage || 0}%`,
+                            }}
+                          >
+                            {sessionResult.attendancePercentage?.toFixed(1)}%
+                          </div>
                         </div>
                       </div>
+                      <p className="mb-0">
+                        <strong>Status:</strong>{" "}
+                        {(sessionResult.attendancePercentage || 0) >= 90 ? (
+                          <span className="badge bg-success">
+                            Excellent Attendance
+                          </span>
+                        ) : (sessionResult.attendancePercentage || 0) >= 75 ? (
+                          <span className="badge bg-primary">
+                            Good Attendance
+                          </span>
+                        ) : (sessionResult.attendancePercentage || 0) >= 60 ? (
+                          <span className="badge bg-warning">
+                            Fair Attendance
+                          </span>
+                        ) : (
+                          <span className="badge bg-danger">
+                            Poor Attendance
+                          </span>
+                        )}
+                      </p>
                     </div>
-                    <p className="mb-0">
-                      <strong>Status:</strong>{" "}
-                      {(sessionResult.attendancePercentage || 0) >= 90 ? (
-                        <span className="badge bg-success">
-                          Excellent Attendance
-                        </span>
-                      ) : (sessionResult.attendancePercentage || 0) >= 75 ? (
-                        <span className="badge bg-primary">
-                          Good Attendance
-                        </span>
-                      ) : (sessionResult.attendancePercentage || 0) >= 60 ? (
-                        <span className="badge bg-warning">
-                          Fair Attendance
-                        </span>
-                      ) : (
-                        <span className="badge bg-danger">Poor Attendance</span>
-                      )}
-                    </p>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="alert-info">
+            <div className="alert alert-info">
               {selectedStudent
                 ? sessionResult === null
                   ? "No session result found for this student"
@@ -564,59 +548,62 @@ function SessionResult() {
           )}
         </div>
       )}
-
       {/* Rankings Tab */}
       {activeTab === "rankings" && (
-        <div className="rankings-tab">
-          <div className="filters-row">
-            <button
-              className="btn-primary"
-              onClick={() => fetchRankings("school")}
-            >
-              <FaTrophy /> School Rankings
-            </button>
-
-            <select
-              className="form-select"
-              onChange={(e) => fetchRankings("class", e.target.value)}
-            >
-              <option value="">Select Class</option>
-              {[...new Set(students.map((s) => s.studentClass))].map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="form-select"
-              onChange={(e) => {
-                const [className, arm] = e.target.value.split("|");
-                fetchRankings("arm", className, arm);
-              }}
-            >
-              <option value="">Select Class & Arm</option>
-              {students.map((s) => (
-                <option key={s.id} value={`${s.studentClass}|${s.classArm}`}>
-                  {s.studentClass} {s.classArm}
-                </option>
-              ))}
-            </select>
+        <div className="rankings">
+          <div className="row mb-3">
+            <div className="col-md-3">
+              <button
+                className="btn btn-nigerian w-100"
+                onClick={() => fetchRankings("school")}
+              >
+                School Rankings
+              </button>
+            </div>
+            <div className="col-md-3">
+              <select
+                className="form-select"
+                onChange={(e) => fetchRankings("class", e.target.value)}
+              >
+                <option value="">Select Class</option>
+                {[...new Set(students.map((s) => s.studentClass))].map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-3">
+              <select
+                className="form-select"
+                onChange={(e) => {
+                  const [className, arm] = e.target.value.split("|");
+                  fetchRankings("arm", className, arm);
+                }}
+              >
+                <option value="">Select Class & Arm</option>
+                {students.map((s) => (
+                  <option key={s.id} value={`${s.studentClass}|${s.classArm}`}>
+                    {s.studentClass} {s.classArm}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {rankings && (
-            <div className="rankings-card">
-              <div className="rankings-header">
-                <h4>
+            <div className="card">
+              <div className="card-header bg-success text-white">
+                <h5 className="mb-0">
                   {rankings.className
                     ? `${rankings.className} ${rankings.arm || ""} `
                     : "School "}
                   Rankings - {rankings.session} Session
-                </h4>
+                </h5>
               </div>
-              <div className="rankings-body">
+              <div className="card-body">
                 <div className="table-responsive">
-                  <table className="rankings-table">
+                  <table className="table table-striped table-hover">
                     <thead>
                       <tr>
                         <th>Position</th>
@@ -670,7 +657,7 @@ function SessionResult() {
                     </tbody>
                   </table>
                 </div>
-                <p className="total-count">
+                <p className="text-muted mt-3">
                   Total Students: {rankings.totalStudents}
                 </p>
               </div>
@@ -681,163 +668,488 @@ function SessionResult() {
 
       {/* Statistics Tab */}
       {activeTab === "statistics" && (
-        <div className="statistics-tab">
+        <div className="statistics">
           {loading ? (
             <div className="text-center py-5">
-              <FaSpinner className="spin" size={40} />
+              <FaSpinner className="spinner" size={40} />
               <p className="mt-3">Loading statistics...</p>
             </div>
           ) : statistics ? (
             <>
               {/* Summary Cards */}
-              <div className="stats-grid">
-                <div className="stat-card primary">
-                  <FaUsers size={30} />
-                  <div>
-                    <h3>{statistics.totalStudents || 0}</h3>
-                    <p>Total Students</p>
+              <div className="row mb-4">
+                <div className="col-md-3">
+                  <div className="stat-card bg-primary text-white">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 className="text-white-50 mb-1">Total Students</h6>
+                        <h2 className="mb-0">
+                          {statistics.totalStudents || 0}
+                        </h2>
+                      </div>
+                      <FaUsers size={40} className="opacity-50" />
+                    </div>
+                    <div className="mt-3 small">
+                      <span className="text-white-50">Across all classes</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="stat-card success">
-                  <FaCheckCircle size={30} />
-                  <div>
-                    <h3>{statistics.promoted || 0}</h3>
-                    <p>Promoted</p>
-                  </div>
-                  <div className="progress">
-                    <div
-                      style={{
-                        width: `${(statistics.promoted / (statistics.totalStudents || 1)) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="stat-card danger">
-                  <FaTimesCircle size={30} />
-                  <div>
-                    <h3>{statistics.retained || 0}</h3>
-                    <p>Retained</p>
-                  </div>
-                  <div className="progress">
-                    <div
-                      style={{
-                        width: `${(statistics.retained / (statistics.totalStudents || 1)) * 100}%`,
-                      }}
-                    ></div>
+                <div className="col-md-3">
+                  <div className="stat-card bg-success text-white">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 className="text-white-50 mb-1">Promoted</h6>
+                        <h2 className="mb-0">{statistics.promoted || 0}</h2>
+                      </div>
+                      <FaCheckCircle size={40} className="opacity-50" />
+                    </div>
+                    <div className="progress mt-3" style={{ height: "5px" }}>
+                      <div
+                        className="progress-bar bg-white"
+                        style={{
+                          width: `${(statistics.promoted / (statistics.totalStudents || 1)) * 100}%`,
+                        }}
+                      ></div>
+                    </div>
+                    <div className="mt-2 small">
+                      {(
+                        (statistics.promoted /
+                          (statistics.totalStudents || 1)) *
+                        100
+                      ).toFixed(1)}
+                      % promotion rate
+                    </div>
                   </div>
                 </div>
 
-                <div className="stat-card warning">
-                  <FaTrophy size={30} />
-                  <div>
-                    <h3>{statistics.promotionRate?.toFixed(1) || 0}%</h3>
-                    <p>Promotion Rate</p>
+                <div className="col-md-3">
+                  <div className="stat-card bg-danger text-white">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 className="text-white-50 mb-1">Retained</h6>
+                        <h2 className="mb-0">{statistics.retained || 0}</h2>
+                      </div>
+                      <FaTimesCircle size={40} className="opacity-50" />
+                    </div>
+                    <div className="progress mt-3" style={{ height: "5px" }}>
+                      <div
+                        className="progress-bar bg-white"
+                        style={{
+                          width: `${(statistics.retained / (statistics.totalStudents || 1)) * 100}%`,
+                        }}
+                      ></div>
+                    </div>
+                    <div className="mt-2 small">
+                      {(
+                        (statistics.retained /
+                          (statistics.totalStudents || 1)) *
+                        100
+                      ).toFixed(1)}
+                      % retention rate
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-md-3">
+                  <div className="stat-card bg-warning text-dark">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 className="text-dark-50 mb-1">Promotion Rate</h6>
+                        <h2 className="mb-0">
+                          {statistics.promotionRate?.toFixed(1) || 0}%
+                        </h2>
+                      </div>
+                      <FaTrophy size={40} className="opacity-50" />
+                    </div>
+                    <div className="mt-3 small">
+                      {statistics.promoted} out of {statistics.totalStudents}{" "}
+                      students
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Performance Overview */}
-              <div className="performance-grid">
-                <div className="card">
-                  <div className="card-header">Performance Overview</div>
-                  <div className="card-body">
-                    <div className="metric">
-                      <span>Overall Average</span>
-                      <strong>
-                        {statistics.overallAverage?.toFixed(2) || 0}%
-                      </strong>
-                      <div className="progress">
-                        <div
-                          style={{
-                            width: `${statistics.overallAverage || 0}%`,
-                          }}
-                        ></div>
-                      </div>
+              <div className="row mb-4">
+                <div className="col-md-4">
+                  <div className="card h-100">
+                    <div className="card-header bg-primary text-white">
+                      <h5 className="mb-0">
+                        <FaChartBar className="me-2" /> Performance Overview
+                      </h5>
                     </div>
-                    <div className="metric">
-                      <span>Highest Average</span>
-                      <strong className="text-success">
-                        {statistics.highestAverage?.toFixed(2) || 0}%
-                      </strong>
-                      <div className="progress">
-                        <div
-                          className="bg-success"
-                          style={{
-                            width: `${statistics.highestAverage || 0}%`,
-                          }}
-                        ></div>
+                    <div className="card-body">
+                      <div className="mb-3">
+                        <div className="d-flex justify-content-between mb-1">
+                          <span>Overall Average</span>
+                          <span className="fw-bold">
+                            {statistics.overallAverage?.toFixed(2) || 0}%
+                          </span>
+                        </div>
+                        <div className="progress" style={{ height: "8px" }}>
+                          <div
+                            className="progress-bar bg-info"
+                            style={{
+                              width: `${statistics.overallAverage || 0}%`,
+                            }}
+                          ></div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="metric">
-                      <span>Lowest Average</span>
-                      <strong className="text-danger">
-                        {statistics.lowestAverage?.toFixed(2) || 0}%
-                      </strong>
-                      <div className="progress">
-                        <div
-                          className="bg-danger"
-                          style={{ width: `${statistics.lowestAverage || 0}%` }}
-                        ></div>
+
+                      <div className="mb-3">
+                        <div className="d-flex justify-content-between mb-1">
+                          <span>Highest Average</span>
+                          <span className="fw-bold text-success">
+                            {statistics.highestAverage?.toFixed(2) || 0}%
+                          </span>
+                        </div>
+                        <div className="progress" style={{ height: "8px" }}>
+                          <div
+                            className="progress-bar bg-success"
+                            style={{
+                              width: `${statistics.highestAverage || 0}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="d-flex justify-content-between mb-1">
+                          <span>Lowest Average</span>
+                          <span className="fw-bold text-danger">
+                            {statistics.lowestAverage?.toFixed(2) || 0}%
+                          </span>
+                        </div>
+                        <div className="progress" style={{ height: "8px" }}>
+                          <div
+                            className="progress-bar bg-danger"
+                            style={{
+                              width: `${statistics.lowestAverage || 0}%`,
+                            }}
+                          ></div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Grade Distribution */}
-                <div className="card">
-                  <div className="card-header">Grade Distribution</div>
-                  <div className="card-body">
-                    {statistics.gradeDistribution &&
-                    Object.keys(statistics.gradeDistribution).length > 0 ? (
-                      Object.entries(statistics.gradeDistribution).map(
-                        ([grade, count]) => (
-                          <div key={grade} className="grade-item">
-                            <span
-                              className={`badge bg-${grade === "A" ? "success" : grade === "B" ? "primary" : grade === "C" ? "info" : grade === "D" ? "warning" : grade === "E" ? "secondary" : "danger"}`}
-                            >
-                              Grade {grade}
-                            </span>
-                            <span>{count} students</span>
-                            <div className="progress">
-                              <div
-                                style={{
-                                  width: `${(count / (statistics.totalStudents || 1)) * 100}%`,
-                                }}
-                              ></div>
+                {/* Class Performance */}
+                <div className="col-md-8">
+                  <div className="card h-100">
+                    <div className="card-header bg-success text-white">
+                      <h5 className="mb-0">
+                        <FaSchool className="me-2" /> Class Performance
+                      </h5>
+                    </div>
+                    <div className="card-body">
+                      <div className="table-responsive">
+                        <table className="table table-hover">
+                          <thead className="table-light">
+                            <tr>
+                              <th>Class</th>
+                              <th>Average</th>
+                              <th>Performance</th>
+                              <th>Students</th>
+                              <th>Promotion Rate</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(
+                              statistics.classPerformance || {},
+                            ).map(([className, avg]) => {
+                              // Calculate class-specific stats from your data
+                              const classStudents = students.filter(
+                                (s) => s.studentClass === className,
+                              );
+                              const classPromoted =
+                                statistics.classPromoted?.[className] ||
+                                Math.floor(classStudents.length * (avg / 100));
+                              const promotionRate =
+                                classStudents.length > 0
+                                  ? (
+                                      (classPromoted / classStudents.length) *
+                                      100
+                                    ).toFixed(1)
+                                  : 0;
+
+                              return (
+                                <tr key={className}>
+                                  <td className="fw-bold">{className}</td>
+                                  <td className="fw-bold">
+                                    {avg?.toFixed(2) || 0}%
+                                  </td>
+                                  <td style={{ minWidth: "150px" }}>
+                                    <div
+                                      className="progress"
+                                      style={{ height: "8px" }}
+                                    >
+                                      <div
+                                        className={`progress-bar ${
+                                          avg >= 70
+                                            ? "bg-success"
+                                            : avg >= 50
+                                              ? "bg-warning"
+                                              : "bg-danger"
+                                        }`}
+                                        style={{ width: `${avg || 0}%` }}
+                                      ></div>
+                                    </div>
+                                  </td>
+                                  <td>{classStudents.length}</td>
+                                  <td>
+                                    <span
+                                      className={`badge ${
+                                        promotionRate >= 90
+                                          ? "bg-success"
+                                          : promotionRate >= 70
+                                            ? "bg-primary"
+                                            : promotionRate >= 50
+                                              ? "bg-warning"
+                                              : "bg-danger"
+                                      }`}
+                                    >
+                                      {promotionRate}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grade Distribution */}
+              <div className="row mb-4">
+                <div className="col-md-6">
+                  <div className="card">
+                    <div className="card-header bg-info text-white">
+                      <h5 className="mb-0">Grade Distribution</h5>
+                    </div>
+                    <div className="card-body">
+                      {statistics.gradeDistribution &&
+                      Object.keys(statistics.gradeDistribution).length > 0 ? (
+                        <div className="row">
+                          {Object.entries(statistics.gradeDistribution).map(
+                            ([grade, count]) => {
+                              const percentage = (
+                                (count / (statistics.totalStudents || 1)) *
+                                100
+                              ).toFixed(1);
+
+                              return (
+                                <div className="col-md-6 mb-3" key={grade}>
+                                  <div className="d-flex justify-content-between align-items-center">
+                                    <div>
+                                      <span
+                                        className={`badge bg-${
+                                          grade === "A"
+                                            ? "success"
+                                            : grade === "B"
+                                              ? "primary"
+                                              : grade === "C"
+                                                ? "info"
+                                                : grade === "D"
+                                                  ? "warning"
+                                                  : grade === "E"
+                                                    ? "secondary"
+                                                    : "danger"
+                                        } p-2 me-2`}
+                                      >
+                                        Grade {grade}
+                                      </span>
+                                    </div>
+                                    <span className="fw-bold">
+                                      {count} students
+                                    </span>
+                                  </div>
+                                  <div
+                                    className="progress mt-1"
+                                    style={{ height: "6px" }}
+                                  >
+                                    <div
+                                      className={`progress-bar bg-${
+                                        grade === "A"
+                                          ? "success"
+                                          : grade === "B"
+                                            ? "primary"
+                                            : grade === "C"
+                                              ? "info"
+                                              : grade === "D"
+                                                ? "warning"
+                                                : grade === "E"
+                                                  ? "secondary"
+                                                  : "danger"
+                                      }`}
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <small className="text-muted">
+                                    {percentage}% of students
+                                  </small>
+                                </div>
+                              );
+                            },
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-muted">
+                            No grade distribution data available
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Attendance Overview */}
+                <div className="col-md-6">
+                  <div className="card">
+                    <div className="card-header bg-warning text-dark">
+                      <h5 className="mb-0">
+                        <FaCalendarAlt className="me-2" /> Attendance Overview
+                      </h5>
+                    </div>
+                    <div className="card-body">
+                      {statistics.attendanceStats ? (
+                        <div className="row">
+                          <div className="col-md-6 mb-3">
+                            <div className="border rounded p-3 text-center">
+                              <h6>Average Attendance</h6>
+                              <h2 className="text-primary mb-0">
+                                {statistics.attendanceStats.averageAttendance?.toFixed(
+                                  1,
+                                ) || 0}
+                                %
+                              </h2>
+                              <small className="text-muted">
+                                across all students
+                              </small>
                             </div>
                           </div>
-                        ),
-                      )
-                    ) : (
-                      <p className="text-muted">
-                        No grade distribution data available
-                      </p>
-                    )}
+                          <div className="col-md-6 mb-3">
+                            <div className="border rounded p-3 text-center">
+                              <h6>Excellent Attendance</h6>
+                              <h2 className="text-success mb-0">
+                                {statistics.attendanceStats
+                                  .excellentAttendance || 0}
+                              </h2>
+                              <small className="text-muted">{" (>90%)"}</small>
+                            </div>
+                          </div>
+                          <div className="col-md-6 mb-3">
+                            <div className="border rounded p-3 text-center">
+                              <h6>Good Attendance</h6>
+                              <h2 className="text-info mb-0">
+                                {statistics.attendanceStats.goodAttendance || 0}
+                              </h2>
+                              <small className="text-muted">(75-90%)</small>
+                            </div>
+                          </div>
+                          <div className="col-md-6 mb-3">
+                            <div className="border rounded p-3 text-center">
+                              <h6>Poor Attendance</h6>
+                              <h2 className="text-danger mb-0">
+                                {statistics.attendanceStats.poorAttendance || 0}
+                              </h2>
+                              <small className="text-muted">{" (<75%)"}</small>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-muted">
+                            No attendance data available
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Top Performers */}
+              <div className="row">
+                <div className="col-12">
+                  <div className="card">
+                    <div
+                      className="card-header"
+                      style={{ background: "#6f42c1", color: "white" }}
+                    >
+                      <h5 className="mb-0">
+                        <FaTrophy className="me-2" /> Top Performers
+                      </h5>
+                    </div>
+                    <div className="card-body">
+                      {statistics.topPerformers &&
+                      statistics.topPerformers.length > 0 ? (
+                        <div className="row">
+                          {statistics.topPerformers.map((performer, index) => (
+                            <div className="col-md-4 mb-3" key={index}>
+                              <div className="card border-0 shadow-sm h-100">
+                                <div className="card-body text-center">
+                                  {index === 0 && (
+                                    <span className="display-4">🥇</span>
+                                  )}
+                                  {index === 1 && (
+                                    <span className="display-4">🥈</span>
+                                  )}
+                                  {index === 2 && (
+                                    <span className="display-4">🥉</span>
+                                  )}
+                                  <h5 className="mt-2">
+                                    {performer.studentName}
+                                  </h5>
+                                  <p className="text-muted mb-2">
+                                    {performer.studentClass}{" "}
+                                    {performer.classArm || ""}
+                                  </p>
+                                  <h3 className="text-success mb-0">
+                                    {performer.annualAverage?.toFixed(1)}%
+                                  </h3>
+                                  <small className="text-muted">
+                                    {performer.admissionNumber}
+                                  </small>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-muted">
+                            No top performer data available
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </>
           ) : (
-            <div className="alert-info">
+            <div className="alert alert-info">
               Click "Refresh Stats" to load session statistics
             </div>
           )}
         </div>
       )}
-
       {/* Graduates Tab */}
       {activeTab === "graduates" && (
-        <div className="graduates-tab">
+        <div className="graduates">
           <div className="card">
             <div className="card-header bg-warning">
-              <h5>Graduation List - {session}</h5>
+              <h5 className="mb-0">Graduation List - {session}</h5>
             </div>
             <div className="card-body">
               {graduates.length > 0 ? (
                 <div className="table-responsive">
-                  <table className="table">
+                  <table className="table table-striped">
                     <thead>
                       <tr>
                         <th>S/N</th>
@@ -865,7 +1177,7 @@ function SessionResult() {
                   </table>
                 </div>
               ) : (
-                <p className="text-muted text-center py-4">
+                <p className="text-muted">
                   No graduates found for this session
                 </p>
               )}

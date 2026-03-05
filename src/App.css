@@ -808,3 +808,10 @@ footer a:hover {
 .user-arrow.rotated {
   transform: rotate(180deg);
 }
+/* Optional: better table action buttons wrap */
+.table td .btn-nigerian,
+.table td .btn-outline-nigerian {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  border-radius: 8px;
+}
