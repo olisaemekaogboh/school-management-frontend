@@ -774,3 +774,240 @@
     box-shadow: none;
   }
 }
+/* Add these styles to your AttendanceManagement.css file */
+
+/* Bulk Actions */
+.bulk-actions-panel {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  color: white;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.bulk-actions-panel h4 {
+  margin: 0 0 5px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.bulk-actions-panel p {
+  margin: 0 0 20px 0;
+  opacity: 0.9;
+  font-size: 14px;
+}
+
+.bulk-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.bulk-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  backdrop-filter: blur(10px);
+}
+
+.bulk-action-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.bulk-action-btn.present:hover {
+  background: rgba(40, 167, 69, 0.8);
+}
+
+.bulk-action-btn.late:hover {
+  background: rgba(255, 193, 7, 0.8);
+}
+
+.bulk-action-btn.absent:hover {
+  background: rgba(220, 53, 69, 0.8);
+}
+
+.bulk-action-btn.excused:hover {
+  background: rgba(23, 162, 184, 0.8);
+}
+
+.bulk-action-btn .btn-icon {
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.bulk-action-btn .btn-text {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.bulk-action-btn .btn-description {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Header Title */
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.header-title h3 {
+  margin: 0;
+  color: #333;
+}
+
+/* Attendance Summary */
+.attendance-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.summary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #f8f9fa;
+  color: #495057;
+}
+
+.summary-badge.present {
+  background: #d4edda;
+  color: #155724;
+}
+
+.summary-badge.late {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.summary-badge.absent {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.summary-badge.excused {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+/* Bulk Actions Button */
+.btn-bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-bulk-actions:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+/* Toast Success */
+.toast-success {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .header-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .bulk-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-summary {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* Enhanced button styles */
+.btn-success, .btn-warning, .btn-danger, .btn-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #218838;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.btn-warning {
+  background: #ffc107;
+  color: #212529;
+}
+
+.btn-warning:hover {
+  background: #e0a800;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.btn-info {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-info:hover {
+  background: #138496;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);
+}

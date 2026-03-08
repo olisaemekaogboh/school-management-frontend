@@ -30,22 +30,99 @@ function ResultSheet() {
   // Reconstruct session from URL parameters
   const session = `${sessionYear}/${sessionTerm}`;
 
-  // In ResultSheet.js, add this useEffect to log the data
   useEffect(() => {
-    console.log("ResultSheet received data:");
-    console.log("- student:", student);
-    console.log("- resultData:", resultData);
-    console.log(
-      "- profilePictureUrl from student:",
-      student?.profilePictureUrl,
-    );
-    console.log(
-      "- profilePictureUrl from resultData:",
-      resultData?.studentInfo?.profilePictureUrl,
-    );
-  }, [student, resultData]);
+    console.log("ResultSheet mounted with params:", {
+      studentId,
+      sessionYear,
+      sessionTerm,
+      term,
+      reconstructedSession: session,
+    });
 
-  console.log("ResultSheet mounted with params:", { studentId, session, term });
+    if (studentId && session && term) {
+      fetchResultData();
+    } else {
+      setError("Missing required parameters");
+      setLoading(false);
+    }
+  }, [studentId, session, term]);
+
+  const fetchResultData = async () => {
+    console.log("Fetching result data...");
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Fetch student details first
+      console.log("Fetching student with ID:", studentId);
+      const studentResponse = await studentAPI.getStudentById(studentId);
+      console.log("Student response:", studentResponse.data);
+      setStudent(studentResponse.data);
+
+      // Fetch result sheet
+      console.log("Fetching result for:", { studentId, session, term });
+      console.log(
+        "API URL:",
+        `/results/student/${studentId}/term?session=${session}&term=${term}`,
+      );
+
+      const resultResponse = await resultAPI.getTermResult(
+        studentId,
+        session,
+        term,
+      );
+
+      console.log("Result response:", resultResponse.data);
+      setResultData(resultResponse.data);
+      toast.success("Result loaded successfully");
+    } catch (error) {
+      console.error("Error fetching result:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        config: error.config,
+      });
+
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        setError("No result found for this student in the selected term");
+        toast.info("No results found for this student in the selected term");
+      } else {
+        setError(
+          error.response?.data?.message ||
+            error.message ||
+            "Failed to load result sheet",
+        );
+        toast.error("Failed to load result sheet");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (date) => {
+    return date ? moment(date).format("DD/MM/YYYY") : "N/A";
+  };
+
+  const getGradeColor = (grade) => {
+    switch (grade) {
+      case "A":
+        return "text-success";
+      case "B":
+        return "text-primary";
+      case "C":
+        return "text-info";
+      case "D":
+        return "text-warning";
+      case "E":
+        return "text-secondary";
+      case "F":
+        return "text-danger";
+      default:
+        return "";
+    }
+  };
 
   const handlePrint = useReactToPrint({
     content: () => componentRef.current,
@@ -86,7 +163,6 @@ function ResultSheet() {
         canvas.height * 0.75,
       );
 
-      // Generate filename
       const fileName = `${student?.fullName?.replace(/\s+/g, "_") || "student"}_${term}_${sessionYear}_${sessionTerm}.pdf`;
 
       pdf.save(fileName);
@@ -96,73 +172,6 @@ function ResultSheet() {
       toast.error("Failed to download PDF");
     } finally {
       setDownloading(false);
-    }
-  };
-
-  useEffect(() => {
-    console.log("useEffect triggered with:", { studentId, session, term });
-    if (studentId && session && term) {
-      fetchResultData();
-    } else {
-      setError("Missing required parameters");
-      setLoading(false);
-    }
-  }, [studentId, session, term]);
-
-  const fetchResultData = async () => {
-    console.log("Fetching result data...");
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Fetch student details
-      console.log("Fetching student with ID:", studentId);
-      const studentResponse = await studentAPI.getStudentById(studentId);
-      console.log("Student response:", studentResponse.data);
-      setStudent(studentResponse.data);
-
-      // Fetch result sheet
-      console.log("Fetching result for:", { studentId, session, term });
-      const resultResponse = await resultAPI.getTermResult(
-        studentId,
-        session,
-        term,
-      );
-      console.log("Result response:", resultResponse.data);
-      setResultData(resultResponse.data);
-    } catch (error) {
-      console.error("Error fetching result:", error);
-      setError(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to load result sheet",
-      );
-      toast.error("Failed to load result sheet");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatDate = (date) => {
-    return date ? moment(date).format("DD/MM/YYYY") : "N/A";
-  };
-
-  const getGradeColor = (grade) => {
-    switch (grade) {
-      case "A":
-        return "text-success";
-      case "B":
-        return "text-primary";
-      case "C":
-        return "text-info";
-      case "D":
-        return "text-warning";
-      case "E":
-        return "text-secondary";
-      case "F":
-        return "text-danger";
-      default:
-        return "";
     }
   };
 
@@ -377,7 +386,7 @@ function ResultSheet() {
           </div>
         </div>
 
-        {/* Attendance Record - Now with real data */}
+        {/* Attendance Record */}
         <div className="row mb-4">
           <div className="col-md-6">
             <div className="border p-3 rounded">
@@ -532,7 +541,6 @@ function ResultSheet() {
         </div>
 
         {/* Summary Section */}
-        {/* Summary Section with Class Size */}
         <div className="row mb-4">
           <div className="col-md-3">
             <div className="border p-3 rounded bg-light text-center">

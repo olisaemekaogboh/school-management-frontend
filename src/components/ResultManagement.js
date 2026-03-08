@@ -1,8 +1,8 @@
-// src/components/ResultManagement.js
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { studentAPI, resultAPI } from "../services/api";
+import { studentAPI, resultAPI, teacherAPI } from "../services/api";
 import { toast } from "react-toastify";
+import { useAuth } from "../contexts/AuthContext";
 import {
   FaPlus,
   FaEye,
@@ -10,37 +10,31 @@ import {
   FaSave,
   FaTrash,
   FaPrint,
-  FaDownload,
-  FaArrowLeft,
   FaSearch,
   FaSpinner,
-  FaCheck,
-  FaTimes,
-  FaEdit,
-  FaFilePdf,
-  FaFileExcel,
-  FaFilter,
-  FaSync,
+  FaInfoCircle,
 } from "react-icons/fa";
 import moment from "moment";
-import "./ResultManagement.css"; // We'll create this
+import "./ResultManagement.css";
 
 function ResultManagement() {
   const navigate = useNavigate();
+  const { user, isAdmin, isTeacher, isStudent, isParent } = useAuth();
+
   const [students, setStudents] = useState([]);
-  const [filteredStudents, setFilteredStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [session, setSession] = useState("2025/2026");
   const [term, setTerm] = useState("FIRST");
   const [subjects, setSubjects] = useState([]);
   const [resultSheet, setResultSheet] = useState(null);
   const [rankings, setRankings] = useState(null);
-  const [activeTab, setActiveTab] = useState("input");
+  const [activeTab, setActiveTab] = useState(isStudent ? "view" : "input");
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [rankingsType, setRankingsType] = useState("school");
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
+  const [teacherClasses, setTeacherClasses] = useState([]);
 
   const subjectList = [
     "Mathematics",
@@ -90,40 +84,113 @@ function ResultManagement() {
     "SSS 3",
   ];
 
+  const safeNumber = (value, fallback = 0) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const safeFixed = (value, digits = 2) => {
+    return safeNumber(value, 0).toFixed(digits);
+  };
+
+  const filteredStudents = useMemo(() => {
+    if (!searchTerm.trim()) return students;
+
+    const q = searchTerm.toLowerCase();
+    return students.filter(
+      (s) =>
+        s.fullName?.toLowerCase().includes(q) ||
+        s.admissionNumber?.toLowerCase().includes(q) ||
+        s.studentClass?.toLowerCase().includes(q),
+    );
+  }, [students, searchTerm]);
+
+  const availableRankingClasses = useMemo(() => {
+    if (isAdmin) return classes;
+    if (isTeacher) return teacherClasses;
+    return [];
+  }, [isAdmin, isTeacher, teacherClasses]);
+
   useEffect(() => {
-    fetchStudents();
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (searchTerm) {
-      const filtered = students.filter(
-        (s) =>
-          s.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          s.admissionNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          s.studentClass?.toLowerCase().includes(searchTerm.toLowerCase()),
-      );
-      setFilteredStudents(filtered);
-    } else {
-      setFilteredStudents(students);
-    }
-  }, [searchTerm, students]);
-
-  const fetchStudents = async () => {
+  const loadInitialData = async () => {
     try {
+      setLoading(true);
+
+      if (isParent) {
+        setStudents([]);
+        return;
+      }
+
+      if (isStudent && user?.studentId) {
+        const response = await studentAPI.getStudentById(user.studentId);
+        const me = response.data;
+        const oneStudent = [me];
+
+        setStudents(oneStudent);
+        setSelectedStudent(me);
+        setActiveTab("view");
+        return;
+      }
+
+      if (isTeacher) {
+        let allowedClasses = [];
+
+        try {
+          const teacherProfile = await teacherAPI.getMyTeacherProfile();
+          allowedClasses =
+            teacherProfile.data?.assignedClasses?.map((c) => c.className) ||
+            teacherProfile.data?.classNames ||
+            [];
+        } catch (error) {
+          console.error("Error loading teacher classes:", error);
+        }
+
+        setTeacherClasses(allowedClasses);
+
+        if (allowedClasses.length === 0) {
+          setStudents([]);
+          return;
+        }
+
+        const responses = await Promise.all(
+          allowedClasses.map((className) =>
+            studentAPI.getStudentsByClass(className),
+          ),
+        );
+
+        const combined = responses.flatMap((res) => res.data || []);
+        const uniqueStudents = Array.from(
+          new Map(combined.map((student) => [student.id, student])).values(),
+        );
+
+        setStudents(uniqueStudents);
+
+        if (allowedClasses.length === 1) {
+          setSelectedClass(allowedClasses[0]);
+        }
+
+        return;
+      }
+
       const response = await studentAPI.getAllStudents();
-      setStudents(response.data);
-      setFilteredStudents(response.data);
+      setStudents(response.data || []);
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleAddSubject = () => {
-    setSubjects([
-      ...subjects,
+    setSubjects((prev) => [
+      ...prev,
       {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         name: "",
         resumptionTest: 0,
         assignments: 0,
@@ -136,42 +203,49 @@ function ResultManagement() {
   };
 
   const handleSubjectChange = (id, field, value) => {
-    const updatedSubjects = subjects.map((subject) =>
-      subject.id === id
-        ? {
-            ...subject,
-            [field]: field === "name" ? value : parseFloat(value) || 0,
-          }
-        : subject,
+    setSubjects((prev) =>
+      prev.map((subject) =>
+        subject.id === id
+          ? {
+              ...subject,
+              [field]: field === "name" ? value : parseFloat(value) || 0,
+            }
+          : subject,
+      ),
     );
-    setSubjects(updatedSubjects);
   };
 
   const handleRemoveSubject = (id) => {
-    setSubjects(subjects.filter((s) => s.id !== id));
+    setSubjects((prev) => prev.filter((s) => s.id !== id));
   };
 
   const calculateSubjectTotal = (subject) => {
     const ca =
-      (subject.resumptionTest || 0) +
-      (subject.assignments || 0) +
-      (subject.project || 0) +
-      (subject.midtermTest || 0) +
-      (subject.secondTest || 0);
-    return ca + (subject.examination || 0);
+      safeNumber(subject.resumptionTest) +
+      safeNumber(subject.assignments) +
+      safeNumber(subject.project) +
+      safeNumber(subject.midtermTest) +
+      safeNumber(subject.secondTest);
+
+    return ca + safeNumber(subject.examination);
   };
 
   const validateScores = (subject) => {
-    if (subject.resumptionTest > 5) return false;
-    if (subject.assignments > 10) return false;
-    if (subject.project > 10) return false;
-    if (subject.midtermTest > 10) return false;
-    if (subject.secondTest > 5) return false;
-    if (subject.examination > 60) return false;
+    if (safeNumber(subject.resumptionTest) > 5) return false;
+    if (safeNumber(subject.assignments) > 10) return false;
+    if (safeNumber(subject.project) > 10) return false;
+    if (safeNumber(subject.midtermTest) > 10) return false;
+    if (safeNumber(subject.secondTest) > 5) return false;
+    if (safeNumber(subject.examination) > 60) return false;
     return true;
   };
 
   const handleSubmitResults = async () => {
+    if (!(isAdmin || isTeacher)) {
+      toast.error("You are not allowed to enter results");
+      return;
+    }
+
     if (!selectedStudent) {
       toast.error("Please select a student");
       return;
@@ -194,22 +268,22 @@ function ResultManagement() {
     }
 
     setLoading(true);
-    let successCount = 0;
-    let failCount = 0;
 
     try {
+      let successCount = 0;
+
       for (const subject of subjects) {
         const resultData = {
           studentId: selectedStudent.id,
           subject: subject.name,
-          session: session,
-          term: term,
-          resumptionTest: Number(subject.resumptionTest) || 0,
-          assignments: Number(subject.assignments) || 0,
-          project: Number(subject.project) || 0,
-          midtermTest: Number(subject.midtermTest) || 0,
-          secondTest: Number(subject.secondTest) || 0,
-          examination: Number(subject.examination) || 0,
+          session,
+          term,
+          resumptionTest: safeNumber(subject.resumptionTest),
+          assignments: safeNumber(subject.assignments),
+          project: safeNumber(subject.project),
+          midtermTest: safeNumber(subject.midtermTest),
+          secondTest: safeNumber(subject.secondTest),
+          examination: safeNumber(subject.examination),
           remarks: "",
         };
 
@@ -221,45 +295,58 @@ function ResultManagement() {
       setSubjects([]);
 
       if (activeTab === "view") {
-        fetchStudentResult();
+        await fetchStudentResult();
       }
     } catch (error) {
       console.error("Error saving results:", error);
-      toast.error("Failed to save results");
+      toast.error(error?.response?.data?.message || "Failed to save results");
     } finally {
       setLoading(false);
     }
   };
 
   const fetchStudentResult = async () => {
-    if (!selectedStudent) {
-      toast.error("Please select a student");
-      return;
-    }
-
     setLoading(true);
+
     try {
+      if (isStudent) {
+        const response = await resultAPI.getMyTermResult(session, term);
+        setResultSheet(response.data);
+        toast.success("Result loaded successfully");
+        return;
+      }
+
+      if (!selectedStudent) {
+        toast.error("Please select a student");
+        return;
+      }
+
       const response = await resultAPI.getTermResult(
         selectedStudent.id,
         session,
         term,
       );
-
       setResultSheet(response.data);
       toast.success("Result loaded successfully");
     } catch (error) {
       console.error("Error fetching result:", error);
       setResultSheet(null);
-      toast.info("No results found for this student in the selected term");
+      toast.info("No results found for the selected term");
     } finally {
       setLoading(false);
     }
   };
 
   const fetchRankings = async () => {
+    if (!(isAdmin || isTeacher)) {
+      toast.error("You are not allowed to view rankings");
+      return;
+    }
+
     setLoading(true);
     try {
       let response;
+
       if (rankingsType === "school") {
         response = await resultAPI.getSchoolRankings(session, term);
       } else if (rankingsType === "class" && selectedClass) {
@@ -280,6 +367,7 @@ function ResultManagement() {
         setLoading(false);
         return;
       }
+
       setRankings(response.data);
       toast.success("Rankings loaded successfully");
     } catch (error) {
@@ -291,20 +379,34 @@ function ResultManagement() {
   };
 
   const viewResultSheet = () => {
-    if (!selectedStudent) {
+    const targetStudent = isStudent
+      ? selectedStudent || students[0]
+      : selectedStudent;
+
+    if (!targetStudent) {
       toast.error("Please select a student");
       return;
     }
 
-    const [year, termPart] = session.split("/");
-    navigate(`/results/${selectedStudent.id}/${year}/${termPart}/${term}`);
+    const sessionParts = session.split("/");
+    if (sessionParts.length !== 2) {
+      toast.error("Invalid session format");
+      return;
+    }
+
+    const [year, termPart] = sessionParts;
+
+    navigate(`/results/${targetStudent.id}/${year}/${termPart}/${term}`);
   };
 
   const clearForm = () => {
     setSubjects([]);
-    setSelectedStudent(null);
     setResultSheet(null);
     setSearchTerm("");
+
+    if (!isStudent) {
+      setSelectedStudent(null);
+    }
   };
 
   const getGradeBadge = (grade) => {
@@ -319,103 +421,129 @@ function ResultManagement() {
     return colors[grade] || "bg-secondary";
   };
 
+  if (isParent) {
+    return (
+      <div className="result-management">
+        <div className="alert alert-info">
+          Please access your ward&apos;s results from the Parent Dashboard.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="result-management">
       <div className="content-header">
         <h2>
           <FaChartLine className="me-2" /> Result Management System
         </h2>
-        <p className="text-muted">Enter, view and analyze student results</p>
+        <p className="text-muted">
+          {isStudent
+            ? "View your academic results"
+            : isTeacher
+              ? "Enter and view results for your class"
+              : "Enter, view and analyze student results"}
+        </p>
       </div>
 
-      {/* Tabs */}
       <div className="tabs-container">
-        <button
-          className={`tab-btn ${activeTab === "input" ? "active" : ""}`}
-          onClick={() => setActiveTab("input")}
-        >
-          <FaPlus /> Input Results
-        </button>
+        {(isAdmin || isTeacher) && (
+          <button
+            className={`tab-btn ${activeTab === "input" ? "active" : ""}`}
+            onClick={() => setActiveTab("input")}
+          >
+            <FaPlus /> Input Results
+          </button>
+        )}
+
         <button
           className={`tab-btn ${activeTab === "view" ? "active" : ""}`}
           onClick={() => setActiveTab("view")}
         >
           <FaEye /> View Results
         </button>
-        <button
-          className={`tab-btn ${activeTab === "rankings" ? "active" : ""}`}
-          onClick={() => setActiveTab("rankings")}
-        >
-          <FaChartLine /> Rankings
-        </button>
+
+        {(isAdmin || isTeacher) && (
+          <button
+            className={`tab-btn ${activeTab === "rankings" ? "active" : ""}`}
+            onClick={() => setActiveTab("rankings")}
+          >
+            <FaChartLine /> Rankings
+          </button>
+        )}
       </div>
 
-      {/* Filters Section */}
-      <div className="filters-section">
-        <div className="filters-grid">
-          <div className="filter-group">
-            <label>Search Student</label>
-            <div className="search-box">
-              <FaSearch />
-              <input
-                type="text"
-                placeholder="Search by name, admission or class..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+      {(isAdmin || isTeacher || isStudent) && activeTab !== "rankings" && (
+        <div className="filters-section">
+          <div className="filters-grid">
+            {!isStudent && (
+              <>
+                <div className="filter-group">
+                  <label>Search Student</label>
+                  <div className="search-box">
+                    <FaSearch />
+                    <input
+                      type="text"
+                      placeholder="Search by name, admission or class..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <label>Select Student</label>
+                  <select
+                    value={selectedStudent?.id || ""}
+                    onChange={(e) => {
+                      const student = students.find(
+                        (s) => s.id === parseInt(e.target.value, 10),
+                      );
+                      setSelectedStudent(student || null);
+                      setResultSheet(null);
+                    }}
+                  >
+                    <option value="">Choose a student</option>
+                    {filteredStudents.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.fullName} - {s.admissionNumber} ({s.studentClass}{" "}
+                        {s.classArm})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            <div className="filter-group">
+              <label>Session</label>
+              <select
+                value={session}
+                onChange={(e) => setSession(e.target.value)}
+              >
+                {sessions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <label>Term</label>
+              <select value={term} onChange={(e) => setTerm(e.target.value)}>
+                {terms.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-
-          <div className="filter-group">
-            <label>Select Student</label>
-            <select
-              value={selectedStudent?.id || ""}
-              onChange={(e) => {
-                const student = students.find(
-                  (s) => s.id === parseInt(e.target.value),
-                );
-                setSelectedStudent(student);
-              }}
-            >
-              <option value="">Choose a student</option>
-              {filteredStudents.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.fullName} - {s.admissionNumber} ({s.studentClass}{" "}
-                  {s.classArm})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Session</label>
-            <select
-              value={session}
-              onChange={(e) => setSession(e.target.value)}
-            >
-              {sessions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Term</label>
-            <select value={term} onChange={(e) => setTerm(e.target.value)}>
-              {terms.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
-      </div>
+      )}
 
-      {/* Input Results Tab */}
-      {activeTab === "input" && (
+      {activeTab === "input" && (isAdmin || isTeacher) && (
         <div className="input-results">
           <div className="section-header">
             <h3>
@@ -433,8 +561,8 @@ function ResultManagement() {
 
           {!selectedStudent && (
             <div className="alert-info">
-              <FaEye /> Please select a student from the dropdown above to enter
-              results.
+              <FaInfoCircle /> Please select a student from the dropdown above
+              to enter results.
             </div>
           )}
 
@@ -456,6 +584,7 @@ function ResultManagement() {
                   <FaTrash />
                 </button>
               </div>
+
               <div className="subject-body">
                 <div className="form-row">
                   <div className="form-group">
@@ -474,6 +603,7 @@ function ResultManagement() {
                       ))}
                     </select>
                   </div>
+
                   <div className="form-group">
                     <label>RT (5)</label>
                     <input
@@ -491,6 +621,7 @@ function ResultManagement() {
                       step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Ass (10)</label>
                     <input
@@ -508,6 +639,7 @@ function ResultManagement() {
                       step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Proj (10)</label>
                     <input
@@ -525,6 +657,7 @@ function ResultManagement() {
                       step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>MT (10)</label>
                     <input
@@ -542,6 +675,7 @@ function ResultManagement() {
                       step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>2nd (5)</label>
                     <input
@@ -559,6 +693,7 @@ function ResultManagement() {
                       step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Exam (60)</label>
                     <input
@@ -576,6 +711,7 @@ function ResultManagement() {
                       step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Total</label>
                     <input
@@ -612,22 +748,26 @@ function ResultManagement() {
         </div>
       )}
 
-      {/* View Results Tab */}
       {activeTab === "view" && (
         <div className="view-results">
           <div className="section-header">
-            <h3>View Student Results</h3>
+            <h3>{isStudent ? "My Results" : "View Student Results"}</h3>
             <div className="header-actions">
               <button
                 className="btn-primary"
                 onClick={fetchStudentResult}
-                disabled={!selectedStudent || loading}
+                disabled={loading || (!isStudent && !selectedStudent)}
               >
                 {loading ? <FaSpinner className="spin" /> : <FaEye />}
                 Load Result
               </button>
+
               {resultSheet && (
-                <button className="btn-success" onClick={viewResultSheet}>
+                <button
+                  className="btn-success"
+                  onClick={viewResultSheet}
+                  title="View printable result sheet"
+                >
                   <FaPrint /> Printable Result
                 </button>
               )}
@@ -639,25 +779,30 @@ function ResultManagement() {
               <div className="result-header">
                 <h4>Term Result Summary</h4>
               </div>
+
               <div className="result-body">
                 <div className="student-info">
                   <div>
                     <p>
                       <strong>Student:</strong>{" "}
                       {resultSheet.studentInfo?.name ||
-                        selectedStudent?.fullName}
+                        selectedStudent?.fullName ||
+                        user?.firstName}
                     </p>
                     <p>
                       <strong>Admission:</strong>{" "}
                       {resultSheet.studentInfo?.admissionNumber ||
-                        selectedStudent?.admissionNumber}
+                        selectedStudent?.admissionNumber ||
+                        "-"}
                     </p>
                     <p>
                       <strong>Class:</strong>{" "}
                       {resultSheet.studentInfo?.class ||
-                        selectedStudent?.studentClass}{" "}
+                        selectedStudent?.studentClass ||
+                        "-"}{" "}
                       {resultSheet.studentInfo?.arm ||
-                        selectedStudent?.classArm}
+                        selectedStudent?.classArm ||
+                        ""}
                     </p>
                   </div>
                   <div>
@@ -710,13 +855,13 @@ function ResultManagement() {
                   <div className="summary-card">
                     <h6>Total Score</h6>
                     <p className="text-primary">
-                      {resultSheet.summary?.totalScore || 0}
+                      {safeNumber(resultSheet.summary?.totalScore)}
                     </p>
                   </div>
                   <div className="summary-card">
                     <h6>Average</h6>
                     <p className="text-success">
-                      {resultSheet.summary?.average?.toFixed(2) || 0}%
+                      {safeFixed(resultSheet.summary?.average, 2)}%
                     </p>
                   </div>
                   <div className="summary-card">
@@ -730,16 +875,17 @@ function ResultManagement() {
             </div>
           ) : (
             <div className="alert-info">
-              {selectedStudent
-                ? 'Click "Load Result" to view results for this student.'
-                : "Please select a student to view results."}
+              {isStudent
+                ? 'Click "Load Result" to view your result.'
+                : selectedStudent
+                  ? 'Click "Load Result" to view results for this student.'
+                  : "Please select a student to view results."}
             </div>
           )}
         </div>
       )}
 
-      {/* Rankings Tab */}
-      {activeTab === "rankings" && (
+      {activeTab === "rankings" && (isAdmin || isTeacher) && (
         <div className="rankings-tab">
           <div className="filters-row">
             <select
@@ -759,7 +905,7 @@ function ResultManagement() {
                 onChange={(e) => setSelectedClass(e.target.value)}
               >
                 <option value="">Select Class</option>
-                {classes.map((c) => (
+                {availableRankingClasses.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -800,6 +946,7 @@ function ResultManagement() {
                   Rankings - {rankings.term} Term {rankings.session}
                 </h4>
               </div>
+
               <div className="rankings-body">
                 <div className="table-responsive">
                   <table className="rankings-table">
@@ -828,7 +975,7 @@ function ResultManagement() {
                           <td>{rank.arm}</td>
                           <td>
                             <strong className="text-success">
-                              {rank.average?.toFixed(2)}%
+                              {safeFixed(rank.average, 2)}%
                             </strong>
                           </td>
                         </tr>
@@ -836,8 +983,9 @@ function ResultManagement() {
                     </tbody>
                   </table>
                 </div>
+
                 <p className="total-count">
-                  Total Students: {rankings.totalStudents}
+                  Total Students: {safeNumber(rankings.totalStudents)}
                 </p>
               </div>
             </div>

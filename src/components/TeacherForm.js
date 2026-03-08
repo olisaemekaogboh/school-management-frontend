@@ -23,6 +23,8 @@ import {
   FaTimes,
   FaPlus,
   FaTrash,
+  FaUpload,
+  FaExclamationTriangle,
 } from "react-icons/fa";
 import "./TeacherForm.css";
 
@@ -31,11 +33,14 @@ function TeacherForm() {
   const { id } = useParams();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [invitationMethod, setInvitationMethod] = useState("direct"); // "direct" or "invite"
+  const [invitationMethod, setInvitationMethod] = useState("direct");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteSent, setInviteSent] = useState(false);
   const [subjects, setSubjects] = useState([]);
   const [qualifications, setQualifications] = useState([]);
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState("");
+  const [uploadError, setUploadError] = useState("");
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -51,7 +56,7 @@ function TeacherForm() {
     state: "",
     country: "Nigeria",
     qualification: "",
-    yearsOfExperience: "",
+    yearsOfExperience: 0,
     employeeId: "",
     department: "",
     designation: "",
@@ -61,20 +66,66 @@ function TeacherForm() {
     emergencyContactName: "",
     emergencyContactPhone: "",
     emergencyContactRelationship: "",
-    profilePicture: null,
+    maritalStatus: "",
+    numberOfChildren: 0,
+    stateOfOrigin: "",
+    localGovernmentArea: "",
+    nationality: "Nigerian",
+    religion: "",
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+    pensionId: "",
+    taxId: "",
+    nextOfKinName: "",
+    nextOfKinPhone: "",
+    nextOfKinRelationship: "",
+    nextOfKinAddress: "",
+    biography: "",
   });
 
   const [formErrors, setFormErrors] = useState({});
 
   const employmentTypes = ["FULL_TIME", "PART_TIME", "CONTRACT", "VISITING"];
-  const genders = ["Male", "Female", "Other"];
+  const genders = ["MALE", "FEMALE", "OTHER"];
   const departments = [
-    "Science",
-    "Arts",
-    "Commercial",
-    "Technical",
-    "Primary",
-    "Nursery",
+    "SCIENCE",
+    "ARTS",
+    "COMMERCIAL",
+    "TECHNICAL",
+    "PRIMARY",
+    "NURSERY",
+  ];
+  const maritalStatuses = ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"];
+
+  const subjectOptions = [
+    "Mathematics",
+    "English",
+    "Biology",
+    "Chemistry",
+    "Physics",
+    "Economics",
+    "Government",
+    "Literature",
+    "History",
+    "Geography",
+    "Agricultural Science",
+    "Further Mathematics",
+    "Computer Science",
+    "Civic Education",
+    "CRS",
+    "Islamic Studies",
+    "Yoruba",
+    "Igbo",
+    "Hausa",
+    "French",
+    "Physical Education",
+    "Basic Science",
+    "Basic Technology",
+    "Business Studies",
+    "Home Economics",
+    "Music",
+    "Fine Arts",
   ];
 
   useEffect(() => {
@@ -105,7 +156,7 @@ function TeacherForm() {
         state: teacher.state || "",
         country: teacher.country || "Nigeria",
         qualification: teacher.qualification || "",
-        yearsOfExperience: teacher.yearsOfExperience || "",
+        yearsOfExperience: teacher.yearsOfExperience || 0,
         employeeId: teacher.employeeId || "",
         department: teacher.department || "",
         designation: teacher.designation || "",
@@ -118,10 +169,34 @@ function TeacherForm() {
         emergencyContactPhone: teacher.emergencyContactPhone || "",
         emergencyContactRelationship:
           teacher.emergencyContactRelationship || "",
+        maritalStatus: teacher.maritalStatus || "",
+        numberOfChildren: teacher.numberOfChildren || 0,
+        stateOfOrigin: teacher.stateOfOrigin || "",
+        localGovernmentArea: teacher.localGovernmentArea || "",
+        nationality: teacher.nationality || "Nigerian",
+        religion: teacher.religion || "",
+        bankName: teacher.bankName || "",
+        accountNumber: teacher.accountNumber || "",
+        accountName: teacher.accountName || "",
+        pensionId: teacher.pensionId || "",
+        taxId: teacher.taxId || "",
+        nextOfKinName: teacher.nextOfKinName || "",
+        nextOfKinPhone: teacher.nextOfKinPhone || "",
+        nextOfKinRelationship: teacher.nextOfKinRelationship || "",
+        nextOfKinAddress: teacher.nextOfKinAddress || "",
+        biography: teacher.biography || "",
       });
 
       setSubjects(teacher.subjects || []);
-      setQualifications(teacher.qualifications || []);
+      setQualifications(teacher.additionalQualifications || []);
+
+      if (teacher.profilePictureUrl) {
+        setProfilePicturePreview(
+          teacher.profilePictureUrl.startsWith("http")
+            ? teacher.profilePictureUrl
+            : `http://localhost:8080/uploads/teachers/${teacher.profilePictureUrl}`,
+        );
+      }
     } catch (error) {
       console.error("Error fetching teacher:", error);
       toast.error("Failed to load teacher data");
@@ -132,17 +207,51 @@ function TeacherForm() {
   };
 
   const handleInputChange = (e) => {
-    const { name, value, type, files } = e.target;
+    const { name, value, type } = e.target;
 
-    if (type === "file") {
-      setFormData({ ...formData, [name]: files[0] });
-    } else {
-      setFormData({ ...formData, [name]: value });
-    }
+    setFormData({
+      ...formData,
+      [name]: type === "number" ? parseInt(value) || 0 : value,
+    });
 
     // Clear error for this field
     if (formErrors[name]) {
       setFormErrors({ ...formErrors, [name]: null });
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    setUploadError("");
+
+    if (file) {
+      // Check file size (5MB max)
+      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+      if (file.size > maxSize) {
+        setUploadError("File size exceeds 5MB limit");
+        toast.error("File size exceeds 5MB limit");
+        e.target.value = null;
+        return;
+      }
+
+      // Check file type
+      const allowedTypes = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        setUploadError("Only JPG, PNG, and GIF images are allowed");
+        toast.error("Only JPG, PNG, and GIF images are allowed");
+        e.target.value = null;
+        return;
+      }
+
+      setProfilePicture(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setProfilePicturePreview(reader.result);
+      reader.readAsDataURL(file);
     }
   };
 
@@ -179,26 +288,27 @@ function TeacherForm() {
   const validateForm = () => {
     const errors = {};
 
-    if (!formData.firstName) errors.firstName = "First name is required";
-    if (!formData.lastName) errors.lastName = "Last name is required";
-    if (!formData.email) {
+    if (!formData.firstName?.trim())
+      errors.firstName = "First name is required";
+    if (!formData.lastName?.trim()) errors.lastName = "Last name is required";
+    if (!formData.email?.trim()) {
       errors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       errors.email = "Email is invalid";
     }
-    if (!formData.phoneNumber) errors.phoneNumber = "Phone number is required";
+    if (!formData.phoneNumber?.trim())
+      errors.phoneNumber = "Phone number is required";
     if (!formData.gender) errors.gender = "Gender is required";
-    if (!formData.dateOfBirth) errors.dateOfBirth = "Date of birth is required";
-    if (!formData.qualification)
-      errors.qualification = "Qualification is required";
-    if (!formData.employeeId) errors.employeeId = "Employee ID is required";
+    if (!formData.employeeId?.trim())
+      errors.employeeId = "Employee ID is required";
     if (!formData.department) errors.department = "Department is required";
-    if (!formData.designation) errors.designation = "Designation is required";
+    if (!formData.designation?.trim())
+      errors.designation = "Designation is required";
     if (!formData.dateOfJoining)
       errors.dateOfJoining = "Date of joining is required";
-    if (!formData.emergencyContactName)
+    if (!formData.emergencyContactName?.trim())
       errors.emergencyContactName = "Emergency contact name is required";
-    if (!formData.emergencyContactPhone)
+    if (!formData.emergencyContactPhone?.trim())
       errors.emergencyContactPhone = "Emergency contact phone is required";
 
     return errors;
@@ -217,24 +327,42 @@ function TeacherForm() {
     setSubmitting(true);
 
     try {
-      const formDataToSend = new FormData();
+      // Prepare teacher data object - filter out empty values
+      const teacherData = {
+        ...formData,
+        subjects: subjects.filter((s) => s && s.trim() !== ""),
+        additionalQualifications: qualifications.filter(
+          (q) => q && q.trim() !== "",
+        ),
+        // Ensure numbers are proper
+        yearsOfExperience: Number(formData.yearsOfExperience) || 0,
+        numberOfChildren: Number(formData.numberOfChildren) || 0,
+      };
 
-      // Append basic info
-      Object.keys(formData).forEach((key) => {
-        if (formData[key] !== null && formData[key] !== "") {
-          formDataToSend.append(key, formData[key]);
+      // Remove empty strings
+      Object.keys(teacherData).forEach((key) => {
+        if (
+          teacherData[key] === "" ||
+          teacherData[key] === null ||
+          teacherData[key] === undefined
+        ) {
+          delete teacherData[key];
         }
       });
 
-      // Append subjects and qualifications as JSON
-      formDataToSend.append(
-        "subjects",
-        JSON.stringify(subjects.filter((s) => s.trim() !== "")),
-      );
-      formDataToSend.append(
-        "qualifications",
-        JSON.stringify(qualifications.filter((q) => q.trim() !== "")),
-      );
+      // Create FormData
+      const formDataToSend = new FormData();
+
+      // Append teacher data as JSON blob with key 'teacher'
+      const teacherBlob = new Blob([JSON.stringify(teacherData)], {
+        type: "application/json",
+      });
+      formDataToSend.append("teacher", teacherBlob);
+
+      // Append profile picture if selected
+      if (profilePicture) {
+        formDataToSend.append("profilePicture", profilePicture);
+      }
 
       if (id) {
         await teacherAPI.updateTeacher(id, formDataToSend);
@@ -261,7 +389,7 @@ function TeacherForm() {
       return;
     }
 
-    if (!formData.firstName || !formData.lastName) {
+    if (!formData.firstName?.trim() || !formData.lastName?.trim()) {
       toast.error("Please enter teacher's name first");
       return;
     }
@@ -270,10 +398,10 @@ function TeacherForm() {
 
     try {
       const inviteData = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: inviteEmail,
-        phoneNumber: formData.phoneNumber,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: inviteEmail.trim(),
+        phoneNumber: formData.phoneNumber?.trim() || "",
       };
 
       await teacherAPI.inviteTeacher(inviteData);
@@ -370,6 +498,40 @@ function TeacherForm() {
               : handleSubmit
           }
         >
+          {/* Profile Picture Upload */}
+          <div className="form-section">
+            <h3>Profile Picture</h3>
+            <div className="profile-upload">
+              <div className="profile-preview">
+                {profilePicturePreview ? (
+                  <img src={profilePicturePreview} alt="Profile Preview" />
+                ) : (
+                  <div className="profile-placeholder">
+                    <FaUser size={40} />
+                  </div>
+                )}
+              </div>
+              <div className="profile-upload-controls">
+                <label htmlFor="profilePicture" className="btn-upload">
+                  <FaUpload /> Upload Photo
+                </label>
+                <input
+                  type="file"
+                  id="profilePicture"
+                  accept="image/jpeg,image/jpg,image/png,image/gif"
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                />
+                {uploadError && (
+                  <small className="error-text">
+                    <FaExclamationTriangle /> {uploadError}
+                  </small>
+                )}
+                <small>Max size: 5MB (JPG, PNG, GIF)</small>
+              </div>
+            </div>
+          </div>
+
           <div className="form-section">
             <h3>
               <FaUserTie /> Personal Information
@@ -466,19 +628,13 @@ function TeacherForm() {
 
             <div className="form-row">
               <div className="form-group">
-                <label>
-                  Date of Birth <span className="required">*</span>
-                </label>
+                <label>Date of Birth</label>
                 <input
                   type="date"
                   name="dateOfBirth"
                   value={formData.dateOfBirth}
                   onChange={handleInputChange}
-                  className={formErrors.dateOfBirth ? "error" : ""}
                 />
-                {formErrors.dateOfBirth && (
-                  <small className="error-text">{formErrors.dateOfBirth}</small>
-                )}
               </div>
 
               <div className="form-group">
@@ -504,12 +660,73 @@ function TeacherForm() {
               </div>
 
               <div className="form-group">
-                <label>Profile Picture</label>
-                <input
-                  type="file"
-                  name="profilePicture"
+                <label>Marital Status</label>
+                <select
+                  name="maritalStatus"
+                  value={formData.maritalStatus}
                   onChange={handleInputChange}
-                  accept="image/*"
+                >
+                  <option value="">Select Marital Status</option>
+                  {maritalStatuses.map((ms) => (
+                    <option key={ms} value={ms}>
+                      {ms}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Number of Children</label>
+                <input
+                  type="number"
+                  name="numberOfChildren"
+                  value={formData.numberOfChildren}
+                  onChange={handleInputChange}
+                  min="0"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Religion</label>
+                <input
+                  type="text"
+                  name="religion"
+                  value={formData.religion}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Nationality</label>
+                <input
+                  type="text"
+                  name="nationality"
+                  value={formData.nationality}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>State of Origin</label>
+                <input
+                  type="text"
+                  name="stateOfOrigin"
+                  value={formData.stateOfOrigin}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Local Government Area</label>
+                <input
+                  type="text"
+                  name="localGovernmentArea"
+                  value={formData.localGovernmentArea}
+                  onChange={handleInputChange}
                 />
               </div>
             </div>
@@ -520,16 +737,14 @@ function TeacherForm() {
               <FaMapMarkerAlt /> Address
             </h3>
 
-            <div className="form-row">
-              <div className="form-group full-width">
-                <label>Address</label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  rows="2"
-                />
-              </div>
+            <div className="form-group full-width">
+              <label>Address</label>
+              <textarea
+                name="address"
+                value={formData.address}
+                onChange={handleInputChange}
+                rows="2"
+              />
             </div>
 
             <div className="form-row">
@@ -544,7 +759,7 @@ function TeacherForm() {
               </div>
 
               <div className="form-group">
-                <label>State</label>
+                <label>State/Province</label>
                 <input
                   type="text"
                   name="state"
@@ -619,6 +834,7 @@ function TeacherForm() {
                   value={formData.designation}
                   onChange={handleInputChange}
                   className={formErrors.designation ? "error" : ""}
+                  placeholder="e.g., Senior Teacher, Head of Department"
                 />
                 {formErrors.designation && (
                   <small className="error-text">{formErrors.designation}</small>
@@ -628,22 +844,14 @@ function TeacherForm() {
 
             <div className="form-row">
               <div className="form-group">
-                <label>
-                  Qualification <span className="required">*</span>
-                </label>
+                <label>Qualification</label>
                 <input
                   type="text"
                   name="qualification"
                   value={formData.qualification}
                   onChange={handleInputChange}
-                  className={formErrors.qualification ? "error" : ""}
                   placeholder="e.g., B.Sc, M.Ed, etc."
                 />
-                {formErrors.qualification && (
-                  <small className="error-text">
-                    {formErrors.qualification}
-                  </small>
-                )}
               </div>
 
               <div className="form-group">
@@ -703,6 +911,17 @@ function TeacherForm() {
                 </select>
               </div>
             </div>
+
+            <div className="form-group">
+              <label>Biography</label>
+              <textarea
+                name="biography"
+                value={formData.biography}
+                onChange={handleInputChange}
+                rows="3"
+                placeholder="Brief biography..."
+              />
+            </div>
           </div>
 
           <div className="form-section">
@@ -712,12 +931,18 @@ function TeacherForm() {
 
             {subjects.map((subject, index) => (
               <div key={index} className="array-item">
-                <input
-                  type="text"
+                <select
                   value={subject}
                   onChange={(e) => handleSubjectChange(index, e.target.value)}
-                  placeholder="Subject name"
-                />
+                  className="form-control"
+                >
+                  <option value="">Select Subject</option>
+                  {subjectOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="button"
                   className="btn-remove"
@@ -750,7 +975,8 @@ function TeacherForm() {
                   onChange={(e) =>
                     handleQualificationChange(index, e.target.value)
                   }
-                  placeholder="Qualification"
+                  placeholder="Qualification (e.g., TRCN Certificate)"
+                  className="form-control"
                 />
                 <button
                   type="button"
@@ -772,9 +998,7 @@ function TeacherForm() {
           </div>
 
           <div className="form-section">
-            <h3>
-              <FaPhone /> Emergency Contact
-            </h3>
+            <h3>Emergency Contact</h3>
 
             <div className="form-row">
               <div className="form-group">
@@ -822,6 +1046,112 @@ function TeacherForm() {
                   onChange={handleInputChange}
                 />
               </div>
+            </div>
+          </div>
+
+          <div className="form-section">
+            <h3>Bank Details</h3>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Bank Name</label>
+                <input
+                  type="text"
+                  name="bankName"
+                  value={formData.bankName}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Account Number</label>
+                <input
+                  type="text"
+                  name="accountNumber"
+                  value={formData.accountNumber}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Account Name</label>
+                <input
+                  type="text"
+                  name="accountName"
+                  value={formData.accountName}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Pension ID</label>
+                <input
+                  type="text"
+                  name="pensionId"
+                  value={formData.pensionId}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Tax ID</label>
+              <input
+                type="text"
+                name="taxId"
+                value={formData.taxId}
+                onChange={handleInputChange}
+              />
+            </div>
+          </div>
+
+          <div className="form-section">
+            <h3>Next of Kin</h3>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Name</label>
+                <input
+                  type="text"
+                  name="nextOfKinName"
+                  value={formData.nextOfKinName}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Phone</label>
+                <input
+                  type="tel"
+                  name="nextOfKinPhone"
+                  value={formData.nextOfKinPhone}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Relationship</label>
+                <input
+                  type="text"
+                  name="nextOfKinRelationship"
+                  value={formData.nextOfKinRelationship}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Address</label>
+              <textarea
+                name="nextOfKinAddress"
+                value={formData.nextOfKinAddress}
+                onChange={handleInputChange}
+                rows="2"
+              />
             </div>
           </div>
 

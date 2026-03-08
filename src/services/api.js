@@ -1,5 +1,3 @@
-// src/services/api.js
-
 import axios from "axios";
 import { toast } from "react-toastify";
 
@@ -22,7 +20,6 @@ api.interceptors.request.use(
       `Making ${config.method?.toUpperCase()} request to: ${config.url}`,
     );
 
-    // Get token from localStorage
     const token = localStorage.getItem("accessToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -40,57 +37,57 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const status = error.response?.status;
 
-    // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
-      toast.error("Session expired. Please login again.");
+    // 401 = token expired / unauthenticated
+    if (status === 401 && !originalRequest?._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const refreshToken = localStorage.getItem("refreshToken");
+
+        if (refreshToken) {
+          const response = await axios.post(
+            `${API_BASE_URL}/auth/refresh-token`,
+            { refreshToken },
+          );
+
+          if (response.data?.accessToken) {
+            localStorage.setItem("accessToken", response.data.accessToken);
+
+            if (response.data?.refreshToken) {
+              localStorage.setItem("refreshToken", response.data.refreshToken);
+            }
+
+            originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
+            return api(originalRequest);
+          }
+        }
+      } catch (refreshError) {
+        console.error("Token refresh failed:", refreshError);
+      }
+
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
+      toast.error("Session expired. Please login again.");
       window.location.href = "/login";
+      return Promise.reject(error);
     }
-    // Handle 403 Forbidden
-    else if (error.response?.status === 403) {
-      // Try to refresh token if we have a refresh token and not already retrying
-      if (!originalRequest._retry) {
-        originalRequest._retry = true;
 
-        try {
-          const refreshToken = localStorage.getItem("refreshToken");
-          if (refreshToken) {
-            const response = await axios.post(
-              `${API_BASE_URL}/auth/refresh-token`,
-              {
-                refreshToken: refreshToken,
-              },
-            );
-
-            if (response.data.accessToken) {
-              localStorage.setItem("accessToken", response.data.accessToken);
-              // Retry the original request with new token
-              originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
-              return api(originalRequest);
-            }
-          }
-        } catch (refreshError) {
-          console.error("Token refresh failed:", refreshError);
-          localStorage.removeItem("accessToken");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("user");
-          window.location.href = "/login";
-        }
-      }
-
+    // 403 = authenticated but forbidden
+    if (status === 403) {
       toast.error("You don't have permission to access this resource");
-    } else {
-      const message =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        error.message ||
-        "An unexpected error occurred";
-      toast.error(message);
+      return Promise.reject(error);
     }
 
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.message ||
+      "An unexpected error occurred";
+
+    toast.error(message);
     return Promise.reject(error);
   },
 );
@@ -121,7 +118,7 @@ const sendData = (method, url, data) => {
 export const setAuthToken = (accessToken, refreshToken, user) => {
   if (accessToken) {
     localStorage.setItem("accessToken", accessToken);
-    api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+    api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
   }
 
   if (refreshToken) {
@@ -137,33 +134,31 @@ export const clearAuthToken = () => {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
-  delete api.defaults.headers.common["Authorization"];
+  delete api.defaults.headers.common.Authorization;
 };
 
 export const getCurrentUser = () => {
   const userStr = localStorage.getItem("user");
-  if (userStr) {
-    try {
-      return JSON.parse(userStr);
-    } catch {
-      return null;
-    }
+  if (!userStr) return null;
+
+  try {
+    return JSON.parse(userStr);
+  } catch {
+    return null;
   }
-  return null;
 };
 
 /* ================================
    AUTH API
 ================================ */
-
 export const authAPI = {
   login: (credentials) => api.post("/auth/login", credentials),
   register: (userData) => api.post("/auth/register", userData),
   logout: () => api.post("/auth/logout"),
-  refreshToken: (refreshToken) => api.post("/auth/refresh-token", refreshToken),
+  refreshToken: (data) => api.post("/auth/refresh-token", data),
   getCurrentUser: () => api.get("/auth/me"),
   changePassword: (data) => api.post("/auth/change-password", data),
-  forgotPassword: (emailData) => api.post("/auth/forgot-password", emailData), // Accepts { email: "user@example.com" }
+  forgotPassword: (emailData) => api.post("/auth/forgot-password", emailData),
   resetPassword: (token, newPassword) =>
     api.post("/auth/reset-password", { token, newPassword }),
   verifyEmail: (token) => api.post("/auth/verify-email", { token }),
@@ -221,37 +216,48 @@ export const studentAPI = {
    TEACHER API
 ================================ */
 export const teacherAPI = {
-  // In src/services/api.js, add these methods to teacherAPI
-
   inviteTeacher: (data) => api.post("/teachers/invite", data),
   verifyInvitationToken: (token) =>
-    api.get(`/teachers/verify-invitation?token=${token}`),
+    api.get("/teachers/verify-invitation", { params: { token } }),
   completeRegistration: (data) =>
     api.post("/teachers/complete-registration", data),
+
   getAllTeachers: () => api.get("/teachers"),
   getTeacher: (id) => api.get(`/teachers/${id}`),
   getTeacherByTeacherId: (teacherId) =>
     api.get(`/teachers/teacher-id/${teacherId}`),
+
   createTeacher: (formData) =>
     api.post("/teachers", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
+
   updateTeacher: (id, formData) =>
     api.put(`/teachers/${id}`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
+
   deleteTeacher: (id) => api.delete(`/teachers/${id}`),
   searchTeachers: (term) => api.get("/teachers/search", { params: { term } }),
   getTeachersByStatus: (status) => api.get(`/teachers/status/${status}`),
   getTeachersBySubject: (subject) => api.get(`/teachers/subject/${subject}`),
+  getTeachersByDepartment: (department) =>
+    api.get(`/teachers/department/${department}`),
+
   addSubject: (id, subject) =>
-    api.post(`/teachers/${id}/subjects?subject=${subject}`),
+    api.post(`/teachers/${id}/subjects`, null, { params: { subject } }),
+
   removeSubject: (id, subject) =>
-    api.delete(`/teachers/${id}/subjects?subject=${subject}`),
+    api.delete(`/teachers/${id}/subjects`, { params: { subject } }),
+
   addQualification: (id, qualification) =>
-    api.post(`/teachers/${id}/qualifications?qualification=${qualification}`),
+    api.post(`/teachers/${id}/qualifications`, null, {
+      params: { qualification },
+    }),
+
   updateEmploymentStatus: (id, status) =>
-    api.patch(`/teachers/${id}/status?status=${status}`),
+    api.patch(`/teachers/${id}/status`, null, { params: { status } }),
+
   getTeacherStatistics: () => api.get("/teachers/statistics"),
   generateTeacherId: () => api.get("/teachers/generate-id"),
   checkEmailExists: (email) =>
@@ -261,6 +267,9 @@ export const teacherAPI = {
   exportToPDF: () => api.get("/teachers/export/pdf", { responseType: "blob" }),
   exportToExcel: () =>
     api.get("/teachers/export/excel", { responseType: "blob" }),
+
+  // Requires backend endpoint
+  getMyTeacherProfile: () => api.get("/teachers/me"),
 };
 
 /* ================================
@@ -277,9 +286,13 @@ export const classAPI = {
   assignClassTeacher: (classId, teacherId) =>
     api.post(`/classes/${classId}/assign-teacher/${teacherId}`),
   addSubject: (classId, subject) =>
-    api.post(`/classes/${classId}/subjects?subject=${subject}`),
+    api.post(`/classes/${classId}/subjects`, null, {
+      params: { subject },
+    }),
   removeSubject: (classId, subject) =>
-    api.delete(`/classes/${classId}/subjects?subject=${subject}`),
+    api.delete(`/classes/${classId}/subjects`, {
+      params: { subject },
+    }),
   getStudentsInClass: (classId) => api.get(`/classes/${classId}/students`),
   getClassStatistics: () => api.get("/classes/statistics"),
   exportToPDF: (classId) =>
@@ -292,89 +305,161 @@ export const classAPI = {
    RESULT API
 ================================ */
 export const resultAPI = {
-  addOrUpdateResultDTO: (resultData) => {
-    return api.post(`/results/student/${resultData.studentId}`, resultData);
-  },
-  addOrUpdateResult: (studentId, subject, session, term, scores) => {
-    return api.post(
-      `/results/student/${studentId}?subject=${subject}&session=${session}&term=${term}`,
-      scores,
-    );
-  },
+  addOrUpdateResultDTO: (resultData) =>
+    api.post(`/results/student/${resultData.studentId}`, resultData),
+
+  addOrUpdateResult: (studentId, subject, session, term, scores) =>
+    api.post(`/results/student/${studentId}`, scores, {
+      params: { subject, session, term },
+    }),
+
+  getStudentResults: (studentId, session, term) =>
+    api.get(`/results/student/${studentId}`, {
+      params: { session, term },
+    }),
+
   getTermResult: (studentId, session, term) =>
     api.get(`/results/student/${studentId}/term`, {
       params: { session, term },
     }),
+
   getAnnualResult: (studentId, session) =>
     api.get(`/results/student/${studentId}/annual`, {
       params: { session },
     }),
+
   getClassRankings: (className, session, term) =>
     api.get(`/results/rankings/class/${className}`, {
       params: { session, term },
     }),
+
   getArmRankings: (className, arm, session, term) =>
     api.get(`/results/rankings/class/${className}/arm/${arm}`, {
       params: { session, term },
     }),
+
   getSchoolRankings: (session, term) =>
     api.get("/results/rankings/school", {
       params: { session, term },
     }),
+
   calculateAllTermResults: (session, term) =>
     api.post("/results/calculate/term", null, {
       params: { session, term },
     }),
+
   calculateAllAnnualResults: (session) =>
     api.post("/results/calculate/annual", null, {
       params: { session },
     }),
+
+  // student self-service
+  getMyTermResult: (session, term) =>
+    api.get("/results/my-results/term", {
+      params: { session, term },
+    }),
 };
 
 /* ================================
-   ATTENDANCE API
+   ATTENDANCE API - UPDATED TO MATCH YOUR BACKEND
 ================================ */
 export const attendanceAPI = {
+  // Mark attendance for a single student
   markAttendance: (studentId, date, session, term, status, remarks) =>
-    api.post(
-      `/attendance/student/${studentId}?date=${date}&session=${session}&term=${term}&status=${status}${remarks ? `&remarks=${encodeURIComponent(remarks)}` : ""}`,
-    ),
+    api.post(`/attendance/student/${studentId}`, null, {
+      params: {
+        date,
+        session,
+        term,
+        status,
+        ...(remarks ? { remarks } : {}),
+      },
+    }),
+
+  // Mark bulk attendance for multiple students
   markBulkAttendance: (studentIds, date, session, term, status) =>
-    api.post(
-      `/attendance/bulk?date=${date}&session=${session}&term=${term}&status=${status}`,
-      studentIds,
-    ),
+    api.post("/attendance/bulk", studentIds, {
+      params: { date, session, term, status },
+    }),
+
+  // Get attendance for a specific student on a specific date
   getStudentAttendance: (studentId, date, session, term) =>
-    api.get(
-      `/attendance/student/${studentId}?date=${date}&session=${session}&term=${term}`,
-    ),
+    api.get(`/attendance/student/${studentId}`, {
+      params: { date, session, term },
+    }),
+
+  // Get student's attendance for an entire term
   getStudentTermAttendance: (studentId, session, term) =>
-    api.get(
-      `/attendance/student/${studentId}/term?session=${session}&term=${term}`,
-    ),
+    api.get(`/attendance/student/${studentId}/term`, {
+      params: { session, term },
+    }),
+
+  // Get student's attendance summary for a term
   getStudentTermSummary: (studentId, session, term) =>
-    api.get(
-      `/attendance/student/${studentId}/summary?session=${session}&term=${term}`,
-    ),
+    api.get(`/attendance/student/${studentId}/summary`, {
+      params: { session, term },
+    }),
+
+  // Get student's attendance summary for entire session (all terms)
   getStudentSessionSummary: (studentId, session) =>
-    api.get(`/attendance/student/${studentId}/session?session=${session}`),
-  getClassAttendance: (className, date, session, term) =>
-    api.get(
-      `/attendance/class/${className}?date=${date}&session=${session}&term=${term}`,
-    ),
-  getClassTermStatistics: (className, session, term) =>
-    api.get(
-      `/attendance/statistics/class/${className}?session=${session}&term=${term}`,
-    ),
+    api.get(`/attendance/student/${studentId}/session`, {
+      params: { session },
+    }),
+
+  // Get current user's attendance for a term (for students)
+  getMyAttendance: (session, term) =>
+    api.get("/attendance/me/term", {
+      params: { session, term },
+    }),
+
+  // Get current user's attendance summary (for students)
+  getMyAttendanceSummary: (session, term) =>
+    api.get("/attendance/me/summary", {
+      params: { session, term },
+    }),
+
+  // Get attendance for a whole class with arm
+  getClassAttendanceWithArm: (className, arm, date, session, term) =>
+    api.get(`/attendance/class/${className}/arm/${arm}`, {
+      params: { date, session, term },
+    }),
+
+  // Get class term statistics
+  getClassTermStatistics: (className, arm, session, term) =>
+    api.get(`/attendance/statistics/class/${className}/arm/${arm}`, {
+      params: { session, term },
+    }),
+
+  // Get school-wide attendance statistics
   getSchoolAttendanceStatistics: (session, term) =>
-    api.get(`/attendance/statistics/school?session=${session}&term=${term}`),
+    api.get("/attendance/statistics/school", {
+      params: { session, term },
+    }),
+
+  // Initialize school days for a term
   initializeSchoolDays: (dates, session, term) =>
-    api.post(
-      `/attendance/initialize-days?session=${session}&term=${term}`,
-      dates,
-    ),
+    api.post("/attendance/initialize-days", dates, {
+      params: { session, term },
+    }),
+
+  // Calculate all term summaries (admin only)
   calculateAllTermSummaries: (session, term) =>
-    api.post(`/attendance/calculate-all?session=${session}&term=${term}`),
+    api.post("/attendance/calculate-all", null, {
+      params: { session, term },
+    }),
+
+  // Test endpoint (admin only)
+  testSingleAttendance: (studentId, date, session, term, status) =>
+    api.post("/attendance/test-single", null, {
+      params: { studentId, date, session, term, status },
+    }),
+
+  // Debug endpoint (admin only)
+  debugAttendance: (className, date, session, term, arm = null) => {
+    const params = { className, date, session, term };
+    if (arm) params.arm = arm;
+    return api.get("/attendance/debug", { params });
+  },
 };
 
 /* ================================
@@ -382,35 +467,64 @@ export const attendanceAPI = {
 ================================ */
 export const sessionResultAPI = {
   calculateSessionResult: (studentId, session) =>
-    api.post(
-      `/session-results/calculate/student/${studentId}?session=${session}`,
-    ),
+    api.post(`/session-results/calculate/student/${studentId}`, null, {
+      params: { session },
+    }),
+
   calculateAllSessionResults: (session) =>
-    api.post(`/session-results/calculate/all?session=${session}`),
+    api.post("/session-results/calculate/all", null, {
+      params: { session },
+    }),
+
   getSessionResult: (studentId, session) =>
-    api.get(`/session-results/student/${studentId}?session=${session}`),
+    api.get(`/session-results/student/${studentId}`, {
+      params: { session },
+    }),
+
   getClassSessionResults: (className, session) =>
-    api.get(`/session-results/class/${className}?session=${session}`),
+    api.get(`/session-results/class/${className}`, {
+      params: { session },
+    }),
+
   getArmSessionResults: (className, arm, session) =>
-    api.get(
-      `/session-results/class/${className}/arm/${arm}?session=${session}`,
-    ),
+    api.get(`/session-results/class/${className}/arm/${arm}`, {
+      params: { session },
+    }),
+
   getSchoolRankings: (session) =>
-    api.get(`/session-results/rankings/school?session=${session}`),
+    api.get("/session-results/rankings/school", {
+      params: { session },
+    }),
+
   getClassRankings: (className, session) =>
-    api.get(`/session-results/rankings/class/${className}?session=${session}`),
+    api.get(`/session-results/rankings/class/${className}`, {
+      params: { session },
+    }),
+
   getArmRankings: (className, arm, session) =>
-    api.get(
-      `/session-results/rankings/class/${className}/arm/${arm}?session=${session}`,
-    ),
+    api.get(`/session-results/rankings/class/${className}/arm/${arm}`, {
+      params: { session },
+    }),
+
   generateSessionReport: (studentId, session) =>
-    api.get(`/session-results/report/${studentId}?session=${session}`),
+    api.get(`/session-results/report/${studentId}`, {
+      params: { session },
+    }),
+
   getSessionStatistics: (session) =>
-    api.get(`/session-results/statistics?session=${session}`),
+    api.get("/session-results/statistics", {
+      params: { session },
+    }),
+
   promoteStudents: (session) =>
-    api.post(`/session-results/promote?session=${session}`),
+    api.post("/session-results/promote", null, {
+      params: { session },
+    }),
+
   getGraduationList: (session) =>
-    api.get(`/session-results/graduation-list?session=${session}`),
+    api.get("/session-results/graduation-list", {
+      params: { session },
+    }),
 };
 
 /* ================================
@@ -429,23 +543,23 @@ export const announcementAPI = {
   getUpcomingEvents: () => api.get("/announcements/upcoming/events"),
   getUpcomingFees: () => api.get("/announcements/upcoming/fees"),
   getSchoolCalendar: (session) =>
-    api.get(`/announcements/calendar?session=${session}`),
+    api.get("/announcements/calendar", { params: { session } }),
   createResumption: (session, date, term) =>
-    api.post(
-      `/announcements/resumption?session=${session}&date=${date}&term=${term}`,
-    ),
+    api.post("/announcements/resumption", null, {
+      params: { session, date, term },
+    }),
   createMidtermBreak: (session, start, end) =>
-    api.post(
-      `/announcements/midterm-break?session=${session}&start=${start}&end=${end}`,
-    ),
+    api.post("/announcements/midterm-break", null, {
+      params: { session, start, end },
+    }),
   createResultRelease: (session, term, date) =>
-    api.post(
-      `/announcements/result-release?session=${session}&term=${term}&date=${date}`,
-    ),
+    api.post("/announcements/result-release", null, {
+      params: { session, term, date },
+    }),
   createFeeAnnouncement: (description, amount, dueDate, audience) =>
-    api.post(
-      `/announcements/fee?description=${description}&amount=${amount}&dueDate=${dueDate}&audience=${audience}`,
-    ),
+    api.post("/announcements/fee", null, {
+      params: { description, amount, dueDate, audience },
+    }),
   sendNotifications: (id) => api.post(`/announcements/${id}/notify`),
 };
 
@@ -457,41 +571,48 @@ export const feeAPI = {
   updateFee: (id, data) => api.put(`/fees/${id}`, data),
   getFee: (id) => api.get(`/fees/${id}`),
   getStudentFees: (studentId, session, term) =>
-    api.get(`/fees/student/${studentId}?session=${session}&term=${term}`),
+    api.get(`/fees/student/${studentId}`, {
+      params: { session, term },
+    }),
   recordPayment: (feeId, amount, paymentMethod, reference) =>
-    api.post(
-      `/fees/${feeId}/payment?amount=${amount}&paymentMethod=${paymentMethod}${reference ? `&reference=${reference}` : ""}`,
-    ),
+    api.post(`/fees/${feeId}/payment`, null, {
+      params: {
+        amount,
+        paymentMethod,
+        ...(reference ? { reference } : {}),
+      },
+    }),
   getOverdueFees: () => api.get("/fees/overdue"),
-  getUpcomingFees: (days = 7) => api.get(`/fees/upcoming?days=${days}`),
-  getFeeStatistics: async (session, term) => {
-    try {
-      const response = await api.get(
-        `/fees/statistics?session=${session}&term=${term}`,
-      );
-      return response;
-    } catch (error) {
-      console.error("Error fetching fee statistics:", error);
-      throw error;
-    }
-  },
+  getUpcomingFees: (days = 7) =>
+    api.get("/fees/upcoming", { params: { days } }),
+  getFeeStatistics: (session, term) =>
+    api.get("/fees/statistics", {
+      params: { session, term },
+    }),
   getDefaultingStudents: (session, term) =>
-    api.get(`/fees/defaulters?session=${session}&term=${term}`),
+    api.get("/fees/defaulters", {
+      params: { session, term },
+    }),
   sendFeeReminders: (session, term, daysBeforeDue = 7) =>
-    api.post(
-      `/fees/reminders/send?session=${session}&term=${term}&daysBeforeDue=${daysBeforeDue}`,
-    ),
+    api.post("/fees/reminders/send", null, {
+      params: { session, term, daysBeforeDue },
+    }),
   sendOverdueReminders: () => api.post("/fees/reminders/overdue"),
   generateFeeReport: (session, term) =>
-    api.get(`/fees/report?session=${session}&term=${term}`),
+    api.get("/fees/report", {
+      params: { session, term },
+    }),
   getPaymentHistory: (feeId) => api.get(`/fees/${feeId}/payments`),
   sendSingleReminder: (feeId) => api.post(`/fees/${feeId}/send-reminder`),
   exportToCSV: (session, term) =>
-    api.get(`/fees/export?session=${session}&term=${term}&format=csv`, {
+    api.get("/fees/export", {
+      params: { session, term, format: "csv" },
       responseType: "blob",
     }),
   getFeeSummary: (session, term) =>
-    api.get(`/fees/summary?session=${session}&term=${term}`),
+    api.get("/fees/summary", {
+      params: { session, term },
+    }),
 };
 
 /* ================================
@@ -504,18 +625,24 @@ export const timetableAPI = {
   deleteTimetableEntry: (id) => api.delete(`/timetable/${id}`),
 
   getClassTimetable: (classId, session, term) =>
-    api.get(`/timetable/class/${classId}?session=${session}&term=${term}`),
+    api.get(`/timetable/class/${classId}`, {
+      params: { session, term },
+    }),
 
   getTeacherTimetable: (teacherId, session, term) =>
-    api.get(`/timetable/teacher/${teacherId}?session=${session}&term=${term}`),
+    api.get(`/timetable/teacher/${teacherId}`, {
+      params: { session, term },
+    }),
 
   getSchoolTimetable: (session, term) =>
-    api.get(`/timetable/school?session=${session}&term=${term}`),
+    api.get("/timetable/school", {
+      params: { session, term },
+    }),
 
   checkAvailability: ({ teacherId, day, session, term, startTime, endTime }) =>
-    api.get(
-      `/timetable/check-availability?teacherId=${teacherId}&day=${day}&session=${session}&term=${term}&startTime=${startTime}&endTime=${endTime}`,
-    ),
+    api.get("/timetable/check-availability", {
+      params: { teacherId, day, session, term, startTime, endTime },
+    }),
 };
 
 /* ================================
@@ -525,16 +652,19 @@ export const parentAPI = {
   createParent: (data) => api.post("/parents", data),
   updateParent: (id, data) => api.put(`/parents/${id}`, data),
   getParent: (id) => api.get(`/parents/${id}`),
-  getParentByEmail: (email) => api.get(`/parents/email/${email}`),
+  getParentByEmail: (email) =>
+    api.get("/parents/by-email", { params: { email } }),
   deleteParent: (id) => api.delete(`/parents/${id}`),
   getAllParents: () => api.get("/parents"),
   getWards: (parentId) => api.get(`/parents/${parentId}/wards`),
   linkStudent: (parentId, studentId) =>
-    api.post(`/parents/${parentId}/link-student/${studentId}`),
+    api.post(`/parents/${parentId}/wards/${studentId}`),
   unlinkStudent: (parentId, studentId) =>
-    api.delete(`/parents/${parentId}/unlink-student/${studentId}`),
+    api.delete(`/parents/${parentId}/wards/${studentId}`),
   getParentDashboard: (parentId, session, term) =>
-    api.get(`/parents/${parentId}/dashboard?session=${session}&term=${term}`),
+    api.get(`/parents/${parentId}/dashboard`, {
+      params: { session, term },
+    }),
 };
 
 /* ================================
@@ -560,35 +690,31 @@ export const libraryAPI = {
   getOverdueBorrowings: () => api.get("/library/borrowings/overdue"),
   getLibraryStatistics: () => api.get("/library/statistics"),
 };
-// ================================
-// SESSION API
-// ================================
+
+/* ================================
+   SESSION API
+================================ */
 export const sessionAPI = {
   createSession: (data) => api.post("/sessions", data),
   updateSession: (id, data) => api.put(`/sessions/${id}`, data),
   deleteSession: (id) => api.delete(`/sessions/${id}`),
   getAllSessions: () => api.get("/sessions"),
 
-  // ✅ IMPORTANT: do not throw when there is no active session yet
   getActiveSession: async () => {
     try {
       return await api.get("/sessions/active");
     } catch (err) {
       const status = err?.response?.status;
-
-      // Your backend currently throws ResourceNotFound => 404
-      // Some backends may return 204 when empty
       if (status === 404 || status === 204) {
-        // return a fake axios-like response so your context code works unchanged
         return { data: null };
       }
-
-      throw err; // real errors still bubble up
+      throw err;
     }
   },
 
   activateSession: (id) => api.put(`/sessions/${id}/activate`),
 };
+
 /* ================================
    TRANSPORT API
 ================================ */
@@ -600,17 +726,17 @@ export const transportAPI = {
   getAllRoutes: () => api.get("/transport/routes"),
   getActiveRoutes: () => api.get("/transport/routes/active"),
   assignStudentToRoute: (studentId, routeId, stopIndex) =>
-    api.post(
-      `/transport/assign?studentId=${studentId}&routeId=${routeId}&stopIndex=${stopIndex}`,
-    ),
+    api.post("/transport/assign", null, {
+      params: { studentId, routeId, stopIndex },
+    }),
   removeStudentFromRoute: (studentId) =>
     api.delete(`/transport/remove/${studentId}`),
   getRouteStudents: (routeId) =>
     api.get(`/transport/routes/${routeId}/students`),
   updateBusLocation: (routeId, latitude, longitude) =>
-    api.post(
-      `/transport/update-location/${routeId}?lat=${latitude}&lng=${longitude}`,
-    ),
+    api.post(`/transport/update-location/${routeId}`, null, {
+      params: { lat: latitude, lng: longitude },
+    }),
   getBusLocation: (routeId) => api.get(`/transport/location/${routeId}`),
   getTransportStatistics: () => api.get("/transport/statistics"),
 };
@@ -630,7 +756,9 @@ export const userAPI = {
   deleteUser: (id) => api.delete(`/users/${id}`),
   deleteCurrentUser: () => api.delete("/users/me"),
   toggleUserStatus: (id, active) =>
-    api.patch(`/users/${id}/toggle-status?active=${active}`),
+    api.patch(`/users/${id}/toggle-status`, null, {
+      params: { active },
+    }),
   searchUsers: (term) => api.get("/users/search", { params: { term } }),
   getUsersByRole: (role) => api.get(`/users/role/${role}`),
   getUserStatistics: () => api.get("/users/statistics"),
@@ -639,6 +767,63 @@ export const userAPI = {
 };
 
 /* ================================
-   DEFAULT EXPORT (api instance)
+   ROLE-SCOPED PORTAL APIs
 ================================ */
+export const teacherPortalAPI = {
+  getDashboard: () => api.get("/teacher/dashboard"),
+  getMyClasses: () => api.get("/teachers/me/classes"),
+  getMyStudents: (classId) =>
+    api.get(`/teachers/me/classes/${classId}/students`),
+  getMyClassAttendance: (classId, date, session, term) =>
+    api.get(`/teachers/me/classes/${classId}/attendance`, {
+      params: { date, session, term },
+    }),
+  markMyClassAttendance: (classId, payload) =>
+    api.post(`/teachers/me/classes/${classId}/attendance`, payload),
+  getMyClassResults: (classId, session, term) =>
+    api.get(`/teachers/me/classes/${classId}/results`, {
+      params: { session, term },
+    }),
+};
+
+export const studentPortalAPI = {
+  getDashboard: () => api.get("/student/dashboard"),
+  getMyProfile: () => api.get("/students/me"),
+  getMyTermResult: (session, term) =>
+    api.get("/results/me/term", { params: { session, term } }),
+  getMySessionResult: (session) =>
+    api.get("/session-results/me", { params: { session } }),
+  getMyAttendance: (session, term) =>
+    api.get("/attendance/me", { params: { session, term } }),
+  getMyFees: (session, term) =>
+    api.get("/fees/me", { params: { session, term } }),
+  getMyTimetable: (session, term) =>
+    api.get("/student/timetable", { params: { session, term } }),
+  getMyTransport: () => api.get("/student/transport"),
+};
+
+export const parentPortalAPI = {
+  getDashboard: () => api.get("/parent/dashboard"),
+  getMyProfile: () => api.get("/parents/me"),
+  getMyWards: () => api.get("/parents/me/wards"),
+  getWardTermResult: (studentId, session, term) =>
+    api.get(`/parents/me/wards/${studentId}/results/term`, {
+      params: { session, term },
+    }),
+  getWardSessionResult: (studentId, session) =>
+    api.get(`/parents/me/wards/${studentId}/results/session`, {
+      params: { session },
+    }),
+  getWardAttendance: (studentId, session, term) =>
+    api.get(`/parents/me/wards/${studentId}/attendance`, {
+      params: { session, term },
+    }),
+  getWardFees: (studentId, session, term) =>
+    api.get(`/parents/me/wards/${studentId}/fees`, {
+      params: { session, term },
+    }),
+  getWardTransport: (studentId) =>
+    api.get(`/parents/me/wards/${studentId}/transport`),
+};
+
 export default api;

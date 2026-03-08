@@ -2,15 +2,10 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  FaUserGraduate,
   FaHome,
   FaUsers,
-  FaSearch,
-  FaChartBar,
-  FaPlusCircle,
   FaBars,
   FaTimes,
-  FaArrowUp,
   FaCalendarAlt,
   FaGraduationCap,
   FaBullhorn,
@@ -24,8 +19,16 @@ import {
   FaUserPlus,
   FaSignInAlt,
   FaUserShield,
-  FaUserTie, // For Parents
-  FaChalkboardTeacher, // For Teachers
+  FaUserTie,
+  FaChalkboardTeacher,
+  FaBus,
+  FaClipboardCheck,
+  FaPlusCircle,
+  FaArrowUp,
+  FaChartBar,
+  FaLayerGroup, // Added for classes
+  FaPlus, // Added for add class
+  FaList, // Added for class list
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -33,34 +36,25 @@ function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
+
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 50) {
-        setScrolled(true);
-      } else {
-        setScrolled(false);
-      }
-    };
-
+    const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Close mobile menu when route changes
   useEffect(() => {
     setIsOpen(false);
     setOpenDropdown(null);
-  }, [location]);
+  }, [location.pathname]);
 
   const toggleMenu = () => {
-    setIsOpen(!isOpen);
-    if (isOpen) {
-      setOpenDropdown(null);
-    }
+    setIsOpen((prev) => !prev);
+    if (isOpen) setOpenDropdown(null);
   };
 
   const closeMenu = () => {
@@ -72,28 +66,30 @@ function Navbar() {
     setOpenDropdown(openDropdown === dropdownName ? null : dropdownName);
   };
 
-  const isActive = (path) => {
-    return location.pathname === path;
-  };
+  const isActive = (path) => location.pathname === path;
+
+  const isDropdownActive = (items) =>
+    items.some((item) => location.pathname.startsWith(item.path));
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
 
-  // Check if any item in a dropdown is active
-  const isDropdownActive = (items) => {
-    return items.some((item) => location.pathname === item.path);
-  };
-
-  // Nav items for authenticated users
-  const authNavItems = [
+  // Public navigation items (for non-authenticated users)
+  const publicNavItems = [
+    { type: "link", path: "/login", icon: <FaSignInAlt />, label: "Login" },
     {
       type: "link",
-      path: "/",
-      icon: <FaHome />,
-      label: "Dashboard",
+      path: "/register",
+      icon: <FaUserPlus />,
+      label: "Register",
     },
+  ];
+
+  // Role-based navigation items
+  const adminNavItems = [
+    { type: "link", path: "/", icon: <FaHome />, label: "Dashboard" },
     {
       type: "dropdown",
       label: "Students",
@@ -113,7 +109,6 @@ function Navbar() {
         },
       ],
     },
-    // ===== TEACHERS MANAGEMENT DROPDOWN =====
     {
       type: "dropdown",
       label: "Teachers",
@@ -121,19 +116,9 @@ function Navbar() {
       name: "teachers",
       items: [
         { path: "/teachers", label: "All Teachers", icon: <FaUsers /> },
-        {
-          path: "/teachers/new",
-          label: "Add Teacher",
-          icon: <FaPlusCircle />,
-        },
-        {
-          path: "/teachers/invite",
-          label: "Invite Teacher",
-          icon: <FaUserPlus />,
-        },
+        { path: "/teachers/new", label: "Add Teacher", icon: <FaPlusCircle /> },
       ],
     },
-    // ===== PARENTS MANAGEMENT DROPDOWN =====
     {
       type: "dropdown",
       label: "Parents",
@@ -146,11 +131,22 @@ function Navbar() {
           label: "Register Parent",
           icon: <FaPlusCircle />,
         },
+      ],
+    },
+    {
+      type: "dropdown",
+      label: "Classes", // New Classes dropdown
+      icon: <FaLayerGroup />,
+      name: "classes",
+      items: [
+        { path: "/classes", label: "Class List", icon: <FaList /> },
         {
-          path: "/verify-parent",
-          label: "Verify Email",
-          icon: <FaSearch />,
+          path: "/classes/manage",
+          label: "Manage Classes",
+          icon: <FaPlusCircle />,
         },
+        { path: "/subjects", label: "Subjects", icon: <FaBookOpen /> },
+        { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
       ],
     },
     {
@@ -162,17 +158,69 @@ function Navbar() {
         { path: "/results", label: "Results", icon: <FaChartBar /> },
         { path: "/attendance", label: "Attendance", icon: <FaCalendarAlt /> },
         {
+          path: "/attendance/manage",
+          label: "Manage Attendance",
+          icon: <FaClipboardCheck />,
+        },
+        {
           path: "/session-results",
           label: "Session Results",
           icon: <FaGraduationCap />,
         },
       ],
     },
+    { type: "link", path: "/fees", icon: <FaMoneyBill />, label: "Fees" },
     {
       type: "link",
-      path: "/fees",
-      icon: <FaMoneyBill />,
-      label: "Fees",
+      path: "/announcements",
+      icon: <FaBullhorn />,
+      label: "Announcements",
+    },
+    { type: "link", path: "/transport", icon: <FaBus />, label: "Transport" },
+    { type: "link", path: "/users", icon: <FaUserShield />, label: "Users" },
+  ];
+
+  const teacherNavItems = [
+    {
+      type: "link",
+      path: "/teacher-dashboard",
+      icon: <FaHome />,
+      label: "Dashboard",
+    },
+    {
+      type: "link",
+      path: "/students",
+      icon: <FaUsers />,
+      label: "My Students",
+    },
+    {
+      type: "dropdown",
+      label: "Classes",
+      icon: <FaLayerGroup />,
+      name: "classes",
+      items: [
+        { path: "/classes", label: "View Classes", icon: <FaList /> },
+        { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
+      ],
+    },
+    { type: "link", path: "/results", icon: <FaChartBar />, label: "Results" },
+    {
+      type: "link",
+      path: "/attendance",
+      icon: <FaCalendarAlt />,
+      label: "Attendance",
+    },
+    {
+      type: "link",
+      path: "/attendance/manage",
+      icon: <FaClipboardCheck />,
+      label: "Mark Attendance",
+    },
+    {
+      type: "link",
+      path: "/session-results",
+      icon: <FaGraduationCap />,
+      label: "Session Results",
     },
     {
       type: "link",
@@ -180,44 +228,84 @@ function Navbar() {
       icon: <FaBullhorn />,
       label: "Announcements",
     },
-    {
-      type: "link",
-      path: "/users",
-      icon: <FaUserShield />,
-      label: "Users",
-    },
   ];
 
-  // Nav items for unauthenticated users
-  const publicNavItems = [
+  const parentNavItems = [
     {
       type: "link",
-      path: "/",
+      path: "/parent-dashboard",
       icon: <FaHome />,
-      label: "Home",
+      label: "Dashboard",
     },
     {
       type: "link",
-      path: "/about",
-      icon: <FaSchool />,
-      label: "About",
+      path: "/parent/profile",
+      icon: <FaUser />,
+      label: "Profile",
+    },
+    {
+      type: "dropdown",
+      label: "Academics",
+      icon: <FaBookOpen />,
+      name: "academics",
+      items: [
+        { path: "/results", label: "Results", icon: <FaChartBar /> },
+        { path: "/attendance", label: "Attendance", icon: <FaCalendarAlt /> },
+        { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
+      ],
     },
     {
       type: "link",
-      path: "/contact",
+      path: "/announcements",
       icon: <FaBullhorn />,
-      label: "Contact",
-    },
-    // Public email verification for parents
-    {
-      type: "link",
-      path: "/verify-parent",
-      icon: <FaSearch />,
-      label: "Verify Parent",
+      label: "Announcements",
     },
   ];
 
-  const navItems = isAuthenticated ? authNavItems : publicNavItems;
+  const studentNavItems = [
+    {
+      type: "link",
+      path: "/student-dashboard",
+      icon: <FaHome />,
+      label: "Dashboard",
+    },
+    {
+      type: "link",
+      path: "/results",
+      icon: <FaChartBar />,
+      label: "My Results",
+    },
+    {
+      type: "link",
+      path: "/attendance",
+      icon: <FaCalendarAlt />,
+      label: "My Attendance",
+    },
+    { type: "link", path: "/fees", icon: <FaMoneyBill />, label: "My Fees" },
+    {
+      type: "link",
+      path: "/timetable",
+      icon: <FaBookOpen />,
+      label: "Timetable",
+    },
+    {
+      type: "link",
+      path: "/announcements",
+      icon: <FaBullhorn />,
+      label: "Announcements",
+    },
+  ];
+
+  // Determine which navigation items to show based on authentication and role
+  let navItems = publicNavItems;
+  const role = user?.role;
+
+  if (isAuthenticated) {
+    if (role === "ADMIN") navItems = adminNavItems;
+    else if (role === "TEACHER") navItems = teacherNavItems;
+    else if (role === "PARENT") navItems = parentNavItems;
+    else if (role === "STUDENT") navItems = studentNavItems;
+  }
 
   return (
     <nav
@@ -227,13 +315,8 @@ function Navbar() {
         <Link className="navbar-brand school-logo" to="/" onClick={closeMenu}>
           <FaSchool className="me-2" />
           <span className="brand-text">FFIS</span>
-          <span className="brand-full d-none d-md-inline">
-            {" "}
-            - Faith Foundation
-          </span>
         </Link>
 
-        {/* Mobile toggle button */}
         <button
           className="navbar-toggler"
           type="button"
@@ -295,7 +378,6 @@ function Navbar() {
             ))}
           </ul>
 
-          {/* Auth buttons for unauthenticated users */}
           {!isAuthenticated && (
             <div className="auth-buttons ms-lg-3">
               <Link to="/login" className="btn btn-outline-light me-2">
@@ -307,7 +389,6 @@ function Navbar() {
             </div>
           )}
 
-          {/* User menu for authenticated users */}
           {isAuthenticated && (
             <div className="user-menu ms-lg-3">
               <div className="nav-dropdown">
@@ -317,11 +398,7 @@ function Navbar() {
                   aria-expanded={openDropdown === "user"}
                 >
                   <div className="user-avatar">
-                    {user?.profilePicture ? (
-                      <img src={user.profilePicture} alt={user.firstName} />
-                    ) : (
-                      <FaUser />
-                    )}
+                    <FaUser />
                   </div>
                   <span className="user-name d-none d-lg-inline">
                     {user?.firstName || "User"}

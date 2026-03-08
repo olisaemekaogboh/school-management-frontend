@@ -1,83 +1,70 @@
-/* Session Result Statistics Styles */
+/* Add to SessionResult.css */
 
-.stat-card {
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    transition: transform 0.3s;
+/* Button spacing */
+.d-flex.gap-2 {
+  gap: 10px !important;
 }
 
-.stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+.btn-primary, 
+.btn-success, 
+.btn-info {
+  border-radius: 6px;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.bg-purple {
-    background-color: #6f42c1;
+.btn-primary:hover {
+  background-color: #006b3f !important;
+  border-color: #006b3f !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 135, 83, 0.2);
 }
 
-.text-white-50 {
-    color: rgba(255,255,255,0.7) !important;
+.btn-success:hover {
+  background-color: #218838 !important;
+  border-color: #218838 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
 }
 
-.text-dark-50 {
-    color: rgba(0,0,0,0.7) !important;
+.btn-info:hover {
+  background-color: #138496 !important;
+  border-color: #138496 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(23, 162, 184, 0.2);
 }
 
-.opacity-50 {
-    opacity: 0.5;
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
-.progress {
-    background-color: rgba(255,255,255,0.3);
-    border-radius: 10px;
-    overflow: hidden;
+/* Form selects */
+.form-select {
+  border: 2px solid #22518d;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  transition: all 0.2s;
 }
 
-.progress-bar {
-    transition: width 0.6s ease;
+.form-select:focus {
+  border-color: #008753;
+  box-shadow: 0 0 0 3px rgba(0, 135, 83, 0.1);
+  outline: none;
 }
 
-/* Card hover effects */
-.card {
-    transition: box-shadow 0.3s;
-    border: none;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.card:hover {
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
-
-/* Table styles */
-.table th {
-    border-top: none;
-    font-weight: 600;
-    color: #495057;
-}
-
-.table td {
-    vertical-align: middle;
-}
-
-/* Badge styles */
-.badge {
-    padding: 6px 10px;
-    font-weight: 500;
-}
-
-/* Animation for numbers */
-@keyframes countUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.stat-card h2 {
-    animation: countUp 0.8s ease-out;
+/* Responsive */
+@media (max-width: 768px) {
+  .d-flex.gap-2 {
+    flex-wrap: wrap;
+  }
+  
+  .btn-primary,
+  .btn-success,
+  .btn-info {
+    width: 100%;
+    margin-right: 0 !important;
+    margin-bottom: 10px;
+  }
 }

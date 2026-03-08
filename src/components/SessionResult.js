@@ -32,9 +32,27 @@ function SessionResult() {
   const [graduates, setGraduates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("view");
+  const [rankingsType, setRankingsType] = useState("school");
+  const [selectedClass, setSelectedClass] = useState("");
+  const [selectedArm, setSelectedArm] = useState("");
 
   const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
   const terms = ["FIRST", "SECOND", "THIRD"];
+  const classes = [
+    "Nursery",
+    "Primary 1",
+    "Primary 2",
+    "Primary 3",
+    "Primary 4",
+    "Primary 5",
+    "Primary 6",
+    "JSS 1",
+    "JSS 2",
+    "JSS 3",
+    "SSS 1",
+    "SSS 2",
+    "SSS 3",
+  ];
 
   useEffect(() => {
     fetchStudents();
@@ -91,6 +109,7 @@ function SessionResult() {
         );
       }
       setRankings(response.data);
+      toast.success("Rankings loaded successfully");
     } catch (error) {
       console.error("Error fetching rankings:", error);
       toast.error("Failed to load rankings");
@@ -104,6 +123,7 @@ function SessionResult() {
     try {
       const response = await sessionResultAPI.getSessionStatistics(session);
       setStatistics(response.data);
+      toast.success("Statistics loaded successfully");
     } catch (error) {
       console.error("Error fetching statistics:", error);
       toast.error("Failed to load statistics");
@@ -117,6 +137,7 @@ function SessionResult() {
     try {
       const response = await sessionResultAPI.getGraduationList(session);
       setGraduates(response.data);
+      toast.success("Graduation list loaded successfully");
     } catch (error) {
       console.error("Error fetching graduates:", error);
       toast.error("Failed to load graduation list");
@@ -206,47 +227,89 @@ function SessionResult() {
   return (
     <div className="session-result container-fluid py-4">
       <h2 className="mb-4">Session Result Management</h2>
-      {/* Tabs */}
-      <ul className="nav nav-tabs mb-4">
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "view" ? "active" : ""}`}
-            onClick={() => setActiveTab("view")}
-          >
-            <FaEye className="me-2" /> View Results
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "rankings" ? "active" : ""}`}
-            onClick={() => setActiveTab("rankings")}
-          >
-            <FaTrophy className="me-2" /> Rankings
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "statistics" ? "active" : ""}`}
-            onClick={() => setActiveTab("statistics")}
-          >
-            <FaChartBar className="me-2" /> Statistics
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "graduates" ? "active" : ""}`}
-            onClick={() => {
-              setActiveTab("graduates");
-              fetchGraduates();
-            }}
-          >
-            <FaGraduationCap className="me-2" /> Graduates
-          </button>
-        </li>
-      </ul>
-      {/* Controls */}
-      <div className="row mb-4">
+
+      {/* Tabs with New Colors */}
+      <div className="d-flex gap-2 mb-4">
+        <button
+          className={`btn ${activeTab === "view" ? "active" : ""}`}
+          onClick={() => setActiveTab("view")}
+          style={{
+            backgroundColor: activeTab === "view" ? "#4CAF50" : "#f8f9fa",
+            color: activeTab === "view" ? "white" : "#495057",
+            border: activeTab === "view" ? "none" : "1px solid #dee2e6",
+            padding: "10px 20px",
+            fontWeight: "500",
+            borderRadius: "6px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <FaEye /> View Results
+        </button>
+
+        <button
+          className={`btn ${activeTab === "rankings" ? "active" : ""}`}
+          onClick={() => setActiveTab("rankings")}
+          style={{
+            backgroundColor: activeTab === "rankings" ? "#FF9800" : "#f8f9fa",
+            color: activeTab === "rankings" ? "white" : "#495057",
+            border: activeTab === "rankings" ? "none" : "1px solid #dee2e6",
+            padding: "10px 20px",
+            fontWeight: "500",
+            borderRadius: "6px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <FaTrophy /> Rankings
+        </button>
+
+        <button
+          className={`btn ${activeTab === "statistics" ? "active" : ""}`}
+          onClick={() => setActiveTab("statistics")}
+          style={{
+            backgroundColor: activeTab === "statistics" ? "#2196F3" : "#f8f9fa",
+            color: activeTab === "statistics" ? "white" : "#495057",
+            border: activeTab === "statistics" ? "none" : "1px solid #dee2e6",
+            padding: "10px 20px",
+            fontWeight: "500",
+            borderRadius: "6px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <FaChartBar /> Statistics
+        </button>
+
+        <button
+          className={`btn ${activeTab === "graduates" ? "active" : ""}`}
+          onClick={() => {
+            setActiveTab("graduates");
+            fetchGraduates();
+          }}
+          style={{
+            backgroundColor: activeTab === "graduates" ? "#9C27B0" : "#f8f9fa",
+            color: activeTab === "graduates" ? "white" : "#495057",
+            border: activeTab === "graduates" ? "none" : "1px solid #dee2e6",
+            padding: "10px 20px",
+            fontWeight: "500",
+            borderRadius: "6px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <FaGraduationCap /> Graduates
+        </button>
+      </div>
+
+      {/* Session Selection Row - Always Visible */}
+      <div className="row mb-4 align-items-end">
         <div className="col-md-3">
+          <label className="form-label fw-bold">Academic Session</label>
           <select
             className="form-select"
             value={session}
@@ -259,55 +322,244 @@ function SessionResult() {
             ))}
           </select>
         </div>
-        <div className="col-md-4">
-          <select
-            className="form-select"
-            value={selectedStudent?.id || ""}
-            onChange={(e) => {
-              const student = students.find(
-                (s) => s.id === parseInt(e.target.value),
-              );
-              setSelectedStudent(student);
-            }}
-          >
-            <option value="">Select Student</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.fullName} - {s.admissionNumber}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="col-md-5">
-          <button
-            className="btn btn-primary me-2"
-            onClick={calculateAllResults}
-            disabled={loading}
-          >
-            {loading ? <FaSpinner className="spinner" /> : "Calculate All"}
-          </button>
-          <button
-            className="btn btn-success me-2"
-            onClick={promoteStudents}
-            disabled={loading}
-          >
-            Promote Students
-          </button>
-          <button className="btn btn-info" onClick={() => fetchStatistics()}>
-            Refresh Stats
-          </button>
+
+        {/* Action Buttons - Always Visible */}
+        <div className="col-md-9">
+          <div className="d-flex gap-2 justify-content-end">
+            <button
+              className="btn"
+              onClick={calculateAllResults}
+              disabled={loading}
+              style={{
+                backgroundColor: "#dc3545",
+                borderColor: "#dc3545",
+                color: "white",
+                padding: "10px 20px",
+                fontWeight: "500",
+                minWidth: "130px",
+                borderRadius: "6px",
+              }}
+            >
+              {loading ? <FaSpinner className="spinner" /> : "📊 Calculate All"}
+            </button>
+
+            <button
+              className="btn"
+              onClick={promoteStudents}
+              disabled={loading}
+              style={{
+                backgroundColor: "#28a745",
+                borderColor: "#28a745",
+                color: "white",
+                padding: "10px 20px",
+                fontWeight: "500",
+                minWidth: "150px",
+                borderRadius: "6px",
+              }}
+            >
+              🎓 Promote Students
+            </button>
+
+            <button
+              className="btn"
+              onClick={() => fetchStatistics()}
+              disabled={loading}
+              style={{
+                backgroundColor: "#17a2b8",
+                borderColor: "#17a2b8",
+                color: "white",
+                padding: "10px 20px",
+                fontWeight: "500",
+                minWidth: "130px",
+                borderRadius: "6px",
+              }}
+            >
+              📈 Refresh Stats
+            </button>
+          </div>
         </div>
       </div>
-      {/* View Results Tab */}
+
+      {/* Tab-specific Controls */}
+      {activeTab === "view" && (
+        <div className="row mb-4">
+          <div className="col-md-12">
+            <div className="card">
+              <div className="card-body">
+                <div className="row align-items-end">
+                  <div className="col-md-8">
+                    <label className="form-label fw-bold">Select Student</label>
+                    <select
+                      className="form-select"
+                      value={selectedStudent?.id || ""}
+                      onChange={(e) => {
+                        const student = students.find(
+                          (s) => s.id === parseInt(e.target.value),
+                        );
+                        setSelectedStudent(student);
+                      }}
+                    >
+                      <option value="">-- Choose a student --</option>
+                      {students.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.fullName} - {s.admissionNumber} ({s.studentClass}{" "}
+                          {s.classArm})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-md-4">
+                    <button
+                      className="btn w-100"
+                      onClick={() => selectedStudent && fetchSessionResult()}
+                      disabled={!selectedStudent || loading}
+                      style={{
+                        backgroundColor: "#4CAF50",
+                        borderColor: "#4CAF50",
+                        color: "white",
+                        padding: "10px",
+                        fontWeight: "500",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      Load Result
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "rankings" && (
+        <div className="row mb-4">
+          <div className="col-md-12">
+            <div className="card">
+              <div className="card-body">
+                <div className="row align-items-end">
+                  <div className="col-md-3">
+                    <label className="form-label fw-bold">Rankings Type</label>
+                    <select
+                      className="form-select"
+                      value={rankingsType}
+                      onChange={(e) => setRankingsType(e.target.value)}
+                    >
+                      <option value="school">🏫 School Rankings</option>
+                      <option value="class">📚 Class Rankings</option>
+                      <option value="arm">👥 Class Arm Rankings</option>
+                    </select>
+                  </div>
+
+                  {rankingsType !== "school" && (
+                    <div className="col-md-3">
+                      <label className="form-label fw-bold">Class</label>
+                      <select
+                        className="form-select"
+                        value={selectedClass}
+                        onChange={(e) => setSelectedClass(e.target.value)}
+                      >
+                        <option value="">Select Class</option>
+                        {classes.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {rankingsType === "arm" && (
+                    <div className="col-md-2">
+                      <label className="form-label fw-bold">Arm</label>
+                      <select
+                        className="form-select"
+                        value={selectedArm}
+                        onChange={(e) => setSelectedArm(e.target.value)}
+                      >
+                        <option value="">Select Arm</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div
+                    className={`col-md-${rankingsType === "school" ? "3" : rankingsType === "arm" ? "2" : "4"}`}
+                  >
+                    <button
+                      className="btn w-100"
+                      onClick={() =>
+                        fetchRankings(rankingsType, selectedClass, selectedArm)
+                      }
+                      disabled={loading}
+                      style={{
+                        backgroundColor: "#FF9800",
+                        borderColor: "#FF9800",
+                        color: "white",
+                        padding: "10px",
+                        fontWeight: "500",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      View Rankings
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "graduates" && (
+        <div className="row mb-4">
+          <div className="col-md-12">
+            <div className="card">
+              <div className="card-body">
+                <div className="row">
+                  <div className="col-md-12">
+                    <button
+                      className="btn"
+                      onClick={fetchGraduates}
+                      disabled={loading}
+                      style={{
+                        backgroundColor: "#9C27B0",
+                        borderColor: "#9C27B0",
+                        color: "white",
+                        padding: "10px 20px",
+                        fontWeight: "500",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      {loading ? (
+                        <FaSpinner className="spinner" />
+                      ) : (
+                        "Load Graduates"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Results Tab Content */}
       {activeTab === "view" && (
         <div className="view-results">
           {selectedStudent && sessionResult ? (
             <div className="card">
-              <div className="card-header bg-primary text-white">
+              <div
+                className="card-header"
+                style={{ background: "#4CAF50", color: "white" }}
+              >
                 <h5 className="mb-0">Annual Session Result: {session}</h5>
               </div>
               <div className="card-body">
-                {/* Student Info - FIXED: Added null checks */}
+                {/* Student Info */}
                 <div className="row mb-4">
                   <div className="col-md-6">
                     <h6>Student Information</h6>
@@ -342,7 +594,7 @@ function SessionResult() {
                   </div>
                 </div>
 
-                {/* Term Summaries - FIXED: Added null checks */}
+                {/* Term Summaries */}
                 <div className="row mb-4">
                   <div className="col-md-4">
                     <div className="border p-3 rounded text-center">
@@ -379,7 +631,7 @@ function SessionResult() {
                   </div>
                 </div>
 
-                {/* Subject Performance - FIXED: Added null checks */}
+                {/* Subject Performance */}
                 {sessionResult.subjectAverages &&
                 Object.keys(sessionResult.subjectAverages).length > 0 ? (
                   <div className="mb-4">
@@ -422,7 +674,7 @@ function SessionResult() {
                   </div>
                 )}
 
-                {/* Annual Summary - FIXED: Added null checks */}
+                {/* Annual Summary */}
                 <div className="row">
                   <div className="col-md-4">
                     <div className="border p-3 rounded bg-light">
@@ -450,7 +702,7 @@ function SessionResult() {
                   </div>
                 </div>
 
-                {/* Attendance Summary - Add to the annual summary section */}
+                {/* Attendance Summary */}
                 <div className="row mt-3">
                   <div className="col-md-6">
                     <div className="border p-3 rounded bg-light">
@@ -548,52 +800,16 @@ function SessionResult() {
           )}
         </div>
       )}
-      {/* Rankings Tab */}
+
+      {/* Rankings Tab Content */}
       {activeTab === "rankings" && (
         <div className="rankings">
-          <div className="row mb-3">
-            <div className="col-md-3">
-              <button
-                className="btn btn-nigerian w-100"
-                onClick={() => fetchRankings("school")}
-              >
-                School Rankings
-              </button>
-            </div>
-            <div className="col-md-3">
-              <select
-                className="form-select"
-                onChange={(e) => fetchRankings("class", e.target.value)}
-              >
-                <option value="">Select Class</option>
-                {[...new Set(students.map((s) => s.studentClass))].map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-3">
-              <select
-                className="form-select"
-                onChange={(e) => {
-                  const [className, arm] = e.target.value.split("|");
-                  fetchRankings("arm", className, arm);
-                }}
-              >
-                <option value="">Select Class & Arm</option>
-                {students.map((s) => (
-                  <option key={s.id} value={`${s.studentClass}|${s.classArm}`}>
-                    {s.studentClass} {s.classArm}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {rankings && (
+          {rankings ? (
             <div className="card">
-              <div className="card-header bg-success text-white">
+              <div
+                className="card-header"
+                style={{ background: "#FF9800", color: "white" }}
+              >
                 <h5 className="mb-0">
                   {rankings.className
                     ? `${rankings.className} ${rankings.arm || ""} `
@@ -662,11 +878,15 @@ function SessionResult() {
                 </p>
               </div>
             </div>
+          ) : (
+            <div className="alert alert-info">
+              Select rankings type and click "View Rankings" to see results
+            </div>
           )}
         </div>
       )}
 
-      {/* Statistics Tab */}
+      {/* Statistics Tab Content */}
       {activeTab === "statistics" && (
         <div className="statistics">
           {loading ? (
@@ -679,7 +899,10 @@ function SessionResult() {
               {/* Summary Cards */}
               <div className="row mb-4">
                 <div className="col-md-3">
-                  <div className="stat-card bg-primary text-white">
+                  <div
+                    className="stat-card"
+                    style={{ background: "#2196F3", color: "white" }}
+                  >
                     <div className="d-flex justify-content-between align-items-center">
                       <div>
                         <h6 className="text-white-50 mb-1">Total Students</h6>
@@ -696,7 +919,10 @@ function SessionResult() {
                 </div>
 
                 <div className="col-md-3">
-                  <div className="stat-card bg-success text-white">
+                  <div
+                    className="stat-card"
+                    style={{ background: "#28a745", color: "white" }}
+                  >
                     <div className="d-flex justify-content-between align-items-center">
                       <div>
                         <h6 className="text-white-50 mb-1">Promoted</h6>
@@ -704,7 +930,13 @@ function SessionResult() {
                       </div>
                       <FaCheckCircle size={40} className="opacity-50" />
                     </div>
-                    <div className="progress mt-3" style={{ height: "5px" }}>
+                    <div
+                      className="progress mt-3"
+                      style={{
+                        height: "5px",
+                        background: "rgba(255,255,255,0.3)",
+                      }}
+                    >
                       <div
                         className="progress-bar bg-white"
                         style={{
@@ -724,7 +956,10 @@ function SessionResult() {
                 </div>
 
                 <div className="col-md-3">
-                  <div className="stat-card bg-danger text-white">
+                  <div
+                    className="stat-card"
+                    style={{ background: "#dc3545", color: "white" }}
+                  >
                     <div className="d-flex justify-content-between align-items-center">
                       <div>
                         <h6 className="text-white-50 mb-1">Retained</h6>
@@ -732,7 +967,13 @@ function SessionResult() {
                       </div>
                       <FaTimesCircle size={40} className="opacity-50" />
                     </div>
-                    <div className="progress mt-3" style={{ height: "5px" }}>
+                    <div
+                      className="progress mt-3"
+                      style={{
+                        height: "5px",
+                        background: "rgba(255,255,255,0.3)",
+                      }}
+                    >
                       <div
                         className="progress-bar bg-white"
                         style={{
@@ -752,7 +993,10 @@ function SessionResult() {
                 </div>
 
                 <div className="col-md-3">
-                  <div className="stat-card bg-warning text-dark">
+                  <div
+                    className="stat-card"
+                    style={{ background: "#ffc107", color: "#212529" }}
+                  >
                     <div className="d-flex justify-content-between align-items-center">
                       <div>
                         <h6 className="text-dark-50 mb-1">Promotion Rate</h6>
@@ -770,11 +1014,15 @@ function SessionResult() {
                 </div>
               </div>
 
+              {/* Rest of the statistics content remains the same */}
               {/* Performance Overview */}
               <div className="row mb-4">
                 <div className="col-md-4">
                   <div className="card h-100">
-                    <div className="card-header bg-primary text-white">
+                    <div
+                      className="card-header"
+                      style={{ background: "#2196F3", color: "white" }}
+                    >
                       <h5 className="mb-0">
                         <FaChartBar className="me-2" /> Performance Overview
                       </h5>
@@ -789,9 +1037,10 @@ function SessionResult() {
                         </div>
                         <div className="progress" style={{ height: "8px" }}>
                           <div
-                            className="progress-bar bg-info"
+                            className="progress-bar"
                             style={{
                               width: `${statistics.overallAverage || 0}%`,
+                              backgroundColor: "#2196F3",
                             }}
                           ></div>
                         </div>
@@ -806,9 +1055,10 @@ function SessionResult() {
                         </div>
                         <div className="progress" style={{ height: "8px" }}>
                           <div
-                            className="progress-bar bg-success"
+                            className="progress-bar"
                             style={{
                               width: `${statistics.highestAverage || 0}%`,
+                              backgroundColor: "#28a745",
                             }}
                           ></div>
                         </div>
@@ -823,9 +1073,10 @@ function SessionResult() {
                         </div>
                         <div className="progress" style={{ height: "8px" }}>
                           <div
-                            className="progress-bar bg-danger"
+                            className="progress-bar"
                             style={{
                               width: `${statistics.lowestAverage || 0}%`,
+                              backgroundColor: "#dc3545",
                             }}
                           ></div>
                         </div>
@@ -837,7 +1088,10 @@ function SessionResult() {
                 {/* Class Performance */}
                 <div className="col-md-8">
                   <div className="card h-100">
-                    <div className="card-header bg-success text-white">
+                    <div
+                      className="card-header"
+                      style={{ background: "#28a745", color: "white" }}
+                    >
                       <h5 className="mb-0">
                         <FaSchool className="me-2" /> Class Performance
                       </h5>
@@ -858,7 +1112,6 @@ function SessionResult() {
                             {Object.entries(
                               statistics.classPerformance || {},
                             ).map(([className, avg]) => {
-                              // Calculate class-specific stats from your data
                               const classStudents = students.filter(
                                 (s) => s.studentClass === className,
                               );
@@ -885,29 +1138,37 @@ function SessionResult() {
                                       style={{ height: "8px" }}
                                     >
                                       <div
-                                        className={`progress-bar ${
-                                          avg >= 70
-                                            ? "bg-success"
-                                            : avg >= 50
-                                              ? "bg-warning"
-                                              : "bg-danger"
-                                        }`}
-                                        style={{ width: `${avg || 0}%` }}
+                                        className="progress-bar"
+                                        style={{
+                                          width: `${avg || 0}%`,
+                                          backgroundColor:
+                                            avg >= 70
+                                              ? "#28a745"
+                                              : avg >= 50
+                                                ? "#ffc107"
+                                                : "#dc3545",
+                                        }}
                                       ></div>
                                     </div>
                                   </td>
                                   <td>{classStudents.length}</td>
                                   <td>
                                     <span
-                                      className={`badge ${
-                                        promotionRate >= 90
-                                          ? "bg-success"
-                                          : promotionRate >= 70
-                                            ? "bg-primary"
-                                            : promotionRate >= 50
-                                              ? "bg-warning"
-                                              : "bg-danger"
-                                      }`}
+                                      className="badge"
+                                      style={{
+                                        backgroundColor:
+                                          promotionRate >= 90
+                                            ? "#28a745"
+                                            : promotionRate >= 70
+                                              ? "#2196F3"
+                                              : promotionRate >= 50
+                                                ? "#ffc107"
+                                                : "#dc3545",
+                                        color:
+                                          promotionRate >= 50
+                                            ? "white"
+                                            : "white",
+                                      }}
                                     >
                                       {promotionRate}%
                                     </span>
@@ -927,7 +1188,10 @@ function SessionResult() {
               <div className="row mb-4">
                 <div className="col-md-6">
                   <div className="card">
-                    <div className="card-header bg-info text-white">
+                    <div
+                      className="card-header"
+                      style={{ background: "#17a2b8", color: "white" }}
+                    >
                       <h5 className="mb-0">Grade Distribution</h5>
                     </div>
                     <div className="card-body">
@@ -946,19 +1210,22 @@ function SessionResult() {
                                   <div className="d-flex justify-content-between align-items-center">
                                     <div>
                                       <span
-                                        className={`badge bg-${
-                                          grade === "A"
-                                            ? "success"
-                                            : grade === "B"
-                                              ? "primary"
-                                              : grade === "C"
-                                                ? "info"
-                                                : grade === "D"
-                                                  ? "warning"
-                                                  : grade === "E"
-                                                    ? "secondary"
-                                                    : "danger"
-                                        } p-2 me-2`}
+                                        className="badge p-2 me-2"
+                                        style={{
+                                          backgroundColor:
+                                            grade === "A"
+                                              ? "#28a745"
+                                              : grade === "B"
+                                                ? "#2196F3"
+                                                : grade === "C"
+                                                  ? "#17a2b8"
+                                                  : grade === "D"
+                                                    ? "#ffc107"
+                                                    : grade === "E"
+                                                      ? "#6c757d"
+                                                      : "#dc3545",
+                                          color: "white",
+                                        }}
                                       >
                                         Grade {grade}
                                       </span>
@@ -972,20 +1239,22 @@ function SessionResult() {
                                     style={{ height: "6px" }}
                                   >
                                     <div
-                                      className={`progress-bar bg-${
-                                        grade === "A"
-                                          ? "success"
-                                          : grade === "B"
-                                            ? "primary"
-                                            : grade === "C"
-                                              ? "info"
-                                              : grade === "D"
-                                                ? "warning"
-                                                : grade === "E"
-                                                  ? "secondary"
-                                                  : "danger"
-                                      }`}
-                                      style={{ width: `${percentage}%` }}
+                                      className="progress-bar"
+                                      style={{
+                                        width: `${percentage}%`,
+                                        backgroundColor:
+                                          grade === "A"
+                                            ? "#28a745"
+                                            : grade === "B"
+                                              ? "#2196F3"
+                                              : grade === "C"
+                                                ? "#17a2b8"
+                                                : grade === "D"
+                                                  ? "#ffc107"
+                                                  : grade === "E"
+                                                    ? "#6c757d"
+                                                    : "#dc3545",
+                                      }}
                                     ></div>
                                   </div>
                                   <small className="text-muted">
@@ -1010,7 +1279,10 @@ function SessionResult() {
                 {/* Attendance Overview */}
                 <div className="col-md-6">
                   <div className="card">
-                    <div className="card-header bg-warning text-dark">
+                    <div
+                      className="card-header"
+                      style={{ background: "#ffc107", color: "#212529" }}
+                    >
                       <h5 className="mb-0">
                         <FaCalendarAlt className="me-2" /> Attendance Overview
                       </h5>
@@ -1021,7 +1293,7 @@ function SessionResult() {
                           <div className="col-md-6 mb-3">
                             <div className="border rounded p-3 text-center">
                               <h6>Average Attendance</h6>
-                              <h2 className="text-primary mb-0">
+                              <h2 className="mb-0" style={{ color: "#2196F3" }}>
                                 {statistics.attendanceStats.averageAttendance?.toFixed(
                                   1,
                                 ) || 0}
@@ -1035,7 +1307,7 @@ function SessionResult() {
                           <div className="col-md-6 mb-3">
                             <div className="border rounded p-3 text-center">
                               <h6>Excellent Attendance</h6>
-                              <h2 className="text-success mb-0">
+                              <h2 className="mb-0" style={{ color: "#28a745" }}>
                                 {statistics.attendanceStats
                                   .excellentAttendance || 0}
                               </h2>
@@ -1045,7 +1317,7 @@ function SessionResult() {
                           <div className="col-md-6 mb-3">
                             <div className="border rounded p-3 text-center">
                               <h6>Good Attendance</h6>
-                              <h2 className="text-info mb-0">
+                              <h2 className="mb-0" style={{ color: "#17a2b8" }}>
                                 {statistics.attendanceStats.goodAttendance || 0}
                               </h2>
                               <small className="text-muted">(75-90%)</small>
@@ -1054,7 +1326,7 @@ function SessionResult() {
                           <div className="col-md-6 mb-3">
                             <div className="border rounded p-3 text-center">
                               <h6>Poor Attendance</h6>
-                              <h2 className="text-danger mb-0">
+                              <h2 className="mb-0" style={{ color: "#dc3545" }}>
                                 {statistics.attendanceStats.poorAttendance || 0}
                               </h2>
                               <small className="text-muted">{" (<75%)"}</small>
@@ -1079,7 +1351,7 @@ function SessionResult() {
                   <div className="card">
                     <div
                       className="card-header"
-                      style={{ background: "#6f42c1", color: "white" }}
+                      style={{ background: "#9C27B0", color: "white" }}
                     >
                       <h5 className="mb-0">
                         <FaTrophy className="me-2" /> Top Performers
@@ -1109,7 +1381,10 @@ function SessionResult() {
                                     {performer.studentClass}{" "}
                                     {performer.classArm || ""}
                                   </p>
-                                  <h3 className="text-success mb-0">
+                                  <h3
+                                    className="mb-0"
+                                    style={{ color: "#28a745" }}
+                                  >
                                     {performer.annualAverage?.toFixed(1)}%
                                   </h3>
                                   <small className="text-muted">
@@ -1139,15 +1414,19 @@ function SessionResult() {
           )}
         </div>
       )}
-      {/* Graduates Tab */}
+
+      {/* Graduates Tab Content */}
       {activeTab === "graduates" && (
         <div className="graduates">
-          <div className="card">
-            <div className="card-header bg-warning">
-              <h5 className="mb-0">Graduation List - {session}</h5>
-            </div>
-            <div className="card-body">
-              {graduates.length > 0 ? (
+          {graduates.length > 0 ? (
+            <div className="card">
+              <div
+                className="card-header"
+                style={{ background: "#9C27B0", color: "white" }}
+              >
+                <h5 className="mb-0">Graduation List - {session}</h5>
+              </div>
+              <div className="card-body">
                 <div className="table-responsive">
                   <table className="table table-striped">
                     <thead>
@@ -1166,7 +1445,7 @@ function SessionResult() {
                           <td>{index + 1}</td>
                           <td>{grad.studentName}</td>
                           <td>{grad.admissionNumber}</td>
-                          <td className="fw-bold text-success">
+                          <td className="fw-bold" style={{ color: "#28a745" }}>
                             {grad.finalAverage?.toFixed(2)}%
                           </td>
                           <td>{grad.attendance?.toFixed(1)}%</td>
@@ -1176,13 +1455,13 @@ function SessionResult() {
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <p className="text-muted">
-                  No graduates found for this session
-                </p>
-              )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="alert alert-info">
+              No graduates found for this session
+            </div>
+          )}
         </div>
       )}
     </div>

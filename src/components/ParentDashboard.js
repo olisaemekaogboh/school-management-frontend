@@ -16,13 +16,18 @@ function ParentDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchWards();
-  }, []);
+    if (user?.parentId) {
+      fetchWards();
+    } else {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const fetchWards = async () => {
     try {
-      const response = await parentAPI.getWards(user?.parentId);
-      setWards(response.data);
+      const response = await parentAPI.getWards(user.parentId);
+      setWards(response.data || []);
     } catch (error) {
       console.error("Error fetching wards:", error);
     } finally {
@@ -44,46 +49,54 @@ function ParentDashboard() {
         <FaChild className="me-2" /> Welcome, {user?.firstName}!
       </h2>
 
-      <div className="row">
-        {wards.map((ward) => (
-          <div key={ward.id} className="col-md-6 mb-4">
-            <div className="card">
-              <div className="card-header bg-primary text-white">
-                <h5 className="mb-0">{ward.fullName}</h5>
-              </div>
-              <div className="card-body">
-                <p>
-                  <strong>Admission:</strong> {ward.admissionNumber}
-                </p>
-                <p>
-                  <strong>Class:</strong> {ward.studentClass} {ward.classArm}
-                </p>
+      {wards.length === 0 ? (
+        <div className="alert alert-info">
+          No ward linked to this parent account yet.
+        </div>
+      ) : (
+        <div className="row">
+          {wards.map((ward) => (
+            <div key={ward.id} className="col-md-6 mb-4">
+              <div className="card">
+                <div className="card-header bg-primary text-white">
+                  <h5 className="mb-0">
+                    {ward.fullName || `${ward.firstName} ${ward.lastName}`}
+                  </h5>
+                </div>
+                <div className="card-body">
+                  <p>
+                    <strong>Admission:</strong> {ward.admissionNumber}
+                  </p>
+                  <p>
+                    <strong>Class:</strong> {ward.studentClass} {ward.classArm}
+                  </p>
 
-                <div className="d-flex gap-2 mt-3">
-                  <Link
-                    to={`/results?student=${ward.id}`}
-                    className="btn btn-sm btn-outline-primary"
-                  >
-                    <FaChartBar /> Results
-                  </Link>
-                  <Link
-                    to={`/attendance?student=${ward.id}`}
-                    className="btn btn-sm btn-outline-success"
-                  >
-                    <FaCalendarAlt /> Attendance
-                  </Link>
-                  <Link
-                    to={`/fees?student=${ward.id}`}
-                    className="btn btn-sm btn-outline-warning"
-                  >
-                    <FaMoneyBill /> Fees
-                  </Link>
+                  <div className="d-flex gap-2 mt-3 flex-wrap">
+                    <Link
+                      to={`/results?student=${ward.id}`}
+                      className="btn btn-sm btn-outline-primary"
+                    >
+                      <FaChartBar /> Results
+                    </Link>
+                    <Link
+                      to={`/attendance?student=${ward.id}`}
+                      className="btn btn-sm btn-outline-success"
+                    >
+                      <FaCalendarAlt /> Attendance
+                    </Link>
+                    <Link
+                      to={`/fees?student=${ward.id}`}
+                      className="btn btn-sm btn-outline-warning"
+                    >
+                      <FaMoneyBill /> Fees
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

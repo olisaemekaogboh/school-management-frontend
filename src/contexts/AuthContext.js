@@ -1,14 +1,14 @@
-// src/contexts/AuthContext.js
-import React, { createContext, useState, useContext, useEffect } from "react";
-import {
-  authAPI,
-  setAuthToken,
-  getCurrentUser,
-  clearAuthToken,
-} from "../services/api";
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useMemo,
+} from "react";
+import { authAPI, setAuthToken, clearAuthToken } from "../services/api";
 import { toast } from "react-toastify";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -18,13 +18,24 @@ export const useAuth = () => {
   return context;
 };
 
+const normalizeUser = (rawUser) => {
+  if (!rawUser) return null;
+
+  return {
+    ...rawUser,
+    role: rawUser.role || null,
+    studentId: rawUser.studentId || rawUser.student?.id || null,
+    parentId: rawUser.parentId || rawUser.parent?.id || null,
+    teacherId: rawUser.teacherId || rawUser.teacher?.id || null,
+  };
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in
     const loadUser = async () => {
       const token = localStorage.getItem("accessToken");
 
@@ -34,29 +45,40 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        // Get current user from token
         const response = await authAPI.getCurrentUser();
-        setUser(response.data);
+        const normalizedUser = normalizeUser(response.data);
+
+        setUser(normalizedUser);
+        localStorage.setItem("user", JSON.stringify(normalizedUser));
         setIsAuthenticated(true);
       } catch (error) {
         console.error("Failed to load user:", error);
-        // Token might be expired, try to refresh
+
         try {
           const refreshToken = localStorage.getItem("refreshToken");
           if (refreshToken) {
             const refreshResponse = await authAPI.refreshToken({
               refreshToken,
             });
+
             if (refreshResponse.data.accessToken) {
               setAuthToken(
                 refreshResponse.data.accessToken,
                 refreshResponse.data.refreshToken,
+                refreshResponse.data.user,
               );
-              // Retry getting user
+
               const userResponse = await authAPI.getCurrentUser();
-              setUser(userResponse.data);
+              const normalizedUser = normalizeUser(userResponse.data);
+
+              setUser(normalizedUser);
+              localStorage.setItem("user", JSON.stringify(normalizedUser));
               setIsAuthenticated(true);
+            } else {
+              clearAuthToken();
             }
+          } else {
+            clearAuthToken();
           }
         } catch (refreshError) {
           console.error("Refresh failed:", refreshError);
@@ -73,10 +95,12 @@ export const AuthProvider = ({ children }) => {
   const login = async (usernameOrEmail, password) => {
     try {
       const response = await authAPI.login({ usernameOrEmail, password });
-      const { accessToken, refreshToken, user } = response.data;
+      const { accessToken, refreshToken, user: rawUser } = response.data;
 
-      setAuthToken(accessToken, refreshToken, user);
-      setUser(user);
+      const normalizedUser = normalizeUser(rawUser);
+
+      setAuthToken(accessToken, refreshToken, normalizedUser);
+      setUser(normalizedUser);
       setIsAuthenticated(true);
 
       toast.success("Login successful!");
@@ -91,10 +115,12 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await authAPI.register(userData);
-      const { accessToken, refreshToken, user } = response.data;
+      const { accessToken, refreshToken, user: rawUser } = response.data;
 
-      setAuthToken(accessToken, refreshToken, user);
-      setUser(user);
+      const normalizedUser = normalizeUser(rawUser);
+
+      setAuthToken(accessToken, refreshToken, normalizedUser);
+      setUser(normalizedUser);
       setIsAuthenticated(true);
 
       toast.success(
@@ -122,19 +148,27 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (updatedUser) => {
-    setUser(updatedUser);
-    localStorage.setItem("user", JSON.stringify(updatedUser));
+    const normalizedUser = normalizeUser(updatedUser);
+    setUser(normalizedUser);
+    localStorage.setItem("user", JSON.stringify(normalizedUser));
   };
 
-  const value = {
-    user,
-    loading,
-    isAuthenticated,
-    login,
-    register,
-    logout,
-    updateUser,
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      isAuthenticated,
+      login,
+      register,
+      logout,
+      updateUser,
+      isAdmin: user?.role === "ADMIN",
+      isTeacher: user?.role === "TEACHER",
+      isParent: user?.role === "PARENT",
+      isStudent: user?.role === "STUDENT",
+    }),
+    [user, loading, isAuthenticated],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

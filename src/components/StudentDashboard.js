@@ -1,4 +1,3 @@
-// src/components/StudentDashboard.js
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { studentAPI, resultAPI, attendanceAPI, feeAPI } from "../services/api";
@@ -21,35 +20,45 @@ function StudentDashboard() {
   const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const session = "2025/2026";
+  const term = "FIRST";
+
   useEffect(() => {
-    fetchStudentData();
-  }, []);
+    if (user) {
+      fetchStudentData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const fetchStudentData = async () => {
     try {
-      // Assuming the user object contains studentId
       const studentId = user?.studentId;
 
-      if (!studentId) return;
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
 
       const [studentRes, resultsRes, attendanceRes, feesRes] =
         await Promise.all([
           studentAPI.getStudentById(studentId),
-          resultAPI.getTermResult(studentId, "2025/2026", "FIRST"),
-          attendanceAPI.getStudentTermSummary(studentId, "2025/2026", "FIRST"),
-          feeAPI.getStudentFees(studentId, "2025/2026", "FIRST"),
+          resultAPI.getMyTermResult(session, term),
+          attendanceAPI.getMyAttendanceSummary(session, term),
+          feeAPI.getStudentFees(studentId, session, term),
         ]);
 
       setStudentData(studentRes.data);
       setRecentResults(resultsRes.data?.subjects?.slice(0, 5) || []);
       setAttendance(attendanceRes.data);
-      setFees(feesRes.data);
+      setFees(feesRes.data || []);
     } catch (error) {
       console.error("Error fetching student data:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  const attendancePercentage = Number(attendance?.attendancePercentage || 0);
 
   if (loading) {
     return (
@@ -62,11 +71,11 @@ function StudentDashboard() {
   return (
     <div className="student-dashboard container py-4">
       <h2 className="mb-4">
-        <FaUserGraduate className="me-2" /> Welcome, {studentData?.firstName}!
+        <FaUserGraduate className="me-2" /> Welcome,{" "}
+        {studentData?.firstName || user?.firstName}!
       </h2>
 
       <div className="row">
-        {/* Student Info Card */}
         <div className="col-md-4 mb-4">
           <div className="card h-100">
             <div className="card-header bg-primary text-white">
@@ -92,7 +101,6 @@ function StudentDashboard() {
           </div>
         </div>
 
-        {/* Attendance Card */}
         <div className="col-md-4 mb-4">
           <div className="card h-100">
             <div className="card-header bg-success text-white">
@@ -100,61 +108,74 @@ function StudentDashboard() {
             </div>
             <div className="card-body text-center">
               <h1 className="display-1 text-success">
-                {attendance?.attendancePercentage?.toFixed(1)}%
+                {attendancePercentage.toFixed(1)}%
               </h1>
               <p>Attendance Rate</p>
               <div className="progress" style={{ height: "10px" }}>
                 <div
                   className="progress-bar bg-success"
-                  style={{ width: `${attendance?.attendancePercentage || 0}%` }}
-                ></div>
+                  style={{ width: `${attendancePercentage}%` }}
+                />
               </div>
               <p className="mt-3">
-                Present: {attendance?.daysPresent} | Absent:{" "}
-                {attendance?.daysAbsent}
+                Present: {attendance?.daysPresent || 0} | Absent:{" "}
+                {attendance?.daysAbsent || 0}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Fee Status Card */}
         <div className="col-md-4 mb-4">
           <div className="card h-100">
             <div className="card-header bg-warning">
               <h5 className="mb-0">Fee Status</h5>
             </div>
             <div className="card-body">
-              {fees.map((fee) => (
-                <div key={fee.id} className="mb-3">
-                  <div className="d-flex justify-content-between">
-                    <span>{fee.feeType}</span>
-                    <span
-                      className={
-                        fee.status === "PAID" ? "text-success" : "text-danger"
-                      }
-                    >
-                      ₦{fee.balance.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="progress" style={{ height: "5px" }}>
-                    <div
-                      className="progress-bar bg-success"
-                      style={{
-                        width: `${(fee.paidAmount / fee.amount) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                  <small className="text-muted">
-                    Due: {moment(fee.dueDate).format("DD/MM/YYYY")}
-                  </small>
-                </div>
-              ))}
+              {fees.length === 0 ? (
+                <p className="text-muted mb-0">No fee records found.</p>
+              ) : (
+                fees.map((fee) => {
+                  const amount = Number(fee.amount || 0);
+                  const paidAmount = Number(fee.paidAmount || 0);
+                  const balance = Number(fee.balance || 0);
+                  const paidPercent =
+                    amount > 0 ? (paidAmount / amount) * 100 : 0;
+
+                  return (
+                    <div key={fee.id} className="mb-3">
+                      <div className="d-flex justify-content-between">
+                        <span>{fee.feeType}</span>
+                        <span
+                          className={
+                            fee.status === "PAID"
+                              ? "text-success"
+                              : "text-danger"
+                          }
+                        >
+                          ₦{balance.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="progress" style={{ height: "5px" }}>
+                        <div
+                          className="progress-bar bg-success"
+                          style={{ width: `${paidPercent}%` }}
+                        />
+                      </div>
+                      <small className="text-muted">
+                        Due:{" "}
+                        {fee.dueDate
+                          ? moment(fee.dueDate).format("DD/MM/YYYY")
+                          : "-"}
+                      </small>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Results */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="card">
@@ -173,33 +194,41 @@ function StudentDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentResults.map((subject, index) => (
-                    <tr key={index}>
-                      <td>{subject.subject}</td>
-                      <td>{subject.continuousAssessment}</td>
-                      <td>{subject.examination}</td>
-                      <td>
-                        <strong>{subject.total}</strong>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge bg-${
-                            subject.grade === "A"
-                              ? "success"
-                              : subject.grade === "B"
-                                ? "primary"
-                                : subject.grade === "C"
-                                  ? "info"
-                                  : subject.grade === "D"
-                                    ? "warning"
-                                    : "danger"
-                          }`}
-                        >
-                          {subject.grade}
-                        </span>
+                  {recentResults.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="text-center text-muted">
+                        No result available yet.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    recentResults.map((subject, index) => (
+                      <tr key={index}>
+                        <td>{subject.subject}</td>
+                        <td>{subject.continuousAssessment}</td>
+                        <td>{subject.examination}</td>
+                        <td>
+                          <strong>{subject.total}</strong>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge bg-${
+                              subject.grade === "A"
+                                ? "success"
+                                : subject.grade === "B"
+                                  ? "primary"
+                                  : subject.grade === "C"
+                                    ? "info"
+                                    : subject.grade === "D"
+                                      ? "warning"
+                                      : "danger"
+                            }`}
+                          >
+                            {subject.grade}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -207,7 +236,6 @@ function StudentDashboard() {
         </div>
       </div>
 
-      {/* Quick Links */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="card">
@@ -215,10 +243,10 @@ function StudentDashboard() {
               <h5 className="mb-3">Quick Links</h5>
               <div className="d-flex gap-2 flex-wrap">
                 <Link to="/results" className="btn btn-outline-primary">
-                  <FaChartBar className="me-2" /> View All Results
+                  <FaChartBar className="me-2" /> View My Results
                 </Link>
                 <Link to="/attendance" className="btn btn-outline-success">
-                  <FaCalendarAlt className="me-2" /> Attendance History
+                  <FaCalendarAlt className="me-2" /> My Attendance
                 </Link>
                 <Link to="/fees" className="btn btn-outline-warning">
                   <FaMoneyBill className="me-2" /> Fee Details

@@ -21,6 +21,7 @@ import {
   FaSync,
   FaArrowLeft,
   FaArrowRight,
+  FaBan,
 } from "react-icons/fa";
 import moment from "moment";
 import "./ClassManagement.css";
@@ -40,6 +41,7 @@ function ClassManagement() {
 
   const [formData, setFormData] = useState({
     className: "",
+    arm: "",
     category: "",
     description: "",
     classTeacherId: "",
@@ -55,6 +57,9 @@ function ClassManagement() {
     "JUNIOR_SECONDARY",
     "SENIOR_SECONDARY",
   ];
+
+  const arms = ["A", "B", "C", "D"];
+
   const subjectList = [
     "Mathematics",
     "English",
@@ -91,14 +96,14 @@ function ClassManagement() {
   }, []);
 
   useEffect(() => {
-    filterClasses();
+    // No need to store filtered classes in state, just compute on render
   }, [searchTerm, selectedCategory, classes]);
 
   const fetchClasses = async () => {
     setLoading(true);
     try {
       const response = await classAPI.getAllClasses();
-      setClasses(response.data);
+      setClasses(response.data || []);
     } catch (error) {
       console.error("Error fetching classes:", error);
       toast.error("Failed to load classes");
@@ -110,7 +115,7 @@ function ClassManagement() {
   const fetchTeachers = async () => {
     try {
       const response = await teacherAPI.getAllTeachers();
-      setTeachers(response.data);
+      setTeachers(response.data || []);
     } catch (error) {
       console.error("Error fetching teachers:", error);
     }
@@ -124,7 +129,9 @@ function ClassManagement() {
       filtered = filtered.filter(
         (c) =>
           c.className?.toLowerCase().includes(term) ||
-          c.classCode?.toLowerCase().includes(term),
+          c.classCode?.toLowerCase().includes(term) ||
+          c.arm?.toLowerCase().includes(term) ||
+          c.classTeacherName?.toLowerCase().includes(term),
       );
     }
 
@@ -157,16 +164,56 @@ function ClassManagement() {
     });
   };
 
+  const validateForm = () => {
+    if (!formData.className?.trim()) {
+      toast.error("Class name is required");
+      return false;
+    }
+    if (!formData.arm) {
+      toast.error("Arm is required");
+      return false;
+    }
+    if (!formData.category) {
+      toast.error("Category is required");
+      return false;
+    }
+    if (!formData.capacity || formData.capacity < 1) {
+      toast.error("Valid capacity is required");
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const classData = {
+        className: formData.className.trim(),
+        arm: formData.arm,
+        category: formData.category,
+        capacity: parseInt(formData.capacity),
+        description: formData.description?.trim() || "",
+        subjects: formData.subjects || [],
+      };
+
+      if (formData.classTeacherId) {
+        classData.classTeacherId = formData.classTeacherId;
+      }
+
+      console.log("Submitting class data:", classData);
+
       if (editingClass) {
-        await classAPI.updateClass(editingClass.id, formData);
+        await classAPI.updateClass(editingClass.id, classData);
         toast.success("Class updated successfully");
       } else {
-        await classAPI.createClass(formData);
+        await classAPI.createClass(classData);
         toast.success("Class created successfully");
       }
 
@@ -202,6 +249,7 @@ function ClassManagement() {
   const handleEdit = (cls) => {
     setFormData({
       className: cls.className || "",
+      arm: cls.arm || "",
       category: cls.category || "",
       description: cls.description || "",
       classTeacherId: cls.classTeacherId || "",
@@ -215,6 +263,7 @@ function ClassManagement() {
   const resetForm = () => {
     setFormData({
       className: "",
+      arm: "",
       category: "",
       description: "",
       classTeacherId: "",
@@ -222,6 +271,7 @@ function ClassManagement() {
       subjects: [],
     });
     setEditingClass(null);
+    setNewSubject("");
   };
 
   const handleExport = async (format) => {
@@ -253,6 +303,14 @@ function ClassManagement() {
     }
   };
 
+  const getStatusBadge = (status) => {
+    return status ? (
+      <span className="badge bg-success">Active</span>
+    ) : (
+      <span className="badge bg-secondary">Inactive</span>
+    );
+  };
+
   const filteredClasses = filterClasses();
   const paginatedClasses = filteredClasses.slice(
     (currentPage - 1) * itemsPerPage,
@@ -269,15 +327,24 @@ function ClassManagement() {
             <FaChalkboard /> Class Management
           </h1>
           <div className="header-actions">
-            <button className="btn-refresh" onClick={fetchClasses}>
-              <FaSync /> Refresh
+            <button
+              className="btn-refresh"
+              onClick={fetchClasses}
+              title="Refresh"
+            >
+              <FaSync />
             </button>
-            <button className="btn-export" onClick={() => handleExport("pdf")}>
+            <button
+              className="btn-export"
+              onClick={() => handleExport("pdf")}
+              title="Export PDF"
+            >
               <FaDownload /> PDF
             </button>
             <button
               className="btn-export"
               onClick={() => handleExport("excel")}
+              title="Export Excel"
             >
               <FaDownload /> Excel
             </button>
@@ -292,7 +359,7 @@ function ClassManagement() {
             <label>Search</label>
             <input
               type="text"
-              placeholder="Search by class name..."
+              placeholder="Search by name, code, arm, or teacher..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -336,6 +403,7 @@ function ClassManagement() {
                 <thead>
                   <tr>
                     <th>Class Name</th>
+                    <th>Arm</th>
                     <th>Class Code</th>
                     <th>Category</th>
                     <th>Class Teacher</th>
@@ -351,37 +419,75 @@ function ClassManagement() {
                       <td>
                         <strong>{cls.className}</strong>
                       </td>
-                      <td>{cls.classCode}</td>
-                      <td>{cls.category}</td>
-                      <td>{cls.classTeacherName || "Not Assigned"}</td>
                       <td>
-                        <span className="badge-info">
-                          {cls.currentEnrollment || 0} / {cls.capacity}
+                        <span className="badge bg-info">Arm {cls.arm}</span>
+                      </td>
+                      <td>
+                        <code>{cls.classCode}</code>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge bg-${
+                            cls.category === "NURSERY"
+                              ? "info"
+                              : cls.category === "PRIMARY"
+                                ? "success"
+                                : cls.category === "JUNIOR_SECONDARY"
+                                  ? "warning"
+                                  : "danger"
+                          }`}
+                        >
+                          {cls.category}
+                        </span>
+                      </td>
+                      <td>
+                        {cls.classTeacherName ? (
+                          <span className="text-success">
+                            <FaUserTie className="me-1" />{" "}
+                            {cls.classTeacherName}
+                          </span>
+                        ) : (
+                          <span className="text-warning">
+                            <FaBan className="me-1" /> Not Assigned
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${cls.currentEnrollment >= cls.capacity ? "bg-danger" : "bg-info"}`}
+                        >
+                          <FaUsers className="me-1" />{" "}
+                          {cls.currentEnrollment || 0}/{cls.capacity}
                         </span>
                       </td>
                       <td>{cls.capacity}</td>
                       <td>
                         <div className="subject-tags">
-                          {cls.subjects?.slice(0, 3).map((subject) => (
+                          {cls.subjects?.slice(0, 2).map((subject) => (
                             <span key={subject} className="tag">
                               {subject}
                             </span>
                           ))}
-                          {cls.subjects?.length > 3 && (
+                          {cls.subjects?.length > 2 && (
                             <span className="tag">
-                              +{cls.subjects.length - 3}
+                              +{cls.subjects.length - 2}
                             </span>
                           )}
                         </div>
                       </td>
                       <td>
                         <div className="action-buttons">
-                          <Link to={`/classes/${cls.id}`} className="btn-view">
+                          <Link
+                            to={`/classes/${cls.id}`}
+                            className="btn-view"
+                            title="View Details"
+                          >
                             <FaEye />
                           </Link>
                           <button
                             className="btn-edit"
                             onClick={() => handleEdit(cls)}
+                            title="Edit Class"
                           >
                             <FaEdit />
                           </button>
@@ -391,6 +497,7 @@ function ClassManagement() {
                               setClassToDelete(cls);
                               setShowDeleteModal(true);
                             }}
+                            title="Delete Class"
                           >
                             <FaTrash />
                           </button>
@@ -398,6 +505,16 @@ function ClassManagement() {
                       </td>
                     </tr>
                   ))}
+
+                  {filteredClasses.length === 0 && !loading && (
+                    <tr>
+                      <td colSpan="9" className="empty-state">
+                        <FaChalkboard size={50} />
+                        <h3>No Classes Found</h3>
+                        <p>Click "Add Class" to create your first class.</p>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -406,9 +523,7 @@ function ClassManagement() {
             {totalPages > 1 && (
               <div className="pagination">
                 <button
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                 >
                   <FaArrowLeft />
@@ -418,7 +533,7 @@ function ClassManagement() {
                 </span>
                 <button
                   onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
                   }
                   disabled={currentPage === totalPages}
                 >
@@ -452,7 +567,9 @@ function ClassManagement() {
             <div className="modal-body">
               <form onSubmit={handleSubmit}>
                 <div className="form-group">
-                  <label>Class Name *</label>
+                  <label>
+                    Class Name <span className="required">*</span>
+                  </label>
                   <input
                     type="text"
                     name="className"
@@ -463,9 +580,30 @@ function ClassManagement() {
                   />
                 </div>
 
+                <div className="form-group">
+                  <label>
+                    Arm <span className="required">*</span>
+                  </label>
+                  <select
+                    name="arm"
+                    value={formData.arm}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    <option value="">Select Arm</option>
+                    {arms.map((arm) => (
+                      <option key={arm} value={arm}>
+                        Arm {arm}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Category *</label>
+                    <label>
+                      Category <span className="required">*</span>
+                    </label>
                     <select
                       name="category"
                       value={formData.category}
@@ -482,7 +620,9 @@ function ClassManagement() {
                   </div>
 
                   <div className="form-group">
-                    <label>Capacity *</label>
+                    <label>
+                      Capacity <span className="required">*</span>
+                    </label>
                     <input
                       type="number"
                       name="capacity"
@@ -501,7 +641,7 @@ function ClassManagement() {
                     value={formData.classTeacherId}
                     onChange={handleInputChange}
                   >
-                    <option value="">Select Teacher</option>
+                    <option value="">Select Teacher (Optional)</option>
                     {teachers.map((teacher) => (
                       <option key={teacher.id} value={teacher.id}>
                         {teacher.firstName} {teacher.lastName}
@@ -614,7 +754,10 @@ function ClassManagement() {
             <div className="modal-body">
               <p>
                 Are you sure you want to delete class{" "}
-                <strong>{classToDelete.className}</strong>?
+                <strong>
+                  {classToDelete.className} - Arm {classToDelete.arm}
+                </strong>
+                ?
               </p>
               <p className="text-danger">
                 This will remove all associated data.

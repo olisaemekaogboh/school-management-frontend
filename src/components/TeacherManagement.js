@@ -33,6 +33,8 @@ import {
   FaUsers,
   FaClock,
   FaTimesCircle,
+  FaUser,
+  FaImage,
 } from "react-icons/fa";
 import moment from "moment";
 import "./TeacherManagement.css";
@@ -49,6 +51,7 @@ const TeacherManagement = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState(null);
+  const [imageErrors, setImageErrors] = useState({}); // Track image loading errors
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -161,6 +164,8 @@ const TeacherManagement = () => {
       const response = await teacherAPI.getAllTeachers();
       setTeachers(response.data);
       setFilteredTeachers(response.data);
+      // Reset image errors when new data loads
+      setImageErrors({});
     } catch (error) {
       console.error("Error fetching teachers:", error);
       toast.error("Failed to load teachers");
@@ -206,6 +211,30 @@ const TeacherManagement = () => {
     setCurrentPage(1);
   };
 
+  // Handle image load error
+  const handleImageError = (teacherId) => {
+    setImageErrors((prev) => ({ ...prev, [teacherId]: true }));
+  };
+
+  // In TeacherManagement.js, update the getProfileImageUrl function:
+
+  const getProfileImageUrl = (teacher) => {
+    if (!teacher.profilePictureUrl) return null;
+
+    // If it's already a full URL, use it as is
+    if (teacher.profilePictureUrl.startsWith("http")) {
+      return teacher.profilePictureUrl;
+    }
+
+    // If the URL already starts with 'uploads/', don't add it again
+    if (teacher.profilePictureUrl.startsWith("uploads/")) {
+      return `http://localhost:8080/${teacher.profilePictureUrl}`;
+    }
+
+    // Otherwise, construct the URL
+    return `http://localhost:8080/uploads/teachers/${teacher.profilePictureUrl}`;
+  };
+
   // Form Handlers
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -215,6 +244,25 @@ const TeacherManagement = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Check file size (5MB max)
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        toast.error("File size exceeds 5MB limit");
+        return;
+      }
+
+      // Check file type
+      const allowedTypes = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Only JPG, PNG, and GIF images are allowed");
+        return;
+      }
+
       setProfilePicture(file);
       const reader = new FileReader();
       reader.onloadend = () => setProfilePicturePreview(reader.result);
@@ -371,11 +419,15 @@ const TeacherManagement = () => {
       additionalQualifications: teacher.additionalQualifications || [],
     });
     setEditingTeacher(teacher);
+
+    // Handle profile picture preview for edit
     if (teacher.profilePictureUrl) {
-      setProfilePicturePreview(
-        `http://localhost:8080/uploads/teachers/${teacher.profilePictureUrl}`,
-      );
+      const imageUrl = getProfileImageUrl(teacher);
+      setProfilePicturePreview(imageUrl);
+    } else {
+      setProfilePicturePreview("");
     }
+
     setShowForm(true);
   };
 
@@ -565,7 +617,7 @@ const TeacherManagement = () => {
               <option value="all">All Status</option>
               {employmentStatuses.map((status) => (
                 <option key={status} value={status}>
-                  {status}
+                  {status.replace("_", " ")}
                 </option>
               ))}
             </select>
@@ -635,33 +687,47 @@ const TeacherManagement = () => {
                           </button>
                         </td>
                         <td>
-                          <strong>{teacher.teacherId}</strong>
+                          <strong>
+                            {teacher.employeeId || teacher.teacherId || "-"}
+                          </strong>
                         </td>
                         <td>
                           <div className="teacher-name">
-                            {teacher.profilePictureUrl && (
+                            {teacher.profilePictureUrl &&
+                            !imageErrors[teacher.id] ? (
                               <img
-                                src={`http://localhost:8080/uploads/teachers/${teacher.profilePictureUrl}`}
-                                alt={teacher.firstName}
+                                src={getProfileImageUrl(teacher)}
+                                alt={`${teacher.firstName} ${teacher.lastName}`}
                                 className="teacher-avatar-small"
+                                onError={() => handleImageError(teacher.id)}
                               />
+                            ) : (
+                              <div className="teacher-avatar-placeholder">
+                                <FaUser size={20} />
+                              </div>
                             )}
                             <div>
                               <strong>
                                 {teacher.firstName} {teacher.lastName}
                               </strong>
-                              <br />
+                              {teacher.middleName && <br />}
                               <small>{teacher.middleName}</small>
                             </div>
                           </div>
                         </td>
                         <td>
-                          <a href={`mailto:${teacher.email}`}>
+                          <a
+                            href={`mailto:${teacher.email}`}
+                            className="email-link"
+                          >
                             <FaEnvelope /> {teacher.email}
                           </a>
                         </td>
                         <td>
-                          <a href={`tel:${teacher.phoneNumber}`}>
+                          <a
+                            href={`tel:${teacher.phoneNumber}`}
+                            className="phone-link"
+                          >
                             <FaPhone /> {teacher.phoneNumber}
                           </a>
                         </td>
@@ -911,11 +977,11 @@ const TeacherManagement = () => {
                       <input
                         type="file"
                         id="profilePicture"
-                        accept="image/*"
+                        accept="image/jpeg,image/jpg,image/png,image/gif"
                         onChange={handleFileChange}
                         style={{ display: "none" }}
                       />
-                      <small>Max size: 2MB (JPG, PNG)</small>
+                      <small>Max size: 5MB (JPG, PNG, GIF)</small>
                     </div>
                   </div>
 
@@ -1094,6 +1160,16 @@ const TeacherManagement = () => {
 
                   <div className="form-row">
                     <div className="form-group">
+                      <label>Employee ID *</label>
+                      <input
+                        type="text"
+                        name="employeeId"
+                        value={formData.employeeId}
+                        onChange={handleInputChange}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
                       <label>Qualification</label>
                       <input
                         type="text"
@@ -1103,6 +1179,9 @@ const TeacherManagement = () => {
                         placeholder="e.g., B.Sc. Education"
                       />
                     </div>
+                  </div>
+
+                  <div className="form-row">
                     <div className="form-group">
                       <label>Specialization</label>
                       <input
@@ -1113,9 +1192,6 @@ const TeacherManagement = () => {
                         placeholder="Main subject"
                       />
                     </div>
-                  </div>
-
-                  <div className="form-row">
                     <div className="form-group">
                       <label>Employment Status</label>
                       <select
@@ -1125,11 +1201,14 @@ const TeacherManagement = () => {
                       >
                         {employmentStatuses.map((es) => (
                           <option key={es} value={es}>
-                            {es}
+                            {es.replace("_", " ")}
                           </option>
                         ))}
                       </select>
                     </div>
+                  </div>
+
+                  <div className="form-row">
                     <div className="form-group">
                       <label>Date Employed</label>
                       <input
@@ -1262,111 +1341,6 @@ const TeacherManagement = () => {
                   </div>
                 </div>
 
-                {/* Bank Details */}
-                <div className="form-section">
-                  <h3>Bank Details</h3>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Bank Name</label>
-                      <input
-                        type="text"
-                        name="bankName"
-                        value={formData.bankName}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Account Number</label>
-                      <input
-                        type="text"
-                        name="accountNumber"
-                        value={formData.accountNumber}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Account Name</label>
-                      <input
-                        type="text"
-                        name="accountName"
-                        value={formData.accountName}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Pension ID</label>
-                      <input
-                        type="text"
-                        name="pensionId"
-                        value={formData.pensionId}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Tax ID</label>
-                    <input
-                      type="text"
-                      name="taxId"
-                      value={formData.taxId}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                </div>
-
-                {/* Next of Kin */}
-                <div className="form-section">
-                  <h3>Next of Kin</h3>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Name</label>
-                      <input
-                        type="text"
-                        name="nextOfKinName"
-                        value={formData.nextOfKinName}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Phone</label>
-                      <input
-                        type="tel"
-                        name="nextOfKinPhone"
-                        value={formData.nextOfKinPhone}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Relationship</label>
-                      <input
-                        type="text"
-                        name="nextOfKinRelationship"
-                        value={formData.nextOfKinRelationship}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Address</label>
-                    <textarea
-                      name="nextOfKinAddress"
-                      value={formData.nextOfKinAddress}
-                      onChange={handleInputChange}
-                      rows="2"
-                    />
-                  </div>
-                </div>
-
                 {/* Form Actions */}
                 <div className="form-actions">
                   <button
@@ -1422,10 +1396,12 @@ const TeacherManagement = () => {
               <div className="teacher-profile">
                 <div className="profile-header">
                   <div className="profile-image">
-                    {viewingTeacher.profilePictureUrl ? (
+                    {viewingTeacher.profilePictureUrl &&
+                    !imageErrors[viewingTeacher.id] ? (
                       <img
-                        src={`http://localhost:8080/uploads/teachers/${viewingTeacher.profilePictureUrl}`}
-                        alt={viewingTeacher.firstName}
+                        src={getProfileImageUrl(viewingTeacher)}
+                        alt={`${viewingTeacher.firstName} ${viewingTeacher.lastName}`}
+                        onError={() => handleImageError(viewingTeacher.id)}
                       />
                     ) : (
                       <div className="profile-placeholder">
@@ -1437,7 +1413,12 @@ const TeacherManagement = () => {
                     <h2>
                       {viewingTeacher.firstName} {viewingTeacher.lastName}
                     </h2>
-                    <p className="teacher-id">ID: {viewingTeacher.teacherId}</p>
+                    <p className="teacher-id">
+                      ID:{" "}
+                      {viewingTeacher.employeeId ||
+                        viewingTeacher.teacherId ||
+                        "-"}
+                    </p>
                     <span
                       className={`status-badge ${getStatusBadge(viewingTeacher.employmentStatus).class}`}
                     >
@@ -1543,9 +1524,11 @@ const TeacherManagement = () => {
                       <div>
                         <label>Date Employed:</label>{" "}
                         <span>
-                          {moment(viewingTeacher.dateOfEmployment).format(
-                            "DD/MM/YYYY",
-                          )}
+                          {viewingTeacher.dateOfEmployment
+                            ? moment(viewingTeacher.dateOfEmployment).format(
+                                "DD/MM/YYYY",
+                              )
+                            : "-"}
                         </span>
                       </div>
                     </div>
@@ -1604,56 +1587,6 @@ const TeacherManagement = () => {
                         <span>
                           {viewingTeacher.emergencyContactRelationship || "-"}
                         </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="detail-section">
-                    <h3>Bank Details</h3>
-                    <div className="detail-grid">
-                      <div>
-                        <label>Bank:</label>{" "}
-                        <span>{viewingTeacher.bankName || "-"}</span>
-                      </div>
-                      <div>
-                        <label>Account:</label>{" "}
-                        <span>{viewingTeacher.accountNumber || "-"}</span>
-                      </div>
-                      <div>
-                        <label>Account Name:</label>{" "}
-                        <span>{viewingTeacher.accountName || "-"}</span>
-                      </div>
-                      <div>
-                        <label>Pension ID:</label>{" "}
-                        <span>{viewingTeacher.pensionId || "-"}</span>
-                      </div>
-                      <div>
-                        <label>Tax ID:</label>{" "}
-                        <span>{viewingTeacher.taxId || "-"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="detail-section">
-                    <h3>Next of Kin</h3>
-                    <div className="detail-grid">
-                      <div>
-                        <label>Name:</label>{" "}
-                        <span>{viewingTeacher.nextOfKinName || "-"}</span>
-                      </div>
-                      <div>
-                        <label>Phone:</label>{" "}
-                        <span>{viewingTeacher.nextOfKinPhone || "-"}</span>
-                      </div>
-                      <div>
-                        <label>Relationship:</label>{" "}
-                        <span>
-                          {viewingTeacher.nextOfKinRelationship || "-"}
-                        </span>
-                      </div>
-                      <div className="full-width">
-                        <label>Address:</label>{" "}
-                        <span>{viewingTeacher.nextOfKinAddress || "-"}</span>
                       </div>
                     </div>
                   </div>

@@ -22,6 +22,10 @@ import {
   FaClock,
   FaTimesCircle,
   FaEye,
+  FaSchool,
+  FaUmbrellaBeach,
+  FaSun,
+  FaCloudSun,
 } from "react-icons/fa";
 import moment from "moment";
 
@@ -551,43 +555,195 @@ function AnnouncementManager() {
       <div className="row mb-4">
         <div className="col-12">
           <div className="card">
-            <div className="card-header bg-primary text-white">
-              <h5 className="mb-0">Quick Announcements</h5>
+            <div
+              className="card-header"
+              style={{
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "white",
+              }}
+            >
+              <h5 className="mb-0">
+                <FaPlus className="me-2" /> Quick Announcements
+              </h5>
             </div>
             <div className="card-body">
-              <div className="d-flex gap-2 flex-wrap">
+              <div className="d-flex gap-3 flex-wrap justify-content-center">
+                {/* Resumption Button */}
                 <button
-                  className="btn btn-success"
+                  className="btn btn-lg"
                   onClick={() => handleQuickAnnouncement("resumption")}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #43a047 0%, #1e5f1e 100%)",
+                    color: "white",
+                    padding: "15px 30px",
+                    borderRadius: "50px",
+                    border: "none",
+                    boxShadow: "0 4px 15px rgba(67, 160, 71, 0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    minWidth: "200px",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-3px)";
+                    e.target.style.boxShadow =
+                      "0 6px 20px rgba(67, 160, 71, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 4px 15px rgba(67, 160, 71, 0.3)";
+                  }}
                 >
-                  <FaCalendarAlt className="me-2" /> Resumption
+                  <FaSchool size={24} />
+                  <span>📚 Resumption</span>
                 </button>
+
+                {/* Midterm Break Button */}
                 <button
-                  className="btn btn-warning"
+                  className="btn btn-lg"
                   onClick={() => handleQuickAnnouncement("midterm")}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #f9a826 0%, #f57c00 100%)",
+                    color: "white",
+                    padding: "15px 30px",
+                    borderRadius: "50px",
+                    border: "none",
+                    boxShadow: "0 4px 15px rgba(249, 168, 38, 0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    minWidth: "200px",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-3px)";
+                    e.target.style.boxShadow =
+                      "0 6px 20px rgba(249, 168, 38, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 4px 15px rgba(249, 168, 38, 0.3)";
+                  }}
                 >
-                  <FaCalendarAlt className="me-2" /> Midterm Break
+                  <FaUmbrellaBeach size={24} />
+                  <span>🌴 Midterm Break</span>
                 </button>
+
+                {/* Result Release Button */}
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-lg"
                   onClick={() => handleQuickAnnouncement("result")}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #4361ee 0%, #3a0ca3 100%)",
+                    color: "white",
+                    padding: "15px 30px",
+                    borderRadius: "50px",
+                    border: "none",
+                    boxShadow: "0 4px 15px rgba(67, 97, 238, 0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    minWidth: "200px",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-3px)";
+                    e.target.style.boxShadow =
+                      "0 6px 20px rgba(67, 97, 238, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 4px 15px rgba(67, 97, 238, 0.3)";
+                  }}
                 >
-                  <FaFileAlt className="me-2" /> Result Release
+                  <FaFileAlt size={22} />
+                  <span>📋 Result Release</span>
                 </button>
+
+                {/* School Fees Button */}
                 <button
-                  className="btn btn-info"
+                  className="btn btn-lg"
                   onClick={() => handleQuickAnnouncement("fee")}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #e54d42 0%, #b71c1c 100%)",
+                    color: "white",
+                    padding: "15px 30px",
+                    borderRadius: "50px",
+                    border: "none",
+                    boxShadow: "0 4px 15px rgba(229, 77, 66, 0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    minWidth: "200px",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-3px)";
+                    e.target.style.boxShadow =
+                      "0 6px 20px rgba(229, 77, 66, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 4px 15px rgba(229, 77, 66, 0.3)";
+                  }}
                 >
-                  <FaMoneyBill className="me-2" /> School Fees
+                  <FaMoneyBill size={22} />
+                  <span>💰 School Fees</span>
                 </button>
+
+                {/* Custom Announcement Button */}
                 <button
-                  className="btn btn-nigerian"
+                  className="btn btn-lg"
                   onClick={() => {
                     resetForm();
                     setShowForm(true);
                   }}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #6c757d 0%, #495057 100%)",
+                    color: "white",
+                    padding: "15px 30px",
+                    borderRadius: "50px",
+                    border: "none",
+                    boxShadow: "0 4px 15px rgba(108, 117, 125, 0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    minWidth: "200px",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-3px)";
+                    e.target.style.boxShadow =
+                      "0 6px 20px rgba(108, 117, 125, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 4px 15px rgba(108, 117, 125, 0.3)";
+                  }}
                 >
-                  <FaPlus className="me-2" /> Custom Announcement
+                  <FaPlus size={20} />
+                  <span>✨ Custom</span>
                 </button>
               </div>
             </div>

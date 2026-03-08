@@ -9,106 +9,85 @@ import {
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-// Layout Components
+// Layout
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
-// Auth Components
+// Auth
 import Login from "./components/Login";
 import Register from "./components/Register";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
+import TeacherRegistrationCompletion from "./components/TeacherRegistrationCompletion";
+
+// Public verification
+import ParentEmailVerification from "./components/parent/ParentEmailVerification";
+import VerifyStudent from "./components/VerifyStudent";
+
+// General shared
 import Profile from "./components/Profile";
 import Settings from "./components/Settings";
+import PageNotFound from "./components/PageNotFound";
+import Unauthorized from "./components/Unauthorized";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-// Dashboard Components
+// Contexts
+import { AuthProvider } from "./contexts/AuthContext";
+import { ParentProvider } from "./contexts/ParentContext";
+
+// Dashboards
 import Dashboard from "./components/Dashboard";
 import StudentDashboard from "./components/StudentDashboard";
 import TeacherDashboard from "./components/TeacherDashboard";
 import ParentDashboard from "./components/ParentDashboard";
 
-// User Management
+// Admin pages
 import UserManagement from "./components/UserManagement";
-
-// Student Management
 import StudentManagement from "./components/StudentManagement";
 import StudentForm from "./components/StudentForm";
 import StudentDetails from "./components/StudentDetails";
 import StudentPromotion from "./components/StudentPromotion";
-
-// Teacher Management
 import TeacherManagement from "./components/TeacherManagement";
 import TeacherForm from "./components/TeacherForm";
 import TeacherDetails from "./components/TeacherDetails";
 
-// Class Management
+// Class Management - Updated imports
 import ClassManagement from "./components/ClassManagement";
+import ClassManager from "./components/ClassManager"; // New Class Manager component
 import ClassDetails from "./components/ClassDetails";
+import ClassView from "./components/ClassView";
+
 import Timetable from "./components/Timetable";
 import SubjectManagement from "./components/SubjectManagement";
-
-// Academic Management
 import ResultManagement from "./components/ResultManagement";
 import SessionResult from "./components/SessionResult";
 import AttendanceManagement from "./components/AttendanceManagement";
-
-// Fee Management
+import AttendanceManager from "./components/AttendanceManager"; // New Attendance Manager
+import ResultSheet from "./components/ResultSheet";
 import FeeManagement from "./components/FeeManagement";
 import FeePayments from "./components/FeePayments";
 import FeeDefaulters from "./components/FeeDefaulters";
-
-// Announcement Management
 import AnnouncementManager from "./components/AnnouncementManager";
 import AnnouncementForm from "./components/AnnouncementForm";
 import AnnouncementDetails from "./components/AnnouncementDetails";
-
-// Library Management
 import LibraryManagement from "./components/LibraryManagement";
 import BookManagement from "./components/BookManagement";
 import BorrowingManagement from "./components/BorrowingManagement";
-
-// Transport Management
 import TransportManagement from "./components/TransportManagement";
 import RouteManagement from "./components/RouteManagement";
 import BusTracking from "./components/BusTracking";
-
-// ===== PARENT MANAGEMENT IMPORTS =====
 import ParentManagement from "./components/parent/ParentManagement";
 import ParentRegistration from "./components/parent/ParentRegistration";
 import ParentDetails from "./components/parent/ParentDetails";
-import ParentEmailVerification from "./components/parent/ParentEmailVerification";
-// =====================================
+import Reports from "./components/Reports";
+import ReportGenerator from "./components/ReportGenerator";
+import Search from "./components/Search";
 
-// Parent Portal
+// Parent portal
 import ParentPortal from "./components/ParentPortal";
 import ParentProfile from "./components/ParentProfile";
 
-// Reports
-import Reports from "./components/Reports";
-import ReportGenerator from "./components/ReportGenerator";
-
-// Search
-import Search from "./components/Search";
-
-// Error Components
-import PageNotFound from "./components/PageNotFound";
-import Unauthorized from "./components/Unauthorized";
-
-// Protected Route Component
-import ProtectedRoute from "./components/ProtectedRoute";
-
-// Auth Context
-import { AuthProvider } from "./contexts/AuthContext";
-
-// ===== PARENT CONTEXT IMPORT =====
-import { ParentProvider } from "./contexts/ParentContext";
-// ================================
-
 import "./App.css";
-import TeacherRegistrationCompletion from "./components/TeacherRegistrationCompletion";
-
-// ✅ NEW: public student verification page
-import VerifyStudent from "./components/VerifyStudent";
 
 function App() {
   return (
@@ -120,33 +99,26 @@ function App() {
             <main className="main-content">
               <div className="content-wrapper">
                 <Routes>
-                  {/* ========== PUBLIC ROUTES ========== */}
+                  {/* ================= PUBLIC ROUTES ================= */}
                   <Route path="/login" element={<Login />} />
-
-                  <Route
-                    path="/complete-teacher-registration"
-                    element={<TeacherRegistrationCompletion />}
-                  />
                   <Route path="/register" element={<Register />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
-
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route
                     path="/reset-password/:token"
                     element={<ResetPassword />}
                   />
-
-                  {/* Public Parent Email Verification */}
+                  <Route
+                    path="/complete-teacher-registration"
+                    element={<TeacherRegistrationCompletion />}
+                  />
                   <Route
                     path="/verify-parent"
                     element={<ParentEmailVerification />}
                   />
-
-                  {/* ✅ Public Student Verification */}
                   <Route path="/verify-student" element={<VerifyStudent />} />
 
-                  {/* ========== PROTECTED ROUTES ========== */}
-
+                  {/* ================= ROOT REDIRECT ================= */}
                   <Route
                     path="/"
                     element={
@@ -156,36 +128,86 @@ function App() {
                     }
                   />
 
-                  <Route
-                    path="/student-dashboard"
-                    element={
-                      <ProtectedRoute requiredRole="STUDENT">
-                        <StudentDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/teacher-dashboard"
-                    element={
-                      <ProtectedRoute requiredRole="TEACHER">
-                        <TeacherDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/parent-dashboard"
-                    element={
-                      <ProtectedRoute requiredRole="PARENT">
-                        <ParentDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-
+                  {/* ================= ADMIN ROUTES ================= */}
                   <Route
                     path="/users"
                     element={
                       <ProtectedRoute requiredRole="ADMIN">
                         <UserManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/students"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <StudentManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/students/new"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <StudentForm />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/students/edit/:id"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <StudentForm />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/students/view/:id"
+                    element={
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
+                        <StudentDetails />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/students/promotion"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <StudentPromotion />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/teachers"
+                    element={
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
+                        <TeacherManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/teachers/new"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <TeacherForm />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/teachers/edit/:id"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <TeacherForm />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/teachers/view/:id"
+                    element={
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
+                        <TeacherDetails />
                       </ProtectedRoute>
                     }
                   />
@@ -217,142 +239,51 @@ function App() {
                   <Route
                     path="/parents/:id"
                     element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "PARENT"]}
-                      >
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
                         <ParentDetails />
                       </ProtectedRoute>
                     }
                   />
 
-                  <Route
-                    path="/students"
-                    element={
-                      <ProtectedRoute>
-                        <StudentManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/students/new"
-                    element={
-                      <ProtectedRoute>
-                        <StudentForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/students/edit/:id"
-                    element={
-                      <ProtectedRoute>
-                        <StudentForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/students/view/:id"
-                    element={
-                      <ProtectedRoute>
-                        <StudentDetails />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/students/promotion"
-                    element={
-                      <ProtectedRoute>
-                        <StudentPromotion />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/teachers"
-                    element={
-                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
-                        <TeacherManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/teachers/new"
-                    element={
-                      <ProtectedRoute requiredRole={["ADMIN"]}>
-                        <TeacherForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/teachers/edit/:id"
-                    element={
-                      <ProtectedRoute requiredRole={["ADMIN"]}>
-                        <TeacherForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/teachers/view/:id"
-                    element={
-                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
-                        <TeacherDetails />
-                      </ProtectedRoute>
-                    }
-                  />
-
+                  {/* ================= CLASS MANAGEMENT ROUTES ================= */}
                   <Route
                     path="/classes"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <ClassManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/classes/manage"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <ClassManager />
                       </ProtectedRoute>
                     }
                   />
                   <Route
                     path="/classes/:id"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
                         <ClassDetails />
                       </ProtectedRoute>
                     }
                   />
                   <Route
-                    path="/timetable"
+                    path="/classes/view/:className"
                     element={
-                      <ProtectedRoute>
-                        <Timetable />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/subjects"
-                    element={
-                      <ProtectedRoute>
-                        <SubjectManagement />
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
+                        <ClassView />
                       </ProtectedRoute>
                     }
                   />
 
                   <Route
-                    path="/results"
+                    path="/subjects"
                     element={
-                      <ProtectedRoute>
-                        <ResultManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/session-results"
-                    element={
-                      <ProtectedRoute>
-                        <SessionResult />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/attendance"
-                    element={
-                      <ProtectedRoute>
-                        <AttendanceManagement />
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <SubjectManagement />
                       </ProtectedRoute>
                     }
                   />
@@ -360,7 +291,7 @@ function App() {
                   <Route
                     path="/fees"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <FeeManagement />
                       </ProtectedRoute>
                     }
@@ -368,7 +299,7 @@ function App() {
                   <Route
                     path="/fees/payments"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <FeePayments />
                       </ProtectedRoute>
                     }
@@ -376,41 +307,8 @@ function App() {
                   <Route
                     path="/fees/defaulters"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <FeeDefaulters />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/announcements"
-                    element={
-                      <ProtectedRoute>
-                        <AnnouncementManager />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/announcements/new"
-                    element={
-                      <ProtectedRoute>
-                        <AnnouncementForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/announcements/edit/:id"
-                    element={
-                      <ProtectedRoute>
-                        <AnnouncementForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/announcements/:id"
-                    element={
-                      <ProtectedRoute>
-                        <AnnouncementDetails />
                       </ProtectedRoute>
                     }
                   />
@@ -418,7 +316,7 @@ function App() {
                   <Route
                     path="/library"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <LibraryManagement />
                       </ProtectedRoute>
                     }
@@ -426,7 +324,7 @@ function App() {
                   <Route
                     path="/library/books"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <BookManagement />
                       </ProtectedRoute>
                     }
@@ -434,7 +332,7 @@ function App() {
                   <Route
                     path="/library/borrowings"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <BorrowingManagement />
                       </ProtectedRoute>
                     }
@@ -443,7 +341,7 @@ function App() {
                   <Route
                     path="/transport"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <TransportManagement />
                       </ProtectedRoute>
                     }
@@ -451,7 +349,7 @@ function App() {
                   <Route
                     path="/transport/routes"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <RouteManagement />
                       </ProtectedRoute>
                     }
@@ -459,42 +357,47 @@ function App() {
                   <Route
                     path="/transport/tracking"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "PARENT", "STUDENT"]}
+                      >
                         <BusTracking />
                       </ProtectedRoute>
                     }
                   />
 
                   <Route
-                    path="/parent"
+                    path="/announcements"
                     element={
-                      <ProtectedRoute>
-                        <ParentPortal />
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
+                      >
+                        <AnnouncementManager />
                       </ProtectedRoute>
                     }
                   />
                   <Route
-                    path="/parent/profile"
+                    path="/announcements/new"
                     element={
-                      <ProtectedRoute>
-                        <ParentProfile />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/profile"
-                    element={
-                      <ProtectedRoute>
-                        <Profile />
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <AnnouncementForm />
                       </ProtectedRoute>
                     }
                   />
                   <Route
-                    path="/settings"
+                    path="/announcements/edit/:id"
                     element={
-                      <ProtectedRoute>
-                        <Settings />
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <AnnouncementForm />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/announcements/:id"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
+                      >
+                        <AnnouncementDetails />
                       </ProtectedRoute>
                     }
                   />
@@ -502,7 +405,7 @@ function App() {
                   <Route
                     path="/reports"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <Reports />
                       </ProtectedRoute>
                     }
@@ -510,21 +413,151 @@ function App() {
                   <Route
                     path="/reports/generate"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <ReportGenerator />
                       </ProtectedRoute>
                     }
                   />
-
                   <Route
                     path="/search"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredRole="ADMIN">
                         <Search />
                       </ProtectedRoute>
                     }
                   />
 
+                  {/* ================= TEACHER ROUTES ================= */}
+                  <Route
+                    path="/teacher-dashboard"
+                    element={
+                      <ProtectedRoute requiredRole="TEACHER">
+                        <TeacherDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/attendance"
+                    element={
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
+                        <AttendanceManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/attendance/manage"
+                    element={
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
+                        <AttendanceManager />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/results"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <ResultManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/session-results"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <SessionResult />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/results/:studentId/:sessionYear/:sessionTerm/:term"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <ResultSheet />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/timetable"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT"]}
+                      >
+                        <Timetable />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* ================= STUDENT ROUTES ================= */}
+                  <Route
+                    path="/student-dashboard"
+                    element={
+                      <ProtectedRoute requiredRole="STUDENT">
+                        <StudentDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* ================= PARENT ROUTES ================= */}
+                  <Route
+                    path="/parent-dashboard"
+                    element={
+                      <ProtectedRoute requiredRole="PARENT">
+                        <ParentDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/parent"
+                    element={
+                      <ProtectedRoute requiredRole="PARENT">
+                        <ParentPortal />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/parent/profile"
+                    element={
+                      <ProtectedRoute requiredRole="PARENT">
+                        <ParentProfile />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* ================= SHARED AUTHENTICATED ROUTES ================= */}
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <Profile />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <Settings />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* ================= ERROR ROUTES ================= */}
                   <Route path="/401" element={<Unauthorized />} />
                   <Route path="/404" element={<PageNotFound />} />
                   <Route path="*" element={<Navigate to="/404" replace />} />

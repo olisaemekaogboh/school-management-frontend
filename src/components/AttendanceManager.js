@@ -1,21 +1,20 @@
-// components/AttendanceManager.js
+// src/components/AttendanceManager.js
 import React, { useState, useEffect } from "react";
-import attendanceService from "../services/attendanceService";
-import { studentAPI } from "../services/api";
+import { attendanceAPI, studentAPI } from "../services/api";
 import { toast } from "react-toastify";
 import {
+  FaCalendarAlt,
   FaCheckCircle,
   FaTimesCircle,
   FaClock,
   FaExclamationTriangle,
-  FaCalendarAlt,
   FaUsers,
   FaChartBar,
   FaSpinner,
   FaSave,
   FaSearch,
   FaEye,
-  FaInfoCircle,
+  FaFilter,
 } from "react-icons/fa";
 import moment from "moment";
 
@@ -86,17 +85,17 @@ function AttendanceManager() {
         selectedClass,
         selectedArm,
       );
-      setStudents(response.data);
+      setStudents(response.data || []);
 
       // Initialize attendance data
       const attendanceMap = {};
-      response.data.forEach((student) => {
+      (response.data || []).forEach((student) => {
         attendanceMap[student.id] = null;
       });
       setAttendanceData(attendanceMap);
 
       // Fetch existing attendance for the date
-      await fetchExistingAttendance(response.data);
+      await fetchExistingAttendance(response.data || []);
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
@@ -108,17 +107,28 @@ function AttendanceManager() {
   const fetchExistingAttendance = async (studentList) => {
     try {
       for (const student of studentList) {
-        const response = await attendanceService.getStudentAttendance(
-          student.id,
-          selectedDate,
-          session,
-          term,
-        );
-        if (response) {
-          setAttendanceData((prev) => ({
-            ...prev,
-            [student.id]: response.status,
-          }));
+        try {
+          const response = await attendanceAPI.getStudentAttendance(
+            student.id,
+            selectedDate,
+            session,
+            term,
+          );
+          if (response.data) {
+            setAttendanceData((prev) => ({
+              ...prev,
+              [student.id]: response.data.status,
+            }));
+          }
+        } catch (error) {
+          // Ignore 404 errors (no attendance record found)
+          if (error.response?.status !== 404) {
+            console.error(
+              "Error fetching attendance for student:",
+              student.id,
+              error,
+            );
+          }
         }
       }
     } catch (error) {
@@ -131,13 +141,13 @@ function AttendanceManager() {
 
     setLoading(true);
     try {
-      const stats = await attendanceService.getClassStatistics(
+      const response = await attendanceAPI.getClassTermStatistics(
         selectedClass,
         selectedArm,
         session,
         term,
       );
-      setClassStats(stats);
+      setClassStats(response.data);
     } catch (error) {
       console.error("Error fetching class statistics:", error);
       toast.error("Failed to load class statistics");
@@ -151,20 +161,16 @@ function AttendanceManager() {
 
     setLoading(true);
     try {
-      const [attendance, summary] = await Promise.all([
-        attendanceService.getStudentTermAttendance(
+      const [attendanceRes, summaryRes] = await Promise.all([
+        attendanceAPI.getStudentTermAttendance(
           selectedStudent.id,
           session,
           term,
         ),
-        attendanceService.getStudentTermSummary(
-          selectedStudent.id,
-          session,
-          term,
-        ),
+        attendanceAPI.getStudentTermSummary(selectedStudent.id, session, term),
       ]);
-      setStudentAttendance(attendance);
-      setStudentSummary(summary);
+      setStudentAttendance(attendanceRes.data || []);
+      setStudentSummary(summaryRes.data);
     } catch (error) {
       console.error("Error fetching student attendance:", error);
       toast.error("Failed to load student attendance");
@@ -183,7 +189,7 @@ function AttendanceManager() {
 
     setLoading(true);
     try {
-      await attendanceService.markBulkAttendance(
+      await attendanceAPI.markBulkAttendance(
         studentIds,
         selectedDate,
         session,
@@ -210,7 +216,7 @@ function AttendanceManager() {
   const handleMarkStudent = async (studentId, status) => {
     setLoading(true);
     try {
-      await attendanceService.markAttendance(
+      await attendanceAPI.markAttendance(
         studentId,
         selectedDate,
         session,
@@ -255,7 +261,7 @@ function AttendanceManager() {
         text: "Holiday",
       },
     };
-    return badges[status] || badges.PRESENT;
+    return badges[status] || null;
   };
 
   const getStatusColor = (status) => {
@@ -270,7 +276,8 @@ function AttendanceManager() {
   };
 
   const filteredStudents = students.filter((student) => {
-    const fullName = `${student.firstName} ${student.lastName}`.toLowerCase();
+    const fullName =
+      `${student.firstName || ""} ${student.lastName || ""}`.toLowerCase();
     const admission = student.admissionNumber?.toLowerCase() || "";
     const term = searchTerm.toLowerCase();
     return fullName.includes(term) || admission.includes(term);
@@ -439,7 +446,9 @@ function AttendanceManager() {
       {/* Loading Spinner */}
       {loading && (
         <div className="text-center py-5">
-          <FaSpinner className="spinner" size={40} />
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
           <p className="mt-3">Loading...</p>
         </div>
       )}
@@ -456,27 +465,35 @@ function AttendanceManager() {
           <div className="card-body">
             <div className="row mb-4">
               <div className="col-md-3">
-                <div className="border p-3 rounded text-center bg-primary text-white">
-                  <h3>{classStats.totalStudents}</h3>
-                  <small>Total Students</small>
+                <div className="card bg-primary text-white">
+                  <div className="card-body text-center">
+                    <h3>{classStats.totalStudents}</h3>
+                    <small>Total Students</small>
+                  </div>
                 </div>
               </div>
               <div className="col-md-3">
-                <div className="border p-3 rounded text-center bg-success text-white">
-                  <h3>{classStats.totalPresent}</h3>
-                  <small>Total Present</small>
+                <div className="card bg-success text-white">
+                  <div className="card-body text-center">
+                    <h3>{classStats.totalPresent}</h3>
+                    <small>Total Present</small>
+                  </div>
                 </div>
               </div>
               <div className="col-md-3">
-                <div className="border p-3 rounded text-center bg-danger text-white">
-                  <h3>{classStats.totalAbsent}</h3>
-                  <small>Total Absent</small>
+                <div className="card bg-danger text-white">
+                  <div className="card-body text-center">
+                    <h3>{classStats.totalAbsent}</h3>
+                    <small>Total Absent</small>
+                  </div>
                 </div>
               </div>
               <div className="col-md-3">
-                <div className="border p-3 rounded text-center bg-warning text-dark">
-                  <h3>{classStats.averageAttendance?.toFixed(1)}%</h3>
-                  <small>Average Attendance</small>
+                <div className="card bg-warning text-white">
+                  <div className="card-body text-center">
+                    <h3>{classStats.averageAttendance?.toFixed(1)}%</h3>
+                    <small>Average Attendance</small>
+                  </div>
                 </div>
               </div>
             </div>
@@ -595,29 +612,37 @@ function AttendanceManager() {
                   {studentSummary && (
                     <div className="row mb-4">
                       <div className="col-md-3">
-                        <div className="border p-2 rounded text-center bg-primary text-white">
-                          <h5>{studentSummary.totalSchoolDays}</h5>
-                          <small>School Days</small>
+                        <div className="card bg-primary text-white">
+                          <div className="card-body text-center">
+                            <h5>{studentSummary.totalSchoolDays}</h5>
+                            <small>School Days</small>
+                          </div>
                         </div>
                       </div>
                       <div className="col-md-3">
-                        <div className="border p-2 rounded text-center bg-success text-white">
-                          <h5>{studentSummary.daysPresent}</h5>
-                          <small>Present</small>
+                        <div className="card bg-success text-white">
+                          <div className="card-body text-center">
+                            <h5>{studentSummary.daysPresent}</h5>
+                            <small>Present</small>
+                          </div>
                         </div>
                       </div>
                       <div className="col-md-3">
-                        <div className="border p-2 rounded text-center bg-danger text-white">
-                          <h5>{studentSummary.daysAbsent}</h5>
-                          <small>Absent</small>
+                        <div className="card bg-danger text-white">
+                          <div className="card-body text-center">
+                            <h5>{studentSummary.daysAbsent}</h5>
+                            <small>Absent</small>
+                          </div>
                         </div>
                       </div>
                       <div className="col-md-3">
-                        <div className="border p-2 rounded text-center bg-warning text-dark">
-                          <h5>
-                            {studentSummary.attendancePercentage?.toFixed(1)}%
-                          </h5>
-                          <small>Percentage</small>
+                        <div className="card bg-warning text-white">
+                          <div className="card-body text-center">
+                            <h5>
+                              {studentSummary.attendancePercentage?.toFixed(1)}%
+                            </h5>
+                            <small>Percentage</small>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -665,7 +690,7 @@ function AttendanceManager() {
               </div>
             ) : (
               <div className="alert alert-info">
-                <FaInfoCircle className="me-2" />
+                <FaEye className="me-2" />
                 Select a student from the list to view their attendance report
               </div>
             )}
@@ -782,8 +807,8 @@ function AttendanceManager() {
       {/* No Selection Message */}
       {!loading && !selectedClass && (
         <div className="alert alert-info">
-          <FaInfoCircle className="me-2" /> Please select a class and arm to
-          view attendance.
+          <FaFilter className="me-2" /> Please select a class and arm to view
+          attendance.
         </div>
       )}
     </div>
