@@ -1,4 +1,3 @@
-// src/components/FeeManagement.js
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { studentAPI, feeAPI } from "../services/api";
 import { toast } from "react-toastify";
@@ -14,8 +13,6 @@ import {
   FiFilter,
   FiClock,
   FiPhone,
-  FiDownload,
-  FiCreditCard,
   FiSearch,
   FiRefreshCw,
   FiChevronDown,
@@ -28,7 +25,7 @@ import {
   FiTrendingUp,
   FiCalendar,
   FiPieChart,
-  FiMail,
+  FiCreditCard,
   FiEdit2,
 } from "react-icons/fi";
 import {
@@ -42,6 +39,7 @@ import moment from "moment";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import useActiveSession from "../hooks/useActiveSession";
 import "./FeeManagement.css";
 
 function FeeManagement() {
@@ -54,8 +52,6 @@ function FeeManagement() {
   const [showForm, setShowForm] = useState(false);
   const [editingFee, setEditingFee] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [selectedSession, setSelectedSession] = useState("2025/2026");
-  const [selectedTerm, setSelectedTerm] = useState("FIRST");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedFee, setSelectedFee] = useState(null);
@@ -69,6 +65,10 @@ function FeeManagement() {
   const [activeTab, setActiveTab] = useState("fees");
   const [hoveredCard, setHoveredCard] = useState(null);
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
+
+  const { session, setSession, term, setTerm, loadingSession } =
+    useActiveSession("FIRST");
+
   const [bulkPaymentData, setBulkPaymentData] = useState({
     amount: "",
     paymentMethod: "CASH",
@@ -96,7 +96,7 @@ function FeeManagement() {
 
   const [formData, setFormData] = useState({
     studentId: "",
-    session: "2025/2026",
+    session: "",
     term: "FIRST",
     feeType: "TUITION",
     description: "",
@@ -112,29 +112,50 @@ function FeeManagement() {
     notes: "",
   });
 
-  // Fetch data on mount and when filters change
   useEffect(() => {
     fetchStudents();
   }, []);
 
   useEffect(() => {
+    if (session && !formData.session) {
+      setFormData((prev) => ({
+        ...prev,
+        session,
+      }));
+    }
+  }, [session, formData.session]);
+
+  useEffect(() => {
+    if (term && formData.term !== term) {
+      setFormData((prev) => ({
+        ...prev,
+        term,
+      }));
+    }
+  }, [term]);
+
+  useEffect(() => {
+    if (!session || !term) return;
+
     if (selectedStudent) {
       fetchStudentFees();
     }
     fetchFeeStatistics();
     fetchDefaulters();
-  }, [selectedSession, selectedTerm, selectedStudent]);
+  }, [session, term, selectedStudent]);
 
   useEffect(() => {
+    if (!session || !term) return;
+
     if (activeTab === "all-students") {
       fetchAllStudentsFeeStatus();
     }
-  }, [selectedSession, selectedTerm, activeTab]);
+  }, [session, term, activeTab]);
 
   const fetchStudents = async () => {
     try {
       const response = await studentAPI.getAllStudents();
-      setStudents(response.data);
+      setStudents(response.data || []);
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
@@ -142,16 +163,16 @@ function FeeManagement() {
   };
 
   const fetchStudentFees = async () => {
-    if (!selectedStudent) return;
+    if (!selectedStudent || !session || !term) return;
 
     setLoading(true);
     try {
       const response = await feeAPI.getStudentFees(
         selectedStudent.id,
-        selectedSession,
-        selectedTerm,
+        session,
+        term,
       );
-      setFees(response.data);
+      setFees(response.data || []);
     } catch (error) {
       console.error("Error fetching fees:", error);
       toast.error("Failed to load fees");
@@ -161,12 +182,10 @@ function FeeManagement() {
   };
 
   const fetchFeeStatistics = async () => {
-    try {
-      const response = await feeAPI.getFeeStatistics(
-        selectedSession,
-        selectedTerm,
-      );
+    if (!session || !term) return;
 
+    try {
+      const response = await feeAPI.getFeeStatistics(session, term);
       if (response.data) {
         setStatistics(response.data);
       }
@@ -176,39 +195,40 @@ function FeeManagement() {
   };
 
   const fetchDefaulters = async () => {
+    if (!session || !term) return;
+
     try {
-      const response = await feeAPI.getDefaultingStudents(
-        selectedSession,
-        selectedTerm,
-      );
-      setDefaulters(response.data);
+      const response = await feeAPI.getDefaultingStudents(session, term);
+      setDefaulters(response.data || []);
     } catch (error) {
       console.error("Error fetching defaulters:", error);
     }
   };
 
   const fetchAllStudentsFeeStatus = async () => {
+    if (!session || !term) return;
+
     setLoading(true);
     try {
       const studentsResponse = await studentAPI.getAllStudents();
-      const allStudents = studentsResponse.data;
+      const allStudents = studentsResponse.data || [];
 
       const studentsWithStatus = await Promise.all(
         allStudents.map(async (student) => {
           try {
             const feesResponse = await feeAPI.getStudentFees(
               student.id,
-              selectedSession,
-              selectedTerm,
+              session,
+              term,
             );
-            const studentFees = feesResponse.data;
+            const studentFees = feesResponse.data || [];
 
             const totalFees = studentFees.reduce(
-              (sum, f) => sum + (f.amount || 0),
+              (sum, f) => sum + (Number(f.amount) || 0),
               0,
             );
             const totalPaid = studentFees.reduce(
-              (sum, f) => sum + (f.paidAmount || 0),
+              (sum, f) => sum + (Number(f.paidAmount) || 0),
               0,
             );
             const balance = totalFees - totalPaid;
@@ -333,7 +353,7 @@ function FeeManagement() {
     if (!fees || fees.length === 0) return 0;
     return fees
       .filter((fee) => fee.status === "OVERDUE")
-      .reduce((sum, fee) => sum + (fee.balance || 0), 0);
+      .reduce((sum, fee) => sum + (Number(fee.balance) || 0), 0);
   }, [fees]);
 
   const stats = calculateStats();
@@ -355,7 +375,6 @@ function FeeManagement() {
     return { totalStudents, paid, outstanding, overdue, noFees };
   }, [allStudentsFeeStatus]);
 
-  // Filter students based on search term
   const filteredStudents = useMemo(() => {
     if (!studentSearchTerm.trim()) return allStudentsFeeStatus;
 
@@ -381,7 +400,6 @@ function FeeManagement() {
     });
   }, [allStudentsFeeStatus, studentSearchTerm]);
 
-  // Bulk payment selection handlers
   const handleSelectAllStudents = () => {
     if (bulkPaymentData.selectAll) {
       setBulkPaymentData({
@@ -413,7 +431,7 @@ function FeeManagement() {
   const calculateTotalSelectedAmount = () => {
     return filteredStudents
       .filter((s) => bulkPaymentData.selectedStudents.includes(s.id))
-      .reduce((sum, student) => sum + (student.balance || 0), 0);
+      .reduce((sum, student) => sum + (Number(student.balance) || 0), 0);
   };
 
   const handleBulkPaymentSubmit = async () => {
@@ -422,7 +440,7 @@ function FeeManagement() {
       return;
     }
 
-    if (!bulkPaymentData.amount || bulkPaymentData.amount <= 0) {
+    if (!bulkPaymentData.amount || Number(bulkPaymentData.amount) <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
@@ -438,24 +456,26 @@ function FeeManagement() {
 
       for (const student of selectedStudentsData) {
         try {
-          // Get student's unpaid fees
           const feesResponse = await feeAPI.getStudentFees(
             student.id,
-            selectedSession,
-            selectedTerm,
+            session,
+            term,
           );
-          const unpaidFees = feesResponse.data.filter(
+          const unpaidFees = (feesResponse.data || []).filter(
             (f) => f.status !== "PAID",
           );
 
-          // Distribute payment amount across unpaid fees
           let remainingAmount =
-            bulkPaymentData.amount / selectedStudentsData.length;
+            Number(bulkPaymentData.amount) / selectedStudentsData.length;
 
           for (const fee of unpaidFees) {
             if (remainingAmount <= 0) break;
 
-            const paymentAmount = Math.min(remainingAmount, fee.balance);
+            const paymentAmount = Math.min(
+              remainingAmount,
+              Number(fee.balance) || 0,
+            );
+
             if (paymentAmount > 0) {
               await feeAPI.recordPayment(
                 fee.id,
@@ -490,7 +510,6 @@ function FeeManagement() {
         selectAll: false,
       });
 
-      // Refresh data
       await fetchAllStudentsFeeStatus();
       await fetchFeeStatistics();
       await fetchDefaulters();
@@ -505,12 +524,10 @@ function FeeManagement() {
 
   const handleExportToExcel = () => {
     try {
-      // Prepare data based on active tab
       let data = [];
-      let filename = `fee_report_${selectedSession}_${selectedTerm}`;
+      let filename = `fee_report_${session}_${term}`;
 
       if (activeTab === "fees" && selectedStudent) {
-        // Export selected student's fees
         data = fees.map((fee) => ({
           "Student Name": fee.studentName,
           "Admission No": fee.admissionNumber,
@@ -531,7 +548,6 @@ function FeeManagement() {
         }));
         filename += `_${selectedStudent?.fullName?.replace(/\s+/g, "_")}`;
       } else if (activeTab === "all-students") {
-        // Export all students with their fee status
         data = filteredStudents.map((student) => ({
           "Student Name":
             student.fullName || `${student.firstName} ${student.lastName}`,
@@ -548,7 +564,6 @@ function FeeManagement() {
         }));
         filename += "_all_students";
       } else if (activeTab === "defaulters") {
-        // Export defaulters
         data = defaulters.map((def) => ({
           "Student Name": def.studentName || "",
           "Admission No": def.admissionNumber || "",
@@ -584,7 +599,6 @@ function FeeManagement() {
       let tableHeaders = [];
 
       if (activeTab === "fees" && selectedStudent) {
-        // Export selected student's fees
         title = `Fee Report - ${selectedStudent.fullName}`;
         tableHeaders = [
           [
@@ -607,7 +621,6 @@ function FeeManagement() {
           fee.status || "",
         ]);
       } else if (activeTab === "all-students") {
-        // Export all students
         title = "All Students Fee Status";
         tableHeaders = [
           [
@@ -630,7 +643,6 @@ function FeeManagement() {
           student.status || "NO_FEES",
         ]);
       } else if (activeTab === "defaulters") {
-        // Export defaulters
         title = "Fee Defaulters Report";
         tableHeaders = [
           [
@@ -654,25 +666,22 @@ function FeeManagement() {
         ]);
       }
 
-      // Add title
       doc.setFontSize(16);
       doc.text(title, 14, 15);
 
-      // Add metadata
       doc.setFontSize(10);
-      doc.text(`Session: ${selectedSession} | Term: ${selectedTerm}`, 14, 22);
+      doc.text(`Session: ${session} | Term: ${term}`, 14, 22);
       doc.text(`Generated: ${moment().format("DD/MM/YYYY HH:mm")}`, 14, 28);
 
-      // Add table
       autoTable(doc, {
         head: tableHeaders,
         body: tableData,
         startY: 35,
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [0, 51, 102] }, // School navy color
+        headStyles: { fillColor: [0, 51, 102] },
       });
 
-      doc.save(`${activeTab}_report_${selectedSession}_${selectedTerm}.pdf`);
+      doc.save(`${activeTab}_report_${session}_${term}.pdf`);
       toast.success("PDF exported successfully!");
     } catch (error) {
       console.error("Error exporting to PDF:", error);
@@ -682,7 +691,7 @@ function FeeManagement() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -690,11 +699,18 @@ function FeeManagement() {
     setLoading(true);
 
     try {
+      const payload = {
+        ...formData,
+        session: formData.session || session,
+        term: formData.term || term,
+        studentId: formData.studentId || selectedStudent?.id || "",
+      };
+
       if (editingFee) {
-        await feeAPI.updateFee(editingFee.id, formData);
+        await feeAPI.updateFee(editingFee.id, payload);
         toast.success("Fee updated successfully");
       } else {
-        await feeAPI.createFee(formData);
+        await feeAPI.createFee(payload);
         toast.success("Fee created successfully");
       }
 
@@ -754,6 +770,7 @@ function FeeManagement() {
   const handleSendReminders = async () => {
     if (!window.confirm("Send fee reminders to all defaulting students?"))
       return;
+
     setLoading(true);
     try {
       await feeAPI.sendOverdueReminders();
@@ -770,10 +787,11 @@ function FeeManagement() {
       !window.confirm(
         `Send SMS reminder to ${student.parentName || student.fullName}?`,
       )
-    )
+    ) {
       return;
+    }
+
     try {
-      // You'll need to implement this API endpoint
       toast.success("Reminder sent successfully");
     } catch (error) {
       toast.error("Failed to send reminder");
@@ -792,7 +810,8 @@ function FeeManagement() {
       },
       WAIVED: { class: "badge-waived", icon: <FiXCircle />, label: "Waived" },
     };
-    const badge = badges[status] || badges["PENDING"];
+
+    const badge = badges[status] || badges.PENDING;
     return (
       <span className={`status-badge ${badge.class}`}>
         {badge.icon} {badge.label}
@@ -836,8 +855,8 @@ function FeeManagement() {
   const resetForm = () => {
     setFormData({
       studentId: selectedStudent?.id || "",
-      session: "2025/2026",
-      term: "FIRST",
+      session: session || "",
+      term: term || "FIRST",
       feeType: "TUITION",
       description: "",
       amount: "",
@@ -846,18 +865,28 @@ function FeeManagement() {
     });
   };
 
+  if (loadingSession) {
+    return (
+      <div className="fee-management">
+        <div className="content-wrapper">
+          <div className="loading-spinner">
+            <FiLoader className="spin" />
+            <p>Loading active session...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fee-management">
-      {/* Animated Background */}
       <div className="animated-bg">
         <div className="gradient-orb orb-1"></div>
         <div className="gradient-orb orb-2"></div>
         <div className="gradient-orb orb-3"></div>
       </div>
 
-      {/* Main Content */}
       <div className="content-wrapper">
-        {/* Header */}
         <div className="header-section glass-effect">
           <div className="header-top">
             <div className="header-title">
@@ -867,6 +896,11 @@ function FeeManagement() {
               </h1>
               <p className="header-subtitle">
                 Manage and track all fee payments
+              </p>
+              <p className="header-subtitle">
+                Active Session:{" "}
+                <strong>{session || "No active session"}</strong> | Term:{" "}
+                <strong>{term}</strong>
               </p>
             </div>
             <button
@@ -883,11 +917,12 @@ function FeeManagement() {
             </button>
           </div>
 
-          {/* Statistics Cards */}
           {stats && (
             <div className="stats-grid">
               <div
-                className={`stat-card glass-effect ${hoveredCard === "collected" ? "hovered" : ""}`}
+                className={`stat-card glass-effect ${
+                  hoveredCard === "collected" ? "hovered" : ""
+                }`}
                 onMouseEnter={() => setHoveredCard("collected")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -906,7 +941,9 @@ function FeeManagement() {
               </div>
 
               <div
-                className={`stat-card glass-effect ${hoveredCard === "outstanding" ? "hovered" : ""}`}
+                className={`stat-card glass-effect ${
+                  hoveredCard === "outstanding" ? "hovered" : ""
+                }`}
                 onMouseEnter={() => setHoveredCard("outstanding")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -925,7 +962,9 @@ function FeeManagement() {
               </div>
 
               <div
-                className={`stat-card glass-effect ${hoveredCard === "overdue" ? "hovered" : ""}`}
+                className={`stat-card glass-effect ${
+                  hoveredCard === "overdue" ? "hovered" : ""
+                }`}
                 onMouseEnter={() => setHoveredCard("overdue")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -944,7 +983,9 @@ function FeeManagement() {
               </div>
 
               <div
-                className={`stat-card glass-effect ${hoveredCard === "rate" ? "hovered" : ""}`}
+                className={`stat-card glass-effect ${
+                  hoveredCard === "rate" ? "hovered" : ""
+                }`}
                 onMouseEnter={() => setHoveredCard("rate")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -963,7 +1004,6 @@ function FeeManagement() {
           )}
         </div>
 
-        {/* Mobile Filter Toggle */}
         <button
           className="mobile-filter-toggle glass-effect"
           onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -971,9 +1011,10 @@ function FeeManagement() {
           <FiFilter /> {showMobileFilters ? "Hide Filters" : "Show Filters"}
         </button>
 
-        {/* Filters Section */}
         <div
-          className={`filters-section glass-effect ${showMobileFilters ? "show" : ""}`}
+          className={`filters-section glass-effect ${
+            showMobileFilters ? "show" : ""
+          }`}
         >
           <div className="filters-grid">
             <div className="filter-group">
@@ -981,8 +1022,8 @@ function FeeManagement() {
                 <FiCalendar /> Session
               </label>
               <select
-                value={selectedSession}
-                onChange={(e) => setSelectedSession(e.target.value)}
+                value={session || ""}
+                onChange={(e) => setSession(e.target.value)}
               >
                 {sessions.map((s) => (
                   <option key={s} value={s}>
@@ -997,8 +1038,8 @@ function FeeManagement() {
                 <FiClock /> Term
               </label>
               <select
-                value={selectedTerm}
-                onChange={(e) => setSelectedTerm(e.target.value)}
+                value={term || ""}
+                onChange={(e) => setTerm(e.target.value)}
               >
                 {terms.map((t) => (
                   <option key={t} value={t}>
@@ -1016,10 +1057,15 @@ function FeeManagement() {
                 value={selectedStudent?.id || ""}
                 onChange={(e) => {
                   const student = students.find(
-                    (s) => s.id === parseInt(e.target.value),
+                    (s) => s.id === parseInt(e.target.value, 10),
                   );
-                  setSelectedStudent(student);
-                  setFormData({ ...formData, studentId: student?.id });
+                  setSelectedStudent(student || null);
+                  setFormData((prev) => ({
+                    ...prev,
+                    studentId: student?.id || "",
+                    session: session || prev.session,
+                    term: term || prev.term,
+                  }));
                   setCurrentPage(1);
                 }}
               >
@@ -1047,7 +1093,6 @@ function FeeManagement() {
             </div>
           </div>
 
-          {/* Quick Actions */}
           <div className="quick-actions">
             <button
               className="btn-warning"
@@ -1070,7 +1115,6 @@ function FeeManagement() {
             </button>
           </div>
 
-          {/* Search and Filter */}
           <div className="search-filter">
             <div className="search-box">
               <FiSearch />
@@ -1107,7 +1151,6 @@ function FeeManagement() {
           </div>
         </div>
 
-        {/* Tab Navigation */}
         <div className="tab-navigation glass-effect">
           <button
             className={`tab-btn ${activeTab === "fees" ? "active" : ""}`}
@@ -1130,7 +1173,6 @@ function FeeManagement() {
           </button>
         </div>
 
-        {/* Fees Tab */}
         {activeTab === "fees" && (
           <div className="fees-tab glass-effect">
             {selectedStudent ? (
@@ -1155,7 +1197,7 @@ function FeeManagement() {
                       <strong>
                         ₦
                         {fees
-                          .reduce((sum, f) => sum + (f.amount || 0), 0)
+                          .reduce((sum, f) => sum + (Number(f.amount) || 0), 0)
                           .toLocaleString()}
                       </strong>
                     </div>
@@ -1164,7 +1206,10 @@ function FeeManagement() {
                       <strong className="text-success">
                         ₦
                         {fees
-                          .reduce((sum, f) => sum + (f.paidAmount || 0), 0)
+                          .reduce(
+                            (sum, f) => sum + (Number(f.paidAmount) || 0),
+                            0,
+                          )
                           .toLocaleString()}
                       </strong>
                     </div>
@@ -1173,7 +1218,7 @@ function FeeManagement() {
                       <strong className="text-danger">
                         ₦
                         {fees
-                          .reduce((sum, f) => sum + (f.balance || 0), 0)
+                          .reduce((sum, f) => sum + (Number(f.balance) || 0), 0)
                           .toLocaleString()}
                       </strong>
                     </div>
@@ -1229,7 +1274,11 @@ function FeeManagement() {
                                   ₦{(fee.paidAmount || 0).toLocaleString()}
                                 </td>
                                 <td
-                                  className={`text-right ${(fee.balance || 0) > 0 ? "text-danger" : "text-success"}`}
+                                  className={`text-right ${
+                                    (fee.balance || 0) > 0
+                                      ? "text-danger"
+                                      : "text-success"
+                                  }`}
                                 >
                                   ₦{(fee.balance || 0).toLocaleString()}
                                 </td>
@@ -1274,6 +1323,7 @@ function FeeManagement() {
                                   </div>
                                 </td>
                               </tr>
+
                               {expandedRows.includes(fee.id) && (
                                 <tr className="expanded-row">
                                   <td colSpan="9">
@@ -1326,6 +1376,7 @@ function FeeManagement() {
                               )}
                             </React.Fragment>
                           ))}
+
                           {paginatedFees().length === 0 && (
                             <tr>
                               <td colSpan="9" className="empty-state">
@@ -1344,7 +1395,6 @@ function FeeManagement() {
                       </table>
                     </div>
 
-                    {/* Pagination */}
                     {totalPages > 1 && (
                       <div className="pagination">
                         <button
@@ -1385,10 +1435,8 @@ function FeeManagement() {
           </div>
         )}
 
-        {/* All Students Tab */}
         {activeTab === "all-students" && (
           <div className="all-students-tab glass-effect">
-            {/* Quick Stats */}
             <div className="quick-stats-grid">
               <div className="quick-stat-card total">
                 <div className="stat-icon">
@@ -1439,7 +1487,6 @@ function FeeManagement() {
               </div>
             </div>
 
-            {/* Status Legend */}
             <div className="status-legend">
               <span>
                 <FiCheckCircle className="text-success" /> Paid
@@ -1455,7 +1502,6 @@ function FeeManagement() {
               </span>
             </div>
 
-            {/* Search Bar for All Students */}
             <div className="all-students-search">
               <div className="search-box large">
                 <FiSearch />
@@ -1549,7 +1595,11 @@ function FeeManagement() {
                               : "-"}
                           </td>
                           <td
-                            className={`text-right amount ${student.balance > 0 ? "text-danger" : "text-success"}`}
+                            className={`text-right amount ${
+                              student.balance > 0
+                                ? "text-danger"
+                                : "text-success"
+                            }`}
                           >
                             {student.balance > 0
                               ? `₦${student.balance.toLocaleString()}`
@@ -1626,7 +1676,6 @@ function FeeManagement() {
           </div>
         )}
 
-        {/* Defaulters Tab */}
         {activeTab === "defaulters" && (
           <div className="defaulters-tab glass-effect">
             <div className="defaulter-summary">
@@ -1648,7 +1697,10 @@ function FeeManagement() {
                   <strong>
                     ₦
                     {defaulters
-                      .reduce((sum, d) => sum + (d.outstandingBalance || 0), 0)
+                      .reduce(
+                        (sum, d) => sum + (Number(d.outstandingBalance) || 0),
+                        0,
+                      )
                       .toLocaleString()}
                   </strong>
                 </div>
@@ -1726,6 +1778,7 @@ function FeeManagement() {
                       </td>
                     </tr>
                   ))}
+
                   {defaulters.length === 0 && (
                     <tr>
                       <td colSpan="8" className="empty-state">
@@ -1740,7 +1793,6 @@ function FeeManagement() {
           </div>
         )}
 
-        {/* Bulk Payment Modal */}
         {showBulkPaymentModal && (
           <div
             className="modal-overlay"
@@ -1777,7 +1829,6 @@ function FeeManagement() {
                   </div>
                 </div>
 
-                {/* Student Selection Table */}
                 <div className="student-selection-table">
                   <table className="selection-table">
                     <thead>
@@ -1937,7 +1988,6 @@ function FeeManagement() {
           </div>
         )}
 
-        {/* Fee Form Modal */}
         {showForm && (
           <div className="modal-overlay" onClick={() => setShowForm(false)}>
             <div
@@ -1970,6 +2020,7 @@ function FeeManagement() {
                       disabled
                     />
                   </div>
+
                   <div className="form-row">
                     <div className="form-group">
                       <label>Session</label>
@@ -1986,6 +2037,7 @@ function FeeManagement() {
                         ))}
                       </select>
                     </div>
+
                     <div className="form-group">
                       <label>Term</label>
                       <select
@@ -2002,6 +2054,7 @@ function FeeManagement() {
                       </select>
                     </div>
                   </div>
+
                   <div className="form-row">
                     <div className="form-group">
                       <label>Fee Type</label>
@@ -2018,6 +2071,7 @@ function FeeManagement() {
                         ))}
                       </select>
                     </div>
+
                     <div className="form-group">
                       <label>Amount (₦)</label>
                       <input
@@ -2031,6 +2085,7 @@ function FeeManagement() {
                       />
                     </div>
                   </div>
+
                   <div className="form-group">
                     <label>Description</label>
                     <input
@@ -2041,6 +2096,7 @@ function FeeManagement() {
                       placeholder="Optional"
                     />
                   </div>
+
                   <div className="form-row">
                     <div className="form-group">
                       <label>Due Date</label>
@@ -2053,6 +2109,7 @@ function FeeManagement() {
                       />
                     </div>
                   </div>
+
                   <div className="form-group">
                     <label>Notes</label>
                     <textarea
@@ -2063,6 +2120,7 @@ function FeeManagement() {
                       placeholder="Additional notes"
                     />
                   </div>
+
                   <div className="modal-footer">
                     <button
                       type="button"
@@ -2095,7 +2153,6 @@ function FeeManagement() {
           </div>
         )}
 
-        {/* Payment Modal */}
         {showPaymentModal && selectedFee && (
           <div
             className="modal-overlay"
@@ -2138,6 +2195,7 @@ function FeeManagement() {
                     </span>
                   </p>
                 </div>
+
                 <form onSubmit={handleRecordPayment}>
                   <div className="form-group">
                     <label>Payment Amount (₦)</label>
@@ -2156,6 +2214,7 @@ function FeeManagement() {
                       required
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Payment Method</label>
                     <select
@@ -2175,6 +2234,7 @@ function FeeManagement() {
                       <option value="ONLINE">Online Payment</option>
                     </select>
                   </div>
+
                   <div className="form-group">
                     <label>Reference</label>
                     <input
@@ -2189,6 +2249,7 @@ function FeeManagement() {
                       placeholder="Transaction ID"
                     />
                   </div>
+
                   <div className="modal-footer">
                     <button
                       type="button"

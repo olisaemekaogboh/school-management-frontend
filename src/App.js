@@ -8,39 +8,32 @@ import {
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-// Layout
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
-// Auth
 import Login from "./components/Login";
 import Register from "./components/Register";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 import TeacherRegistrationCompletion from "./components/TeacherRegistrationCompletion";
 
-// Public verification
 import ParentEmailVerification from "./components/parent/ParentEmailVerification";
 import VerifyStudent from "./components/VerifyStudent";
 
-// General shared
 import Profile from "./components/Profile";
 import Settings from "./components/Settings";
 import PageNotFound from "./components/PageNotFound";
 import Unauthorized from "./components/Unauthorized";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-// Contexts
 import { AuthProvider } from "./contexts/AuthContext";
 import { ParentProvider } from "./contexts/ParentContext";
 
-// Dashboards
 import Dashboard from "./components/Dashboard";
 import StudentDashboard from "./components/StudentDashboard";
 import TeacherDashboard from "./components/TeacherDashboard";
 import ParentDashboard from "./components/ParentDashboard";
 
-// Admin pages
 import UserManagement from "./components/UserManagement";
 import StudentManagement from "./components/StudentManagement";
 import StudentForm from "./components/StudentForm";
@@ -50,7 +43,6 @@ import TeacherManagement from "./components/TeacherManagement";
 import TeacherForm from "./components/TeacherForm";
 import TeacherDetails from "./components/TeacherDetails";
 
-// Class Management
 import ClassManagement from "./components/ClassManagement";
 import ClassManager from "./components/ClassManager";
 import ClassDetails from "./components/ClassDetails";
@@ -60,7 +52,6 @@ import Timetable from "./components/Timetable";
 import SubjectManagement from "./components/SubjectManagement";
 import ResultManagement from "./components/ResultManagement";
 import SessionResult from "./components/SessionResult";
-import AttendanceManagement from "./components/AttendanceManagement";
 import AttendanceManager from "./components/AttendanceManager";
 import ResultSheet from "./components/ResultSheet";
 import FeeManagement from "./components/FeeManagement";
@@ -83,7 +74,6 @@ import ReportGenerator from "./components/ReportGenerator";
 import Search from "./components/Search";
 import SessionManagement from "./components/SessionManagement";
 
-// Parent portal
 import ParentPortal from "./components/ParentPortal";
 import ParentProfile from "./components/ParentProfile";
 
@@ -99,7 +89,7 @@ function App() {
             <main className="main-content">
               <div className="content-wrapper">
                 <Routes>
-                  {/* ================= PUBLIC ROUTES ================= */}
+                  {/* PUBLIC */}
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -118,7 +108,7 @@ function App() {
                   />
                   <Route path="/verify-student" element={<VerifyStudent />} />
 
-                  {/* ================= ROOT REDIRECT ================= */}
+                  {/* ROOT */}
                   <Route
                     path="/"
                     element={
@@ -128,7 +118,7 @@ function App() {
                     }
                   />
 
-                  {/* ================= ADMIN ROUTES ================= */}
+                  {/* ADMIN */}
                   <Route
                     path="/users"
                     element={
@@ -245,11 +235,10 @@ function App() {
                     }
                   />
 
-                  {/* ================= CLASS MANAGEMENT ROUTES ================= */}
                   <Route
                     path="/classes"
                     element={
-                      <ProtectedRoute requiredRole="ADMIN">
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
                         <ClassManagement />
                       </ProtectedRoute>
                     }
@@ -438,7 +427,7 @@ function App() {
                     }
                   />
 
-                  {/* ================= TEACHER ROUTES ================= */}
+                  {/* TEACHER */}
                   <Route
                     path="/teacher-dashboard"
                     element={
@@ -450,17 +439,6 @@ function App() {
 
                   <Route
                     path="/attendance"
-                    element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
-                      >
-                        <AttendanceManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/attendance/manage"
                     element={
                       <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
                         <AttendanceManager />
@@ -510,7 +488,7 @@ function App() {
                     }
                   />
 
-                  {/* ================= STUDENT ROUTES ================= */}
+                  {/* STUDENT */}
                   <Route
                     path="/student-dashboard"
                     element={
@@ -520,7 +498,7 @@ function App() {
                     }
                   />
 
-                  {/* ================= PARENT ROUTES ================= */}
+                  {/* PARENT */}
                   <Route
                     path="/parent-dashboard"
                     element={
@@ -546,7 +524,7 @@ function App() {
                     }
                   />
 
-                  {/* ================= SHARED AUTHENTICATED ROUTES ================= */}
+                  {/* SHARED */}
                   <Route
                     path="/profile"
                     element={
@@ -568,7 +546,7 @@ function App() {
                     }
                   />
 
-                  {/* ================= ERROR ROUTES ================= */}
+                  {/* ERRORS */}
                   <Route path="/401" element={<Unauthorized />} />
                   <Route path="/404" element={<PageNotFound />} />
                   <Route path="*" element={<Navigate to="/404" replace />} />

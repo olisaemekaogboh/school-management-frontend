@@ -157,10 +157,9 @@ function Navbar() {
       name: "academics",
       items: [
         { path: "/results", label: "Results", icon: <FaChartBar /> },
-        { path: "/attendance", label: "Attendance", icon: <FaCalendarAlt /> },
         {
-          path: "/attendance/manage",
-          label: "Manage Attendance",
+          path: "/attendance",
+          label: "Attendance",
           icon: <FaClipboardCheck />,
         },
         {
@@ -168,11 +167,7 @@ function Navbar() {
           label: "Session Results",
           icon: <FaGraduationCap />,
         },
-        {
-          path: "/sessions",
-          label: "Session Management",
-          icon: <FaClock />,
-        },
+        { path: "/sessions", label: "Session Management", icon: <FaClock /> },
       ],
     },
     {
@@ -250,34 +245,24 @@ function Navbar() {
       icon: <FaUsers />,
       label: "My Students",
     },
-    {
-      type: "dropdown",
-      label: "Classes",
-      icon: <FaLayerGroup />,
-      name: "classes",
-      items: [
-        { path: "/classes", label: "View Classes", icon: <FaList /> },
-        { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
-      ],
-    },
     { type: "link", path: "/results", icon: <FaChartBar />, label: "Results" },
     {
       type: "link",
       path: "/attendance",
-      icon: <FaCalendarAlt />,
-      label: "Attendance",
-    },
-    {
-      type: "link",
-      path: "/attendance/manage",
       icon: <FaClipboardCheck />,
-      label: "Mark Attendance",
+      label: "Attendance",
     },
     {
       type: "link",
       path: "/session-results",
       icon: <FaGraduationCap />,
       label: "Session Results",
+    },
+    {
+      type: "link",
+      path: "/timetable",
+      icon: <FaCalendarAlt />,
+      label: "Timetable",
     },
     {
       type: "link",
@@ -294,23 +279,12 @@ function Navbar() {
       icon: <FaHome />,
       label: "Dashboard",
     },
+    { type: "link", path: "/fees", icon: <FaMoneyBill />, label: "Ward Fees" },
     {
       type: "link",
-      path: "/parent/profile",
-      icon: <FaUser />,
-      label: "Profile",
-    },
-    {
-      type: "dropdown",
-      label: "Academics",
-      icon: <FaBookOpen />,
-      name: "academics",
-      items: [
-        { path: "/results", label: "Results", icon: <FaChartBar /> },
-        { path: "/attendance", label: "Attendance", icon: <FaCalendarAlt /> },
-        { path: "/fees", label: "Fees", icon: <FaMoneyBill /> },
-        { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
-      ],
+      path: "/results",
+      icon: <FaChartBar />,
+      label: "Ward Results",
     },
     {
       type: "link",
@@ -339,17 +313,11 @@ function Navbar() {
       icon: <FaChartBar />,
       label: "My Results",
     },
-    {
-      type: "link",
-      path: "/attendance",
-      icon: <FaCalendarAlt />,
-      label: "My Attendance",
-    },
     { type: "link", path: "/fees", icon: <FaMoneyBill />, label: "My Fees" },
     {
       type: "link",
       path: "/timetable",
-      icon: <FaBookOpen />,
+      icon: <FaCalendarAlt />,
       label: "Timetable",
     },
     {
@@ -378,9 +346,7 @@ function Navbar() {
 
   return (
     <nav
-      className={`navbar navbar-expand-lg navbar-dark navbar-school ${
-        scrolled ? "scrolled" : ""
-      }`}
+      className={`navbar navbar-expand-lg navbar-dark navbar-school ${scrolled ? "scrolled" : ""}`}
     >
       <div className="container-fluid">
         <Link className="navbar-brand school-logo" to="/" onClick={closeMenu}>
@@ -409,31 +375,23 @@ function Navbar() {
                 {item.type === "dropdown" ? (
                   <div className="nav-dropdown">
                     <button
-                      className={`nav-link dropdown-toggle ${
-                        isDropdownActive(item.items) ? "active" : ""
-                      }`}
+                      className={`nav-link dropdown-toggle ${isDropdownActive(item.items) ? "active" : ""}`}
                       onClick={() => toggleDropdown(item.name)}
                       aria-expanded={openDropdown === item.name}
                     >
                       <span className="nav-icon">{item.icon}</span>
                       <span className="nav-label">{item.label}</span>
                       <FaChevronDown
-                        className={`dropdown-arrow ${
-                          openDropdown === item.name ? "rotated" : ""
-                        }`}
+                        className={`dropdown-arrow ${openDropdown === item.name ? "rotated" : ""}`}
                       />
                     </button>
                     <div
-                      className={`dropdown-menu ${
-                        openDropdown === item.name ? "show" : ""
-                      }`}
+                      className={`dropdown-menu ${openDropdown === item.name ? "show" : ""}`}
                     >
                       {item.items.map((subItem, subIndex) => (
                         <Link
                           key={subIndex}
-                          className={`dropdown-item ${
-                            isActive(subItem.path) ? "active" : ""
-                          }`}
+                          className={`dropdown-item ${isActive(subItem.path) ? "active" : ""}`}
                           to={subItem.path}
                           onClick={closeMenu}
                         >
@@ -483,15 +441,11 @@ function Navbar() {
                     {user?.firstName || "User"}
                   </span>
                   <FaChevronDown
-                    className={`user-arrow ${
-                      openDropdown === "user" ? "rotated" : ""
-                    }`}
+                    className={`user-arrow ${openDropdown === "user" ? "rotated" : ""}`}
                   />
                 </button>
                 <div
-                  className={`dropdown-menu user-dropdown-menu ${
-                    openDropdown === "user" ? "show" : ""
-                  }`}
+                  className={`dropdown-menu user-dropdown-menu ${openDropdown === "user" ? "show" : ""}`}
                 >
                   <Link
                     to="/profile"
