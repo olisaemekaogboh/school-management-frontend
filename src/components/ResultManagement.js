@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate, Navigate } from "react-router-dom";
-import { studentAPI, resultAPI, teacherAPI, authAPI } from "../services/api";
+import { useNavigate } from "react-router-dom";
+import {
+  resultAPI,
+  sessionAPI,
+  studentAPI,
+  teacherAPI,
+  parentPortalAPI,
+} from "../services/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -13,37 +19,43 @@ import {
   FaSearch,
   FaSpinner,
   FaInfoCircle,
+  FaUserGraduate,
+  FaUsers,
+  FaBookOpen,
+  FaSyncAlt,
 } from "react-icons/fa";
 import moment from "moment";
-import useActiveSession from "../hooks/useActiveSession";
 import "./ResultManagement.css";
 
 function ResultManagement() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, isAdmin, isTeacher, isStudent, isParent } = useAuth();
 
-  const query = new URLSearchParams(location.search);
-  const classNameFromQuery = query.get("className") || "";
-  const armFromQuery = query.get("arm") || "";
-  const studentIdFromQuery = query.get("student") || "";
-
   const [students, setStudents] = useState([]);
+  const [parentWards, setParentWards] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
+
+  const [availableSessions, setAvailableSessions] = useState([]);
+  const [activeSessionObj, setActiveSessionObj] = useState(null);
+  const [session, setSession] = useState("");
+  const [term, setTerm] = useState("FIRST");
+
   const [subjects, setSubjects] = useState([]);
   const [resultSheet, setResultSheet] = useState(null);
   const [rankings, setRankings] = useState(null);
-  const [activeTab, setActiveTab] = useState(isStudent ? "view" : "input");
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [rankingsType, setRankingsType] = useState("arm");
-  const [selectedClass, setSelectedClass] = useState(classNameFromQuery);
-  const [selectedArm, setSelectedArm] = useState(armFromQuery);
-  const [teacherAssignments, setTeacherAssignments] = useState([]);
-  const [currentStudentProfile, setCurrentStudentProfile] = useState(null);
 
-  const { session, setSession, term, setTerm, loadingSession } =
-    useActiveSession("FIRST");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (isStudent || isParent) return "view";
+    return "input";
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [rankingsType, setRankingsType] = useState("school");
+  const [selectedClass, setSelectedClass] = useState("");
+  const [selectedArm, setSelectedArm] = useState("");
+  const [teacherClasses, setTeacherClasses] = useState([]);
 
   const subjectList = [
     "Mathematics",
@@ -75,8 +87,23 @@ function ResultManagement() {
     "Fine Arts",
   ];
 
-  const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
   const terms = ["FIRST", "SECOND", "THIRD"];
+
+  const classes = [
+    "Nursery",
+    "Primary 1",
+    "Primary 2",
+    "Primary 3",
+    "Primary 4",
+    "Primary 5",
+    "Primary 6",
+    "JSS 1",
+    "JSS 2",
+    "JSS 3",
+    "SSS 1",
+    "SSS 2",
+    "SSS 3",
+  ];
 
   const safeNumber = (value, fallback = 0) => {
     const n = Number(value);
@@ -87,124 +114,251 @@ function ResultManagement() {
     return safeNumber(value, 0).toFixed(digits);
   };
 
+  const getSessionName = (item) => {
+    return item?.session || item?.sessionName || item?.name || "";
+  };
+
+  const sortSessions = (list) => {
+    return [...list].sort((a, b) => {
+      const aDate = new Date(a.startDate || 0).getTime();
+      const bDate = new Date(b.startDate || 0).getTime();
+      return bDate - aDate;
+    });
+  };
+
+  const normalizedAvailableSessions = useMemo(() => {
+    return (availableSessions || []).map((item) => ({
+      id: item.id,
+      session: getSessionName(item),
+      term: item.currentTerm || item.term || "FIRST",
+      active: item.active === true || item.isActive === true,
+      startDate: item.startDate,
+      endDate: item.endDate,
+    }));
+  }, [availableSessions]);
+
   const filteredStudents = useMemo(() => {
-    let list = [...students];
+    const source = isParent ? parentWards : students;
 
-    if (selectedClass) {
-      list = list.filter((s) => s.studentClass === selectedClass);
-    }
-
-    if (selectedArm) {
-      list = list.filter((s) => s.classArm === selectedArm);
-    }
-
-    if (!searchTerm.trim()) return list;
+    if (!searchTerm.trim()) return source;
 
     const q = searchTerm.toLowerCase();
-    return list.filter(
+    return source.filter(
       (s) =>
         s.fullName?.toLowerCase().includes(q) ||
         `${s.firstName || ""} ${s.lastName || ""}`.toLowerCase().includes(q) ||
         s.admissionNumber?.toLowerCase().includes(q) ||
         s.studentClass?.toLowerCase().includes(q),
     );
-  }, [students, searchTerm, selectedClass, selectedArm]);
+  }, [students, parentWards, searchTerm, isParent]);
+
+  const availableRankingClasses = useMemo(() => {
+    if (isAdmin) return classes;
+    if (isTeacher) return teacherClasses;
+    return [];
+  }, [isAdmin, isTeacher, teacherClasses]);
 
   useEffect(() => {
-    if (session) {
-      loadInitialData();
-    }
-  }, [session]);
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    if (!isStudent && studentIdFromQuery && students.length > 0) {
-      const found = students.find(
-        (s) => String(s.id) === String(studentIdFromQuery),
-      );
-      if (found) setSelectedStudent(found);
-    }
-  }, [studentIdFromQuery, students, isStudent]);
+    setResultSheet(null);
+    setRankings(null);
+  }, [
+    session,
+    term,
+    selectedStudent,
+    selectedClass,
+    selectedArm,
+    rankingsType,
+  ]);
 
-  if (isParent) {
-    return <Navigate to="/parent-dashboard" replace />;
-  }
+  const loadSessionData = async () => {
+    setSessionsLoading(true);
+
+    try {
+      const [sessionsRes, activeRes] = await Promise.all([
+        sessionAPI.getAllSessions(),
+        sessionAPI.getActiveSession(),
+      ]);
+
+      const allSessions = Array.isArray(sessionsRes.data)
+        ? sessionsRes.data
+        : [];
+      const sorted = sortSessions(allSessions);
+
+      setAvailableSessions(sorted);
+
+      const active = activeRes?.data || null;
+      setActiveSessionObj(active);
+
+      if (active) {
+        setSession(getSessionName(active));
+        setTerm(active.currentTerm || "FIRST");
+      } else if (sorted.length > 0) {
+        setSession(getSessionName(sorted[0]));
+        setTerm(sorted[0].currentTerm || "FIRST");
+      } else {
+        setSession("");
+        setTerm("FIRST");
+      }
+    } catch (error) {
+      console.error("Error loading session data:", error);
+      setAvailableSessions([]);
+      setActiveSessionObj(null);
+      toast.error("Failed to load session information");
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
 
   const loadInitialData = async () => {
+    setLoading(true);
+
     try {
-      setLoading(true);
+      await loadSessionData();
 
-      if (isStudent) {
-        const meRes = await authAPI.getCurrentUser();
-        const me = meRes.data;
-        const studentProfile = me?.student || me?.studentProfile || null;
+      if (isParent) {
+        await loadParentWards();
+        return;
+      }
 
-        setCurrentStudentProfile(studentProfile);
-        if (studentProfile) {
-          setSelectedStudent(studentProfile);
-        }
-        setActiveTab("view");
+      if (isStudent && user?.studentId) {
+        await loadStudentSelf();
         return;
       }
 
       if (isTeacher) {
-        const teacherRes = await teacherAPI.getMyTeacherProfile();
-        const teacher = teacherRes.data;
-
-        const assignments = teacher?.assignedClasses || teacher?.classes || [];
-
-        const normalizedAssignments = assignments.map((c) => ({
-          className: c.className,
-          arm: c.arm,
-        }));
-
-        setTeacherAssignments(normalizedAssignments);
-
-        let allStudents = [];
-
-        if (classNameFromQuery && armFromQuery) {
-          const res = await studentAPI.getStudentsByClassAndArm(
-            classNameFromQuery,
-            armFromQuery,
-          );
-          allStudents = res.data || [];
-          setSelectedClass(classNameFromQuery);
-          setSelectedArm(armFromQuery);
-        } else {
-          const responses = await Promise.all(
-            normalizedAssignments.map((a) =>
-              studentAPI.getStudentsByClassAndArm(a.className, a.arm),
-            ),
-          );
-
-          allStudents = responses.flatMap((r) => r.data || []);
-        }
-
-        const uniqueStudents = Array.from(
-          new Map(allStudents.map((student) => [student.id, student])).values(),
-        );
-
-        setStudents(uniqueStudents);
-
-        if (!classNameFromQuery && normalizedAssignments.length === 1) {
-          setSelectedClass(normalizedAssignments[0].className);
-          setSelectedArm(normalizedAssignments[0].arm);
-        }
-
+        await loadTeacherStudents();
         return;
       }
 
-      if (isAdmin) {
-        const response = await studentAPI.getAllStudents();
-        setStudents(response.data || []);
-
-        if (classNameFromQuery) setSelectedClass(classNameFromQuery);
-        if (armFromQuery) setSelectedArm(armFromQuery);
-      }
+      await loadAdminStudents();
     } catch (error) {
-      console.error("Error loading result management data:", error);
-      toast.error("Failed to load result data");
+      console.error("Error loading initial data:", error);
+      toast.error("Failed to load result management data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadParentWards = async () => {
+    try {
+      const response = await parentPortalAPI.getMyWards();
+      const wards = response.data || [];
+      setParentWards(wards);
+
+      if (wards.length === 1) {
+        setSelectedStudent(wards[0]);
+      }
+
+      setActiveTab("view");
+    } catch (error) {
+      console.error("Error loading parent wards:", error);
+      setParentWards([]);
+      toast.error("Failed to load your wards");
+    }
+  };
+
+  const loadStudentSelf = async () => {
+    try {
+      const response = await studentAPI.getStudentById(user.studentId);
+      const me = response.data;
+      const oneStudent = me ? [me] : [];
+
+      setStudents(oneStudent);
+      setSelectedStudent(me || null);
+      setActiveTab("view");
+    } catch (error) {
+      console.error("Error loading student profile:", error);
+      toast.error("Failed to load your profile");
+    }
+  };
+
+  const loadTeacherStudents = async () => {
+    try {
+      let assignedClasses = [];
+
+      try {
+        const teacherProfile = await teacherAPI.getMyTeacherProfile();
+        const profile = teacherProfile.data || {};
+
+        if (Array.isArray(profile.assignedClasses)) {
+          assignedClasses = profile.assignedClasses.map((c) => ({
+            className: c.className || c.name || "",
+            arm: c.arm || c.classArm || "",
+          }));
+        } else if (Array.isArray(profile.classNames)) {
+          assignedClasses = profile.classNames.map((className) => ({
+            className,
+            arm: "",
+          }));
+        } else if (profile.className) {
+          assignedClasses = [
+            {
+              className: profile.className,
+              arm: profile.arm || profile.classArm || "",
+            },
+          ];
+        }
+      } catch (error) {
+        console.error("Error loading teacher profile:", error);
+      }
+
+      const normalizedClasses = assignedClasses.filter((c) => c.className);
+      const uniqueClassNames = Array.from(
+        new Set(normalizedClasses.map((c) => c.className)),
+      );
+
+      setTeacherClasses(uniqueClassNames);
+
+      if (normalizedClasses.length === 0) {
+        setStudents([]);
+        toast.info("No class assigned to this teacher account");
+        return;
+      }
+
+      const responses = await Promise.all(
+        normalizedClasses.map((entry) => {
+          if (entry.arm) {
+            return studentAPI.getStudentsByClassAndArm(
+              entry.className,
+              entry.arm,
+            );
+          }
+          return studentAPI.getStudentsByClass(entry.className);
+        }),
+      );
+
+      const combined = responses.flatMap((res) => res.data || []);
+      const uniqueStudents = Array.from(
+        new Map(combined.map((student) => [student.id, student])).values(),
+      );
+
+      setStudents(uniqueStudents);
+
+      if (normalizedClasses.length === 1) {
+        setSelectedClass(normalizedClasses[0].className);
+        if (normalizedClasses[0].arm) {
+          setSelectedArm(normalizedClasses[0].arm);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading teacher students:", error);
+      toast.error("Failed to load your students");
+      setStudents([]);
+    }
+  };
+
+  const loadAdminStudents = async () => {
+    try {
+      const response = await studentAPI.getAllStudents();
+      setStudents(response.data || []);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      toast.error("Failed to load students");
     }
   };
 
@@ -262,19 +416,28 @@ function ResultManagement() {
     return true;
   };
 
+  const ensureSessionAndTerm = () => {
+    if (!session) {
+      toast.error("No session selected");
+      return false;
+    }
+    if (!term) {
+      toast.error("No term selected");
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmitResults = async () => {
     if (!(isAdmin || isTeacher)) {
       toast.error("You are not allowed to enter results");
       return;
     }
 
+    if (!ensureSessionAndTerm()) return;
+
     if (!selectedStudent) {
       toast.error("Please select a student");
-      return;
-    }
-
-    if (!session) {
-      toast.error("No active session found");
       return;
     }
 
@@ -297,8 +460,10 @@ function ResultManagement() {
     setLoading(true);
 
     try {
+      let successCount = 0;
+
       for (const subject of subjects) {
-        await resultAPI.addOrUpdateResultDTO({
+        const resultData = {
           studentId: selectedStudent.id,
           subject: subject.name,
           session,
@@ -310,12 +475,14 @@ function ResultManagement() {
           secondTest: safeNumber(subject.secondTest),
           examination: safeNumber(subject.examination),
           remarks: "",
-        });
+        };
+
+        await resultAPI.addOrUpdateResultDTO(resultData);
+        successCount++;
       }
 
-      toast.success(`${subjects.length} subject(s) saved successfully`);
+      toast.success(`${successCount} subject(s) saved successfully`);
       setSubjects([]);
-      await fetchStudentResult();
     } catch (error) {
       console.error("Error saving results:", error);
       toast.error(error?.response?.data?.message || "Failed to save results");
@@ -325,10 +492,7 @@ function ResultManagement() {
   };
 
   const fetchStudentResult = async () => {
-    if (!session) {
-      toast.error("No active session found");
-      return;
-    }
+    if (!ensureSessionAndTerm()) return;
 
     setLoading(true);
 
@@ -336,12 +500,28 @@ function ResultManagement() {
       if (isStudent) {
         const response = await resultAPI.getMyTermResult(session, term);
         setResultSheet(response.data);
+        toast.success("Result loaded successfully");
+        return;
+      }
+
+      if (isParent) {
+        if (!selectedStudent) {
+          toast.error("Please select a ward");
+          return;
+        }
+
+        const response = await parentPortalAPI.getWardTermResult(
+          selectedStudent.id,
+          session,
+          term,
+        );
+        setResultSheet(response.data);
+        toast.success("Result loaded successfully");
         return;
       }
 
       if (!selectedStudent) {
         toast.error("Please select a student");
-        setLoading(false);
         return;
       }
 
@@ -351,6 +531,7 @@ function ResultManagement() {
         term,
       );
       setResultSheet(response.data);
+      toast.success("Result loaded successfully");
     } catch (error) {
       console.error("Error fetching result:", error);
       setResultSheet(null);
@@ -366,10 +547,7 @@ function ResultManagement() {
       return;
     }
 
-    if (!session) {
-      toast.error("No active session found");
-      return;
-    }
+    if (!ensureSessionAndTerm()) return;
 
     setLoading(true);
 
@@ -377,21 +555,16 @@ function ResultManagement() {
       let response;
 
       if (rankingsType === "school") {
-        if (!isAdmin) {
-          toast.error("Only admin can view school rankings");
-          setLoading(false);
-          return;
-        }
         response = await resultAPI.getSchoolRankings(session, term);
       } else if (rankingsType === "class") {
-        if (!selectedClass || !selectedArm) {
-          toast.error("Please select class and arm");
+        if (!selectedClass) {
+          toast.error("Please select a class");
           setLoading(false);
           return;
         }
+
         response = await resultAPI.getClassRankings(
           selectedClass,
-          selectedArm,
           session,
           term,
         );
@@ -401,45 +574,47 @@ function ResultManagement() {
           setLoading(false);
           return;
         }
+
         response = await resultAPI.getArmRankings(
           selectedClass,
           selectedArm,
           session,
           term,
         );
+      } else {
+        toast.error("Invalid ranking type");
+        setLoading(false);
+        return;
       }
 
       setRankings(response.data);
+      toast.success("Rankings loaded successfully");
     } catch (error) {
       console.error("Error fetching rankings:", error);
-      toast.error("Failed to load rankings");
+      setRankings(null);
+      toast.error(error?.response?.data?.message || "Failed to load rankings");
     } finally {
       setLoading(false);
     }
   };
 
   const viewResultSheet = () => {
-    const targetStudent = isStudent ? currentStudentProfile : selectedStudent;
+    const targetStudent = isStudent
+      ? selectedStudent || students[0]
+      : selectedStudent;
 
     if (!targetStudent) {
       toast.error("Please select a student");
       return;
     }
 
-    if (!session) {
-      toast.error("No active session found");
+    if (!session || !term) {
+      toast.error("Please select session and term");
       return;
     }
 
-    const sessionParts = session.split("/");
-    if (sessionParts.length !== 2) {
-      toast.error("Invalid session format");
-      return;
-    }
-
-    const [sessionYear, sessionTerm] = sessionParts;
     navigate(
-      `/results/${targetStudent.id}/${sessionYear}/${sessionTerm}/${term}`,
+      `/results/${targetStudent.id}?session=${encodeURIComponent(session)}&term=${encodeURIComponent(term)}`,
     );
   };
 
@@ -447,8 +622,7 @@ function ResultManagement() {
     setSubjects([]);
     setResultSheet(null);
     setSearchTerm("");
-
-    if (!isStudent) {
+    if (!isStudent && !isParent) {
       setSelectedStudent(null);
     }
   };
@@ -465,35 +639,56 @@ function ResultManagement() {
     return colors[grade] || "bg-secondary";
   };
 
-  const rankingOptionsForTeacher = teacherAssignments.map(
-    (a) => `${a.className}__${a.arm}`,
-  );
+  const renderStudentSelectorLabel = () => {
+    if (isParent) return "Select Ward";
+    return "Select Student";
+  };
 
-  if (loadingSession) {
+  const renderPageTitle = () => {
+    if (isStudent) return "View your academic results";
+    if (isParent) return "View your ward's academic results";
+    if (isTeacher) return "Enter and view results for your assigned class";
+    return "Enter, view and analyze student results";
+  };
+
+  const currentStudentList = isParent ? parentWards : students;
+
+  if (sessionsLoading && currentStudentList.length === 0) {
     return (
-      <div className="text-center py-5">
-        <FaSpinner className="spin" size={40} />
+      <div className="result-management">
+        <div className="text-center py-5">
+          <FaSpinner className="spin" size={36} />
+          <div className="mt-3">Loading sessions...</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="result-management">
-      <div className="content-header">
-        <h2>
-          <FaChartLine className="me-2" /> Result Management System
-        </h2>
-        <p className="text-muted">
-          {isStudent
-            ? "View your academic results"
-            : isTeacher
-              ? "Enter and view results for your assigned class only"
-              : "Enter, view and analyze student results"}
-        </p>
-        <p className="text-muted mb-0">
-          Active Session: <strong>{session || "No active session"}</strong> |
-          Term: <strong>{term}</strong>
-        </p>
+      <div className="content-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h2>
+            <FaChartLine className="me-2" /> Result Management System
+          </h2>
+          <p className="text-muted mb-0">{renderPageTitle()}</p>
+        </div>
+
+        <button className="btn btn-outline-primary" onClick={loadSessionData}>
+          <FaSyncAlt className="me-2" />
+          Refresh Sessions
+        </button>
+      </div>
+
+      <div className="mt-3 mb-3 text-muted small">
+        <FaBookOpen className="me-1" />
+        Active backend session:{" "}
+        <strong>
+          {activeSessionObj ? getSessionName(activeSessionObj) : "None"}
+        </strong>
+        {" | "}
+        Current backend term:{" "}
+        <strong>{activeSessionObj?.currentTerm || "-"}</strong>
       </div>
 
       <div className="tabs-container">
@@ -523,18 +718,22 @@ function ResultManagement() {
         )}
       </div>
 
-      {(isAdmin || isTeacher || isStudent) && activeTab !== "rankings" && (
+      {activeTab !== "rankings" && (
         <div className="filters-section">
           <div className="filters-grid">
             {!isStudent && (
               <>
                 <div className="filter-group">
-                  <label>Search Student</label>
+                  <label>{isParent ? "Search Ward" : "Search Student"}</label>
                   <div className="search-box">
                     <FaSearch />
                     <input
                       type="text"
-                      placeholder="Search by name, admission or class..."
+                      placeholder={
+                        isParent
+                          ? "Search by ward name, admission or class..."
+                          : "Search by name, admission or class..."
+                      }
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -542,22 +741,26 @@ function ResultManagement() {
                 </div>
 
                 <div className="filter-group">
-                  <label>Select Student</label>
+                  <label>{renderStudentSelectorLabel()}</label>
                   <select
                     value={selectedStudent?.id || ""}
                     onChange={(e) => {
-                      const student = students.find(
+                      const selected = filteredStudents.find(
                         (s) => s.id === parseInt(e.target.value, 10),
                       );
-                      setSelectedStudent(student || null);
+                      setSelectedStudent(selected || null);
                       setResultSheet(null);
                     }}
                   >
-                    <option value="">Choose a student</option>
+                    <option value="">
+                      {isParent ? "Choose a ward" : "Choose a student"}
+                    </option>
                     {filteredStudents.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.fullName ||
-                          `${s.firstName || ""} ${s.lastName || ""}`.trim()}{" "}
+                        {(
+                          s.fullName ||
+                          `${s.firstName || ""} ${s.lastName || ""}`
+                        ).trim()}{" "}
                         - {s.admissionNumber} ({s.studentClass} {s.classArm})
                       </option>
                     ))}
@@ -572,11 +775,15 @@ function ResultManagement() {
                 value={session}
                 onChange={(e) => setSession(e.target.value)}
               >
-                {sessions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
+                {normalizedAvailableSessions.length > 0 ? (
+                  normalizedAvailableSessions.map((s) => (
+                    <option key={s.id || s.session} value={s.session}>
+                      {s.session}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No session available</option>
+                )}
               </select>
             </div>
 
@@ -591,6 +798,14 @@ function ResultManagement() {
               </select>
             </div>
           </div>
+
+          {(session || term) && (
+            <div className="mt-2 text-muted small">
+              <FaBookOpen className="me-1" />
+              Current selection: {session || "No session"}{" "}
+              {term ? `- ${term} term` : ""}
+            </div>
+          )}
         </div>
       )}
 
@@ -598,7 +813,11 @@ function ResultManagement() {
         <div className="input-results">
           <div className="section-header">
             <h3>
-              Enter Scores for {selectedStudent?.fullName || "Selected Student"}
+              Enter Scores for{" "}
+              {selectedStudent
+                ? selectedStudent.fullName ||
+                  `${selectedStudent.firstName || ""} ${selectedStudent.lastName || ""}`.trim()
+                : "Selected Student"}
             </h3>
             <div className="header-actions">
               <button className="btn-secondary" onClick={clearForm}>
@@ -612,13 +831,15 @@ function ResultManagement() {
 
           {!selectedStudent && (
             <div className="alert-info">
-              <FaInfoCircle /> Please select a student from the dropdown above.
+              <FaInfoCircle /> Please select a student from the dropdown above
+              to enter results.
             </div>
           )}
 
           {selectedStudent && subjects.length === 0 && (
             <div className="alert-warning">
-              <FaPlus /> No subjects added yet. Click "Add Subject" to start.
+              <FaPlus /> No subjects added. Click "Add Subject" to start
+              entering results.
             </div>
           )}
 
@@ -800,7 +1021,13 @@ function ResultManagement() {
       {activeTab === "view" && (
         <div className="view-results">
           <div className="section-header">
-            <h3>{isStudent ? "My Results" : "View Student Results"}</h3>
+            <h3>
+              {isStudent
+                ? "My Results"
+                : isParent
+                  ? "Ward Results"
+                  : "View Student Results"}
+            </h3>
             <div className="header-actions">
               <button
                 className="btn-primary"
@@ -812,7 +1039,11 @@ function ResultManagement() {
               </button>
 
               {resultSheet && (
-                <button className="btn-success" onClick={viewResultSheet}>
+                <button
+                  className="btn-success"
+                  onClick={viewResultSheet}
+                  title="View printable result sheet"
+                >
                   <FaPrint /> Printable Result
                 </button>
               )}
@@ -832,25 +1063,23 @@ function ResultManagement() {
                       <strong>Student:</strong>{" "}
                       {resultSheet.studentInfo?.name ||
                         selectedStudent?.fullName ||
-                        currentStudentProfile?.fullName ||
-                        user?.firstName}
+                        `${selectedStudent?.firstName || ""} ${selectedStudent?.lastName || ""}`.trim() ||
+                        user?.firstName ||
+                        "-"}
                     </p>
                     <p>
                       <strong>Admission:</strong>{" "}
                       {resultSheet.studentInfo?.admissionNumber ||
                         selectedStudent?.admissionNumber ||
-                        currentStudentProfile?.admissionNumber ||
                         "-"}
                     </p>
                     <p>
                       <strong>Class:</strong>{" "}
                       {resultSheet.studentInfo?.class ||
                         selectedStudent?.studentClass ||
-                        currentStudentProfile?.studentClass ||
                         "-"}{" "}
                       {resultSheet.studentInfo?.arm ||
                         selectedStudent?.classArm ||
-                        currentStudentProfile?.classArm ||
                         ""}
                     </p>
                   </div>
@@ -926,9 +1155,13 @@ function ResultManagement() {
             <div className="alert-info">
               {isStudent
                 ? 'Click "Load Result" to view your result.'
-                : selectedStudent
-                  ? 'Click "Load Result" to view results for this student.'
-                  : "Please select a student to view results."}
+                : isParent
+                  ? selectedStudent
+                    ? 'Click "Load Result" to view this ward result.'
+                    : "Please select a ward to view results."
+                  : selectedStudent
+                    ? 'Click "Load Result" to view results for this student.'
+                    : "Please select a student to view results."}
             </div>
           )}
         </div>
@@ -942,64 +1175,69 @@ function ResultManagement() {
               value={rankingsType}
               onChange={(e) => setRankingsType(e.target.value)}
             >
-              {isAdmin && <option value="school">School Rankings</option>}
+              <option value="school">School Rankings</option>
               <option value="class">Class Rankings</option>
               <option value="arm">Class Arm Rankings</option>
             </select>
 
-            {isAdmin ? (
-              <>
-                <select
-                  className="form-select"
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                >
-                  <option value="">Select Class</option>
-                  {[
-                    ...new Set(
-                      students.map((s) => s.studentClass).filter(Boolean),
-                    ),
-                  ].map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+            <select
+              className="form-select"
+              value={session}
+              onChange={(e) => setSession(e.target.value)}
+            >
+              {normalizedAvailableSessions.length > 0 ? (
+                normalizedAvailableSessions.map((s) => (
+                  <option key={s.id || s.session} value={s.session}>
+                    {s.session}
+                  </option>
+                ))
+              ) : (
+                <option value="">No session available</option>
+              )}
+            </select>
 
-                <select
-                  className="form-select"
-                  value={selectedArm}
-                  onChange={(e) => setSelectedArm(e.target.value)}
-                >
-                  <option value="">Select Arm</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                </select>
-              </>
-            ) : (
+            <select
+              className="form-select"
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+            >
+              {terms.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+
+            {rankingsType !== "school" && (
               <select
                 className="form-select"
-                value={
-                  selectedClass && selectedArm
-                    ? `${selectedClass}__${selectedArm}`
-                    : ""
-                }
+                value={selectedClass}
                 onChange={(e) => {
-                  const [c, a] = e.target.value.split("__");
-                  setSelectedClass(c || "");
-                  setSelectedArm(a || "");
+                  setSelectedClass(e.target.value);
+                  if (rankingsType === "class") {
+                    setSelectedArm("");
+                  }
                 }}
               >
-                <option value="">Select Assigned Class</option>
-                {rankingOptionsForTeacher.map((value) => {
-                  const [c, a] = value.split("__");
-                  return (
-                    <option key={value} value={value}>
-                      {c} {a}
-                    </option>
-                  );
-                })}
+                <option value="">Select Class</option>
+                {availableRankingClasses.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {rankingsType === "arm" && (
+              <select
+                className="form-select"
+                value={selectedArm}
+                onChange={(e) => setSelectedArm(e.target.value)}
+              >
+                <option value="">Select Arm</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
               </select>
             )}
 
@@ -1020,7 +1258,8 @@ function ResultManagement() {
                   {rankings.className
                     ? `${rankings.className} ${rankings.arm || ""} `
                     : "School "}
-                  Rankings - {rankings.term} Term {rankings.session}
+                  Rankings - {rankings.term || term} Term{" "}
+                  {rankings.session || session}
                 </h4>
               </div>
 
@@ -1048,8 +1287,15 @@ function ResultManagement() {
                           </td>
                           <td>{rank.studentName}</td>
                           <td>{rank.admissionNumber}</td>
-                          <td>{rank.class}</td>
-                          <td>{rank.arm}</td>
+                          <td>
+                            {rank.class ||
+                              rank.studentClass ||
+                              rankings.className ||
+                              "-"}
+                          </td>
+                          <td>
+                            {rank.arm || rank.classArm || rankings.arm || "-"}
+                          </td>
                           <td>
                             <strong className="text-success">
                               {safeFixed(rank.average, 2)}%
@@ -1057,6 +1303,14 @@ function ResultManagement() {
                           </td>
                         </tr>
                       ))}
+
+                      {!rankings.rankings?.length && (
+                        <tr>
+                          <td colSpan="6" className="text-center text-muted">
+                            No ranking data found
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1067,6 +1321,26 @@ function ResultManagement() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {currentStudentList.length === 0 && !loading && !sessionsLoading && (
+        <div className="alert alert-info mt-3">
+          <FaUsers className="me-2" />
+          {isParent
+            ? "No ward linked to this parent account."
+            : isTeacher
+              ? "No student data available for your assigned class."
+              : isStudent
+                ? "No student profile linked to this account."
+                : "No students found."}
+        </div>
+      )}
+
+      {isParent && parentWards.length > 0 && !selectedStudent && (
+        <div className="alert alert-info mt-3">
+          <FaUserGraduate className="me-2" />
+          Select a ward to view results.
         </div>
       )}
     </div>

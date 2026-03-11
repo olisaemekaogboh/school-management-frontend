@@ -66,8 +66,15 @@ function FeeManagement() {
   const [hoveredCard, setHoveredCard] = useState(null);
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
 
-  const { session, setSession, term, setTerm, loadingSession } =
-    useActiveSession("FIRST");
+  const {
+    session,
+    setSession,
+    term,
+    setTerm,
+    loadingSession,
+    availableSessions,
+    refreshActiveSession,
+  } = useActiveSession("FIRST");
 
   const [bulkPaymentData, setBulkPaymentData] = useState({
     amount: "",
@@ -78,7 +85,6 @@ function FeeManagement() {
     selectAll: false,
   });
 
-  const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
   const terms = ["FIRST", "SECOND", "THIRD", "ANNUAL"];
   const feeTypes = [
     "TUITION",
@@ -112,6 +118,14 @@ function FeeManagement() {
     notes: "",
   });
 
+  const getStudentName = (student) => {
+    return (
+      student?.fullName ||
+      `${student?.firstName || ""} ${student?.lastName || ""}`.trim() ||
+      "Unknown Student"
+    );
+  };
+
   useEffect(() => {
     fetchStudents();
   }, []);
@@ -132,7 +146,7 @@ function FeeManagement() {
         term,
       }));
     }
-  }, [term]);
+  }, [term, formData.term]);
 
   useEffect(() => {
     if (!session || !term) return;
@@ -142,6 +156,7 @@ function FeeManagement() {
     }
     fetchFeeStatistics();
     fetchDefaulters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, term, selectedStudent]);
 
   useEffect(() => {
@@ -150,6 +165,7 @@ function FeeManagement() {
     if (activeTab === "all-students") {
       fetchAllStudentsFeeStatus();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, term, activeTab]);
 
   const fetchStudents = async () => {
@@ -410,7 +426,9 @@ function FeeManagement() {
     } else {
       setBulkPaymentData({
         ...bulkPaymentData,
-        selectedStudents: filteredStudents.map((s) => s.id),
+        selectedStudents: filteredStudents
+          .filter((s) => (Number(s.balance) || 0) > 0)
+          .map((s) => s.id),
         selectAll: true,
       });
     }
@@ -424,7 +442,9 @@ function FeeManagement() {
     setBulkPaymentData({
       ...bulkPaymentData,
       selectedStudents: updatedSelected,
-      selectAll: updatedSelected.length === filteredStudents.length,
+      selectAll:
+        updatedSelected.length ===
+        filteredStudents.filter((s) => (Number(s.balance) || 0) > 0).length,
     });
   };
 
@@ -531,7 +551,7 @@ function FeeManagement() {
         data = fees.map((fee) => ({
           "Student Name": fee.studentName,
           "Admission No": fee.admissionNumber,
-          Class: `${fee.studentClass} ${fee.classArm || ""}`,
+          Class: `${fee.studentClass || ""} ${fee.classArm || ""}`.trim(),
           "Fee Type": fee.feeType,
           Description: fee.description || "",
           "Amount (₦)": fee.amount || 0,
@@ -546,11 +566,10 @@ function FeeManagement() {
             ? moment(fee.paidDate).format("DD/MM/YYYY")
             : "-",
         }));
-        filename += `_${selectedStudent?.fullName?.replace(/\s+/g, "_")}`;
+        filename += `_${getStudentName(selectedStudent).replace(/\s+/g, "_")}`;
       } else if (activeTab === "all-students") {
         data = filteredStudents.map((student) => ({
-          "Student Name":
-            student.fullName || `${student.firstName} ${student.lastName}`,
+          "Student Name": getStudentName(student),
           "Admission No": student.admissionNumber || "",
           Class:
             `${student.studentClass || ""} ${student.classArm || ""}`.trim(),
@@ -599,7 +618,7 @@ function FeeManagement() {
       let tableHeaders = [];
 
       if (activeTab === "fees" && selectedStudent) {
-        title = `Fee Report - ${selectedStudent.fullName}`;
+        title = `Fee Report - ${getStudentName(selectedStudent)}`;
         tableHeaders = [
           [
             "Fee Type",
@@ -634,7 +653,7 @@ function FeeManagement() {
           ],
         ];
         tableData = filteredStudents.map((student) => [
-          student.fullName || `${student.firstName} ${student.lastName}`,
+          getStudentName(student),
           student.admissionNumber || "",
           `${student.studentClass || ""} ${student.classArm || ""}`.trim(),
           `₦${(student.totalFees || 0).toLocaleString()}`,
@@ -768,8 +787,9 @@ function FeeManagement() {
   };
 
   const handleSendReminders = async () => {
-    if (!window.confirm("Send fee reminders to all defaulting students?"))
+    if (!window.confirm("Send fee reminders to all defaulting students?")) {
       return;
+    }
 
     setLoading(true);
     try {
@@ -785,7 +805,7 @@ function FeeManagement() {
   const handleSendIndividualReminder = async (student) => {
     if (
       !window.confirm(
-        `Send SMS reminder to ${student.parentName || student.fullName}?`,
+        `Send SMS reminder to ${student.parentName || getStudentName(student)}?`,
       )
     ) {
       return;
@@ -824,7 +844,8 @@ function FeeManagement() {
       const matchesSearch =
         searchTerm === "" ||
         fee.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fee.admissionNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+        fee.admissionNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fee.feeType?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus =
         filterStatus === "all" || fee.status === filterStatus;
@@ -900,12 +921,13 @@ function FeeManagement() {
               <p className="header-subtitle">
                 Active Session:{" "}
                 <strong>{session || "No active session"}</strong> | Term:{" "}
-                <strong>{term}</strong>
+                <strong>{term || "N/A"}</strong>
               </p>
             </div>
             <button
               className="btn-refresh"
               onClick={() => {
+                refreshActiveSession();
                 fetchFeeStatistics();
                 fetchDefaulters();
                 if (selectedStudent) fetchStudentFees();
@@ -1025,11 +1047,15 @@ function FeeManagement() {
                 value={session || ""}
                 onChange={(e) => setSession(e.target.value)}
               >
-                {sessions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
+                {availableSessions.length > 0 ? (
+                  availableSessions.map((s) => (
+                    <option key={s.id || s.session} value={s.session}>
+                      {s.session}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No session available</option>
+                )}
               </select>
             </div>
 
@@ -1072,7 +1098,7 @@ function FeeManagement() {
                 <option value="">Select Student</option>
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.fullName} - {s.admissionNumber}
+                    {getStudentName(s)} - {s.admissionNumber}
                   </option>
                 ))}
               </select>
@@ -1120,7 +1146,7 @@ function FeeManagement() {
               <FiSearch />
               <input
                 type="text"
-                placeholder="Search by name or admission..."
+                placeholder="Search by name, admission or fee type..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1182,7 +1208,7 @@ function FeeManagement() {
                     <RiUserStarLine />
                   </div>
                   <div className="student-details">
-                    <h3>{selectedStudent.fullName}</h3>
+                    <h3>{getStudentName(selectedStudent)}</h3>
                     <p>
                       <FiUser /> {selectedStudent.admissionNumber}
                     </p>
@@ -1560,7 +1586,7 @@ function FeeManagement() {
                           <td>{index + 1}</td>
                           <td>
                             <div className="student-name-cell">
-                              <strong>{student.fullName}</strong>
+                              <strong>{getStudentName(student)}</strong>
                               <br />
                               <small>
                                 {student.firstName} {student.lastName}
@@ -1860,7 +1886,7 @@ function FeeManagement() {
                               disabled={student.balance <= 0}
                             />
                           </td>
-                          <td>{student.fullName}</td>
+                          <td>{getStudentName(student)}</td>
                           <td>{student.admissionNumber}</td>
                           <td>
                             {student.studentClass} {student.classArm}
@@ -2016,7 +2042,7 @@ function FeeManagement() {
                     <label>Student</label>
                     <input
                       type="text"
-                      value={selectedStudent?.fullName || ""}
+                      value={getStudentName(selectedStudent)}
                       disabled
                     />
                   </div>
@@ -2030,11 +2056,15 @@ function FeeManagement() {
                         onChange={handleInputChange}
                         required
                       >
-                        {sessions.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
+                        {availableSessions.length > 0 ? (
+                          availableSessions.map((s) => (
+                            <option key={s.id || s.session} value={s.session}>
+                              {s.session}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No session available</option>
+                        )}
                       </select>
                     </div>
 
@@ -2179,7 +2209,7 @@ function FeeManagement() {
               <div className="modal-body">
                 <div className="payment-summary">
                   <p>
-                    <strong>Student:</strong> {selectedStudent?.fullName}
+                    <strong>Student:</strong> {getStudentName(selectedStudent)}
                   </p>
                   <p>
                     <strong>Fee Type:</strong> {selectedFee.feeType}

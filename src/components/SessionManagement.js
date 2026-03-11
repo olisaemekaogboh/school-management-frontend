@@ -1,3 +1,4 @@
+// src/components/SessionManagement.js
 import React, { useEffect, useMemo, useState } from "react";
 import { sessionAPI } from "../services/api";
 import { toast } from "react-toastify";
@@ -8,6 +9,8 @@ import {
   FaCalendarAlt,
   FaSpinner,
   FaSyncAlt,
+  FaClock,
+  FaEdit,
 } from "react-icons/fa";
 
 function SessionManagement() {
@@ -17,13 +20,21 @@ function SessionManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [activatingId, setActivatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [editingSessionId, setEditingSessionId] = useState(null);
 
   const [formData, setFormData] = useState({
-    sessionName: "",
+    session: "",
     startDate: "",
     endDate: "",
+    currentTerm: "FIRST",
     active: false,
   });
+
+  const terms = [
+    { value: "FIRST", label: "First Term" },
+    { value: "SECOND", label: "Second Term" },
+    { value: "THIRD", label: "Third Term" },
+  ];
 
   useEffect(() => {
     loadSessions();
@@ -57,11 +68,13 @@ function SessionManagement() {
 
   const resetForm = () => {
     setFormData({
-      sessionName: "",
+      session: "",
       startDate: "",
       endDate: "",
+      currentTerm: "FIRST",
       active: false,
     });
+    setEditingSessionId(null);
   };
 
   const autoGenerateSessionName = (startDate, endDate) => {
@@ -76,7 +89,6 @@ function SessionManagement() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-
     const nextValue = type === "checkbox" ? checked : value;
 
     setFormData((prev) => {
@@ -88,11 +100,11 @@ function SessionManagement() {
       if (name === "startDate" || name === "endDate") {
         const generatedName = autoGenerateSessionName(
           name === "startDate" ? value : updated.startDate,
-          name === "endDate" ? value : updated.endDate
+          name === "endDate" ? value : updated.endDate,
         );
 
         if (generatedName) {
-          updated.sessionName = generatedName;
+          updated.session = generatedName;
         }
       }
 
@@ -101,7 +113,7 @@ function SessionManagement() {
   };
 
   const validateForm = () => {
-    if (!formData.sessionName.trim()) {
+    if (!formData.session.trim()) {
       toast.warning("Session name is required");
       return false;
     }
@@ -116,10 +128,15 @@ function SessionManagement() {
       return false;
     }
 
+    if (!formData.currentTerm) {
+      toast.warning("Current term is required");
+      return false;
+    }
+
     return true;
   };
 
-  const handleCreateSession = async (e) => {
+  const handleCreateOrUpdateSession = async (e) => {
     e.preventDefault();
 
     if (!validateForm()) return;
@@ -127,24 +144,46 @@ function SessionManagement() {
     setSubmitting(true);
     try {
       const payload = {
-        sessionName: formData.sessionName,
+        session: formData.session,
         startDate: formData.startDate,
         endDate: formData.endDate,
+        currentTerm: formData.currentTerm,
         active: formData.active,
       };
 
-      await sessionAPI.createSession(payload);
-      toast.success("Session created successfully");
+      if (editingSessionId) {
+        await sessionAPI.updateSession(editingSessionId, payload);
+        toast.success("Session updated successfully");
+      } else {
+        await sessionAPI.createSession(payload);
+        toast.success("Session created successfully");
+      }
+
       resetForm();
       await loadSessions();
     } catch (error) {
-      console.error("Error creating session:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to create session"
-      );
+      console.error("Error saving session:", error);
+      toast.error(error?.response?.data?.message || "Failed to save session");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEdit = (sessionItem) => {
+    setEditingSessionId(sessionItem.id);
+    setFormData({
+      session: sessionItem.session || sessionItem.sessionName || "",
+      startDate: sessionItem.startDate
+        ? String(sessionItem.startDate).split("T")[0]
+        : "",
+      endDate: sessionItem.endDate
+        ? String(sessionItem.endDate).split("T")[0]
+        : "",
+      currentTerm: sessionItem.currentTerm || "FIRST",
+      active: sessionItem.active || false,
+    });
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleActivate = async (id) => {
@@ -158,7 +197,7 @@ function SessionManagement() {
     } catch (error) {
       console.error("Error activating session:", error);
       toast.error(
-        error?.response?.data?.message || "Failed to activate session"
+        error?.response?.data?.message || "Failed to activate session",
       );
     } finally {
       setActivatingId(null);
@@ -172,12 +211,15 @@ function SessionManagement() {
     try {
       await sessionAPI.deleteSession(id);
       toast.success("Session deleted successfully");
+
+      if (editingSessionId === id) {
+        resetForm();
+      }
+
       await loadSessions();
     } catch (error) {
       console.error("Error deleting session:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to delete session"
-      );
+      toast.error(error?.response?.data?.message || "Failed to delete session");
     } finally {
       setDeletingId(null);
     }
@@ -194,13 +236,17 @@ function SessionManagement() {
     return activeSession?.id === sessionItem.id;
   };
 
+  const getSessionName = (sessionItem) => {
+    return sessionItem.session || sessionItem.sessionName || "-";
+  };
+
   return (
     <div className="container-fluid py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
           <h2 className="mb-1">Session Management</h2>
           <p className="text-muted mb-0">
-            Create, activate, and manage academic sessions
+            Create, update, activate, and manage academic sessions
           </p>
         </div>
 
@@ -215,20 +261,29 @@ function SessionManagement() {
           <div className="card shadow-sm">
             <div className="card-header bg-primary text-white">
               <h5 className="mb-0">
-                <FaPlus className="me-2" />
-                Create Session
+                {editingSessionId ? (
+                  <>
+                    <FaEdit className="me-2" />
+                    Edit Session
+                  </>
+                ) : (
+                  <>
+                    <FaPlus className="me-2" />
+                    Create Session
+                  </>
+                )}
               </h5>
             </div>
 
             <div className="card-body">
-              <form onSubmit={handleCreateSession}>
+              <form onSubmit={handleCreateOrUpdateSession}>
                 <div className="mb-3">
                   <label className="form-label">Session Name</label>
                   <input
                     type="text"
                     className="form-control"
-                    name="sessionName"
-                    value={formData.sessionName}
+                    name="session"
+                    value={formData.session}
                     onChange={handleChange}
                     placeholder="e.g. 2025/2026"
                   />
@@ -259,6 +314,22 @@ function SessionManagement() {
                   />
                 </div>
 
+                <div className="mb-3">
+                  <label className="form-label">Current Term</label>
+                  <select
+                    className="form-select"
+                    name="currentTerm"
+                    value={formData.currentTerm}
+                    onChange={handleChange}
+                  >
+                    {terms.map((term) => (
+                      <option key={term.value} value={term.value}>
+                        {term.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="form-check mb-3">
                   <input
                     id="activeSession"
@@ -282,7 +353,12 @@ function SessionManagement() {
                     {submitting ? (
                       <>
                         <FaSpinner className="me-2 spin" />
-                        Creating...
+                        {editingSessionId ? "Updating..." : "Creating..."}
+                      </>
+                    ) : editingSessionId ? (
+                      <>
+                        <FaEdit className="me-2" />
+                        Update Session
                       </>
                     ) : (
                       <>
@@ -298,7 +374,7 @@ function SessionManagement() {
                     onClick={resetForm}
                     disabled={submitting}
                   >
-                    Clear
+                    {editingSessionId ? "Cancel Edit" : "Clear"}
                   </button>
                 </div>
               </form>
@@ -315,12 +391,17 @@ function SessionManagement() {
             <div className="card-body">
               {activeSession ? (
                 <>
-                  <h4 className="mb-2">{activeSession.sessionName}</h4>
+                  <h4 className="mb-2">{getSessionName(activeSession)}</h4>
                   <p className="mb-1">
-                    <strong>Start:</strong> {formatDate(activeSession.startDate)}
+                    <strong>Start:</strong>{" "}
+                    {formatDate(activeSession.startDate)}
+                  </p>
+                  <p className="mb-1">
+                    <strong>End:</strong> {formatDate(activeSession.endDate)}
                   </p>
                   <p className="mb-0">
-                    <strong>End:</strong> {formatDate(activeSession.endDate)}
+                    <strong>Current Term:</strong>{" "}
+                    {activeSession.currentTerm || "-"}
                   </p>
                 </>
               ) : (
@@ -357,6 +438,7 @@ function SessionManagement() {
                         <th>Session</th>
                         <th>Start Date</th>
                         <th>End Date</th>
+                        <th>Current Term</th>
                         <th>Status</th>
                         <th className="text-end">Actions</th>
                       </tr>
@@ -367,14 +449,18 @@ function SessionManagement() {
 
                         return (
                           <tr key={item.id}>
-                            <td className="fw-bold">{item.sessionName}</td>
+                            <td className="fw-bold">{getSessionName(item)}</td>
                             <td>{formatDate(item.startDate)}</td>
                             <td>{formatDate(item.endDate)}</td>
                             <td>
+                              <span className="badge bg-info text-dark">
+                                <FaClock className="me-1" />
+                                {item.currentTerm || "-"}
+                              </span>
+                            </td>
+                            <td>
                               {active ? (
-                                <span className="badge bg-success">
-                                  Active
-                                </span>
+                                <span className="badge bg-success">Active</span>
                               ) : (
                                 <span className="badge bg-secondary">
                                   Inactive
@@ -382,7 +468,16 @@ function SessionManagement() {
                               )}
                             </td>
                             <td>
-                              <div className="d-flex justify-content-end gap-2">
+                              <div className="d-flex justify-content-end gap-2 flex-wrap">
+                                <button
+                                  className="btn btn-sm btn-outline-primary"
+                                  onClick={() => handleEdit(item)}
+                                  disabled={submitting}
+                                >
+                                  <FaEdit className="me-1" />
+                                  Edit
+                                </button>
+
                                 {!active && (
                                   <button
                                     className="btn btn-sm btn-success"
@@ -406,7 +501,7 @@ function SessionManagement() {
                                 <button
                                   className="btn btn-sm btn-danger"
                                   onClick={() =>
-                                    handleDelete(item.id, item.sessionName)
+                                    handleDelete(item.id, getSessionName(item))
                                   }
                                   disabled={deletingId === item.id}
                                 >

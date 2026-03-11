@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, resultAPI } from "../services/api";
 import { toast } from "react-toastify";
 import {
@@ -17,25 +17,49 @@ import jsPDF from "jspdf";
 import "./ResultSheet.css";
 
 function ResultSheet() {
-  const { studentId, sessionYear, sessionTerm, term } = useParams();
+  const { studentId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+
+  const query = new URLSearchParams(location.search);
+  const session = query.get("session") || "";
+  const term = query.get("term") || "";
+
   const [resultData, setResultData] = useState(null);
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(false);
-  const componentRef = useRef();
 
-  const session = `${sessionYear}/${sessionTerm}`;
+  const componentRef = useRef(null);
+
+  const safeNumber = (value, fallback = 0) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const safeFixed = (value, digits = 2) => {
+    return safeNumber(value, 0).toFixed(digits);
+  };
+
+  const getStudentName = () => {
+    return (
+      resultData?.studentInfo?.name ||
+      student?.fullName ||
+      `${student?.firstName || ""} ${student?.lastName || ""}`.trim() ||
+      "student"
+    );
+  };
 
   useEffect(() => {
-    if (studentId && sessionYear && sessionTerm && term) {
+    if (studentId && session && term) {
       fetchResultData();
     } else {
       setError("Missing required parameters");
       setLoading(false);
     }
-  }, [studentId, sessionYear, sessionTerm, term]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId, session, term]);
 
   const fetchResultData = async () => {
     setLoading(true);
@@ -47,8 +71,8 @@ function ResultSheet() {
         resultAPI.getTermResult(studentId, session, term),
       ]);
 
-      setStudent(studentResponse.data);
-      setResultData(resultResponse.data);
+      setStudent(studentResponse.data || null);
+      setResultData(resultResponse.data || null);
     } catch (error) {
       console.error("Error fetching result sheet:", error);
 
@@ -91,9 +115,15 @@ function ResultSheet() {
     }
   };
 
+  const buildFileName = () => {
+    const cleanName = getStudentName().replace(/\s+/g, "_");
+    const cleanSession = session.replace(/[\/\\]/g, "_");
+    return `${cleanName}_${term}_${cleanSession}`;
+  };
+
   const handlePrint = useReactToPrint({
-    content: () => componentRef.current,
-    documentTitle: `${student?.fullName || "student"}_${term}_${sessionYear}_${sessionTerm}`,
+    contentRef: componentRef,
+    documentTitle: buildFileName(),
     onAfterPrint: () => toast.success("Result sheet printed successfully"),
   });
 
@@ -115,23 +145,18 @@ function ResultSheet() {
       });
 
       const imgData = canvas.toDataURL("image/png");
+
+      const pdfWidth = canvas.width * 0.75;
+      const pdfHeight = canvas.height * 0.75;
+
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "px",
-        format: [canvas.width * 0.75, canvas.height * 0.75],
+        format: [pdfWidth, pdfHeight],
       });
 
-      pdf.addImage(
-        imgData,
-        "PNG",
-        0,
-        0,
-        canvas.width * 0.75,
-        canvas.height * 0.75,
-      );
-
-      const fileName = `${student?.fullName?.replace(/\s+/g, "_") || "student"}_${term}_${sessionYear}_${sessionTerm}.pdf`;
-      pdf.save(fileName);
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${buildFileName()}.pdf`);
 
       toast.success("PDF downloaded successfully");
     } catch (error) {
@@ -204,6 +229,7 @@ function ResultSheet() {
         <button className="btn btn-secondary" onClick={() => navigate(-1)}>
           <FaArrowLeft className="me-2" /> Back
         </button>
+
         <div>
           <button
             className="btn btn-nigerian me-2"
@@ -212,6 +238,7 @@ function ResultSheet() {
           >
             <FaPrint className="me-2" /> Print
           </button>
+
           <button
             className="btn btn-outline-nigerian"
             onClick={handleDownloadPDF}
@@ -258,22 +285,23 @@ function ResultSheet() {
                   <td className="bg-light fw-bold" style={{ width: "200px" }}>
                     Student Name:
                   </td>
-                  <td className="fw-bold">
-                    {resultData?.studentInfo?.name || student?.fullName}
-                  </td>
+                  <td className="fw-bold">{getStudentName()}</td>
                 </tr>
                 <tr>
                   <td className="bg-light fw-bold">Admission Number:</td>
                   <td>
                     {resultData?.studentInfo?.admissionNumber ||
-                      student?.admissionNumber}
+                      student?.admissionNumber ||
+                      "N/A"}
                   </td>
                 </tr>
                 <tr>
                   <td className="bg-light fw-bold">Class:</td>
                   <td>
-                    {resultData?.studentInfo?.class || student?.studentClass}{" "}
-                    {resultData?.studentInfo?.arm || student?.classArm}
+                    {resultData?.studentInfo?.class ||
+                      student?.studentClass ||
+                      "N/A"}{" "}
+                    {resultData?.studentInfo?.arm || student?.classArm || ""}
                   </td>
                 </tr>
                 <tr>
@@ -282,15 +310,15 @@ function ResultSheet() {
                 </tr>
                 <tr>
                   <td className="bg-light fw-bold">Parent/Guardian:</td>
-                  <td>{student?.parentName}</td>
+                  <td>{student?.parentName || "N/A"}</td>
                 </tr>
                 <tr>
                   <td className="bg-light fw-bold">Parent Phone:</td>
-                  <td>{student?.parentPhone}</td>
+                  <td>{student?.parentPhone || "N/A"}</td>
                 </tr>
                 <tr>
                   <td className="bg-light fw-bold">Student Address:</td>
-                  <td>{student?.address}</td>
+                  <td>{student?.address || "N/A"}</td>
                 </tr>
               </tbody>
             </table>
@@ -301,7 +329,7 @@ function ResultSheet() {
               {studentPhotoUrl ? (
                 <img
                   src={studentPhotoUrl}
-                  alt={resultData?.studentInfo?.name || student?.fullName}
+                  alt={getStudentName()}
                   className="img-fluid rounded-circle border border-4 border-success"
                   style={{
                     width: "180px",
@@ -310,7 +338,7 @@ function ResultSheet() {
                     boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
                   }}
                   onError={(e) => {
-                    e.target.style.display = "none";
+                    e.currentTarget.style.display = "none";
                   }}
                 />
               ) : (
@@ -342,19 +370,27 @@ function ResultSheet() {
               </tr>
             </thead>
             <tbody>
-              {resultData?.subjects?.map((subject, index) => (
-                <tr key={index}>
-                  <td>{index + 1}</td>
-                  <td className="fw-bold">{subject.subject}</td>
-                  <td>{subject.continuousAssessment}</td>
-                  <td>{subject.examination}</td>
-                  <td className="fw-bold">{subject.total}</td>
-                  <td className={`fw-bold ${getGradeColor(subject.grade)}`}>
-                    {subject.grade}
+              {resultData?.subjects?.length > 0 ? (
+                resultData.subjects.map((subject, index) => (
+                  <tr key={index}>
+                    <td>{index + 1}</td>
+                    <td className="fw-bold">{subject.subject}</td>
+                    <td>{safeNumber(subject.continuousAssessment)}</td>
+                    <td>{safeNumber(subject.examination)}</td>
+                    <td className="fw-bold">{safeNumber(subject.total)}</td>
+                    <td className={`fw-bold ${getGradeColor(subject.grade)}`}>
+                      {subject.grade || "-"}
+                    </td>
+                    <td>{subject.remarks || "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="7" className="text-center text-muted">
+                    No subject records found
                   </td>
-                  <td>{subject.remarks}</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -364,31 +400,34 @@ function ResultSheet() {
             <div className="border p-3 rounded bg-light text-center">
               <h6>TOTAL SCORE</h6>
               <h3 className="text-primary">
-                {resultData?.summary?.totalScore}
+                {safeNumber(resultData?.summary?.totalScore)}
               </h3>
             </div>
           </div>
+
           <div className="col-md-3">
             <div className="border p-3 rounded bg-light text-center">
               <h6>AVERAGE</h6>
               <h3 className="text-success">
-                {resultData?.summary?.average?.toFixed(2)}%
+                {safeFixed(resultData?.summary?.average, 2)}%
               </h3>
             </div>
           </div>
+
           <div className="col-md-3">
             <div className="border p-3 rounded bg-light text-center">
               <h6>CLASS POSITION</h6>
               <h3 className="text-warning">
-                {resultData?.summary?.positionInClass}
+                {resultData?.summary?.positionInClass || "N/A"}
               </h3>
             </div>
           </div>
+
           <div className="col-md-3">
             <div className="border p-3 rounded bg-light text-center">
               <h6>ARM POSITION</h6>
               <h3 className="text-info">
-                {resultData?.summary?.positionInArm}
+                {resultData?.summary?.positionInArm || "N/A"}
               </h3>
             </div>
           </div>

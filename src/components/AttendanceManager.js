@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { attendanceAPI, studentAPI, teacherAPI } from "../services/api";
+import {
+  attendanceAPI,
+  studentAPI,
+  teacherAPI,
+  sessionAPI,
+} from "../services/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -16,9 +21,9 @@ import {
   FaEye,
   FaFilter,
   FaInfoCircle,
+  FaSyncAlt,
 } from "react-icons/fa";
 import moment from "moment";
-import useActiveSession from "../hooks/useActiveSession";
 
 function AttendanceManager() {
   const { user } = useAuth();
@@ -32,6 +37,8 @@ function AttendanceManager() {
   const armFromQuery = query.get("arm") || "";
 
   const [loading, setLoading] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(true);
+
   const [students, setStudents] = useState([]);
   const [selectedClass, setSelectedClass] = useState(classNameFromQuery);
   const [selectedArm, setSelectedArm] = useState(armFromQuery);
@@ -47,8 +54,10 @@ function AttendanceManager() {
   const [studentSummary, setStudentSummary] = useState(null);
   const [teacherAssignments, setTeacherAssignments] = useState([]);
 
-  const { session, setSession, term, setTerm, loadingSession } =
-    useActiveSession("FIRST");
+  const [availableSessions, setAvailableSessions] = useState([]);
+  const [activeSessionObj, setActiveSessionObj] = useState(null);
+  const [session, setSession] = useState("");
+  const [term, setTerm] = useState("FIRST");
 
   const classes = [
     { name: "Nursery", arms: ["A", "B"] },
@@ -72,7 +81,9 @@ function AttendanceManager() {
     { value: "THIRD", label: "Third Term" },
   ];
 
-  const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
+  useEffect(() => {
+    loadSessionData();
+  }, []);
 
   useEffect(() => {
     if (session) {
@@ -81,7 +92,7 @@ function AttendanceManager() {
   }, [session]);
 
   useEffect(() => {
-    if (!selectedClass || !selectedArm || !session) return;
+    if (!selectedClass || !selectedArm || !session || !term) return;
 
     if (viewMode === "mark" || viewMode === "report") {
       fetchStudents();
@@ -91,10 +102,58 @@ function AttendanceManager() {
   }, [selectedClass, selectedArm, selectedDate, session, term, viewMode]);
 
   useEffect(() => {
-    if (selectedStudent && session) {
+    if (selectedStudent && session && term) {
       fetchStudentAttendance();
     }
   }, [selectedStudent, session, term]);
+
+  const getSessionName = (sessionItem) => {
+    return sessionItem?.session || sessionItem?.sessionName || "";
+  };
+
+  const sortSessions = (sessionList) => {
+    return [...sessionList].sort((a, b) => {
+      const aDate = new Date(a.startDate || 0).getTime();
+      const bDate = new Date(b.startDate || 0).getTime();
+      return bDate - aDate;
+    });
+  };
+
+  const loadSessionData = async () => {
+    setLoadingSession(true);
+    try {
+      const [sessionsRes, activeRes] = await Promise.all([
+        sessionAPI.getAllSessions(),
+        sessionAPI.getActiveSession(),
+      ]);
+
+      const allSessions = Array.isArray(sessionsRes.data)
+        ? sessionsRes.data
+        : [];
+      const sorted = sortSessions(allSessions);
+
+      setAvailableSessions(sorted);
+
+      const active = activeRes?.data || null;
+      setActiveSessionObj(active);
+
+      if (active) {
+        setSession(getSessionName(active));
+        setTerm(active.currentTerm || "FIRST");
+      } else if (sorted.length > 0) {
+        setSession(getSessionName(sorted[0]));
+        setTerm(sorted[0].currentTerm || "FIRST");
+      } else {
+        setSession("");
+        setTerm("FIRST");
+      }
+    } catch (error) {
+      console.error("Error loading session data:", error);
+      toast.error("Failed to load session information");
+    } finally {
+      setLoadingSession(false);
+    }
+  };
 
   const loadTeacherAssignments = async () => {
     if (!isTeacher) return;
@@ -104,10 +163,12 @@ function AttendanceManager() {
       const teacher = response.data;
       const assignments = teacher?.assignedClasses || teacher?.classes || [];
 
-      const normalized = assignments.map((c) => ({
-        className: c.className,
-        arm: c.arm,
-      }));
+      const normalized = assignments
+        .filter((c) => c?.className && c?.arm)
+        .map((c) => ({
+          className: c.className,
+          arm: c.arm,
+        }));
 
       setTeacherAssignments(normalized);
 
@@ -127,8 +188,9 @@ function AttendanceManager() {
       const grouped = {};
       teacherAssignments.forEach((a) => {
         if (!grouped[a.className]) grouped[a.className] = [];
-        if (!grouped[a.className].includes(a.arm))
+        if (!grouped[a.className].includes(a.arm)) {
           grouped[a.className].push(a.arm);
+        }
       });
 
       return Object.entries(grouped).map(([name, arms]) => ({
@@ -148,7 +210,7 @@ function AttendanceManager() {
   };
 
   const fetchStudents = async () => {
-    if (!selectedClass || !selectedArm) return;
+    if (!selectedClass || !selectedArm || !session || !term) return;
 
     if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
       toast.error("You can only manage attendance for your assigned class");
@@ -213,7 +275,7 @@ function AttendanceManager() {
   };
 
   const fetchClassStatistics = async () => {
-    if (!selectedClass || !selectedArm) return;
+    if (!selectedClass || !selectedArm || !session || !term) return;
 
     if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
       toast.error(
@@ -240,7 +302,7 @@ function AttendanceManager() {
   };
 
   const fetchStudentAttendance = async () => {
-    if (!selectedStudent) return;
+    if (!selectedStudent || !session || !term) return;
 
     setLoading(true);
     try {
@@ -266,6 +328,11 @@ function AttendanceManager() {
   const handleMarkAll = async (status) => {
     if (!selectedClass || !selectedArm || students.length === 0) {
       toast.warning("Please select a class first");
+      return;
+    }
+
+    if (!session || !term) {
+      toast.warning("Session and term are required");
       return;
     }
 
@@ -304,6 +371,11 @@ function AttendanceManager() {
   };
 
   const handleMarkStudent = async (studentId, status) => {
+    if (!session || !term) {
+      toast.warning("Session and term are required");
+      return;
+    }
+
     if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
       toast.error("You can only mark attendance for your assigned class");
       return;
@@ -393,19 +465,42 @@ function AttendanceManager() {
       <div className="text-center py-5">
         <FaSpinner className="spin" size={40} />
         <p className="mt-3">Loading active session...</p>
+
+        <style>{`
+          .spin {
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
 
   return (
     <div className="attendance-manager container-fluid py-4">
-      <h2 className="mb-4">
-        <FaCalendarAlt className="me-2" /> Attendance Management
-      </h2>
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h2 className="mb-0">
+          <FaCalendarAlt className="me-2" /> Attendance Management
+        </h2>
+
+        <button className="btn btn-outline-primary" onClick={loadSessionData}>
+          <FaSyncAlt className="me-2" />
+          Refresh Sessions
+        </button>
+      </div>
 
       <div className="mb-3 text-muted">
-        Active Session: <strong>{session || "No active session"}</strong> |
-        Term: <strong>{term}</strong>
+        Active Session:{" "}
+        <strong>
+          {activeSessionObj
+            ? getSessionName(activeSessionObj)
+            : "No active session"}
+        </strong>{" "}
+        | Current Backend Term:{" "}
+        <strong>{activeSessionObj?.currentTerm || "-"}</strong>
       </div>
 
       <div className="card mb-4">
@@ -488,10 +583,16 @@ function AttendanceManager() {
                 className="form-select"
                 value={session}
                 onChange={(e) => setSession(e.target.value)}
+                disabled={availableSessions.length === 0}
               >
-                {sessions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                <option value="">
+                  {availableSessions.length === 0
+                    ? "No sessions available"
+                    : "Select Session"}
+                </option>
+                {availableSessions.map((s) => (
+                  <option key={s.id} value={getSessionName(s)}>
+                    {getSessionName(s)}
                   </option>
                 ))}
               </select>
@@ -518,7 +619,7 @@ function AttendanceManager() {
               <label className="form-label me-3">Quick Actions:</label>
 
               <button
-                className="btn btn-success me-2"
+                className="btn btn-success me-2 mb-2"
                 onClick={() => handleMarkAll("PRESENT")}
                 disabled={loading}
               >
@@ -526,7 +627,7 @@ function AttendanceManager() {
               </button>
 
               <button
-                className="btn btn-danger me-2"
+                className="btn btn-danger me-2 mb-2"
                 onClick={() => handleMarkAll("ABSENT")}
                 disabled={loading}
               >
@@ -534,7 +635,7 @@ function AttendanceManager() {
               </button>
 
               <button
-                className="btn btn-warning me-2"
+                className="btn btn-warning me-2 mb-2"
                 onClick={() => handleMarkAll("LATE")}
                 disabled={loading}
               >
@@ -542,7 +643,7 @@ function AttendanceManager() {
               </button>
 
               <button
-                className="btn btn-info me-2"
+                className="btn btn-info me-2 mb-2"
                 onClick={() => handleMarkAll("EXCUSED")}
                 disabled={loading}
               >
@@ -589,7 +690,7 @@ function AttendanceManager() {
           </div>
           <div className="card-body">
             <div className="row mb-4">
-              <div className="col-md-3">
+              <div className="col-md-3 mb-3">
                 <div className="card bg-primary text-white">
                   <div className="card-body text-center">
                     <h3>{classStats.totalStudents}</h3>
@@ -598,7 +699,7 @@ function AttendanceManager() {
                 </div>
               </div>
 
-              <div className="col-md-3">
+              <div className="col-md-3 mb-3">
                 <div className="card bg-success text-white">
                   <div className="card-body text-center">
                     <h3>{classStats.totalPresent}</h3>
@@ -607,7 +708,7 @@ function AttendanceManager() {
                 </div>
               </div>
 
-              <div className="col-md-3">
+              <div className="col-md-3 mb-3">
                 <div className="card bg-danger text-white">
                   <div className="card-body text-center">
                     <h3>{classStats.totalAbsent}</h3>
@@ -616,7 +717,7 @@ function AttendanceManager() {
                 </div>
               </div>
 
-              <div className="col-md-3">
+              <div className="col-md-3 mb-3">
                 <div className="card bg-warning text-white">
                   <div className="card-body text-center">
                     <h3>{classStats.averageAttendance?.toFixed(1)}%</h3>
@@ -672,6 +773,14 @@ function AttendanceManager() {
                       </td>
                     </tr>
                   ))}
+
+                  {!classStats.studentAttendance?.length && (
+                    <tr>
+                      <td colSpan="7" className="text-center text-muted">
+                        No statistics found
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -681,12 +790,12 @@ function AttendanceManager() {
 
       {!loading && viewMode === "report" && (
         <div className="row">
-          <div className="col-md-4">
+          <div className="col-md-4 mb-4">
             <div className="card">
               <div className="card-header bg-primary text-white">
                 <h5 className="mb-0">
-                  <FaUsers className="me-2" /> Students in {selectedClass} - Arm{" "}
-                  {selectedArm}
+                  <FaUsers className="me-2" />
+                  Students in {selectedClass || "-"} - Arm {selectedArm || "-"}
                 </h5>
               </div>
               <div className="card-body p-0">
@@ -736,7 +845,7 @@ function AttendanceManager() {
                 <div className="card-body">
                   {studentSummary && (
                     <div className="row mb-4">
-                      <div className="col-md-3">
+                      <div className="col-md-3 mb-3">
                         <div className="card bg-primary text-white">
                           <div className="card-body text-center">
                             <h5>{studentSummary.totalSchoolDays}</h5>
@@ -745,7 +854,7 @@ function AttendanceManager() {
                         </div>
                       </div>
 
-                      <div className="col-md-3">
+                      <div className="col-md-3 mb-3">
                         <div className="card bg-success text-white">
                           <div className="card-body text-center">
                             <h5>{studentSummary.daysPresent}</h5>
@@ -754,7 +863,7 @@ function AttendanceManager() {
                         </div>
                       </div>
 
-                      <div className="col-md-3">
+                      <div className="col-md-3 mb-3">
                         <div className="card bg-danger text-white">
                           <div className="card-body text-center">
                             <h5>{studentSummary.daysAbsent}</h5>
@@ -763,7 +872,7 @@ function AttendanceManager() {
                         </div>
                       </div>
 
-                      <div className="col-md-3">
+                      <div className="col-md-3 mb-3">
                         <div className="card bg-warning text-white">
                           <div className="card-body text-center">
                             <h5>
@@ -829,7 +938,7 @@ function AttendanceManager() {
 
       {!loading && viewMode === "mark" && students.length > 0 && (
         <div className="card">
-          <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 className="mb-0">
               <FaUsers className="me-2" />
               {selectedClass} - Arm {selectedArm} -{" "}
@@ -875,16 +984,15 @@ function AttendanceManager() {
                             </span>
                           ) : (
                             <span className="badge bg-secondary">
-                              <FaClock /> Not Marked
+                              <FaClock className="me-1" />
+                              Not Marked
                             </span>
                           )}
                         </td>
                         <td className="text-center">
                           <div className="btn-group btn-group-sm">
                             <button
-                              className={`btn btn-outline-success ${
-                                status === "PRESENT" ? "active" : ""
-                              }`}
+                              className={`btn btn-outline-success ${status === "PRESENT" ? "active" : ""}`}
                               onClick={() =>
                                 handleMarkStudent(student.id, "PRESENT")
                               }
@@ -895,9 +1003,7 @@ function AttendanceManager() {
                             </button>
 
                             <button
-                              className={`btn btn-outline-danger ${
-                                status === "ABSENT" ? "active" : ""
-                              }`}
+                              className={`btn btn-outline-danger ${status === "ABSENT" ? "active" : ""}`}
                               onClick={() =>
                                 handleMarkStudent(student.id, "ABSENT")
                               }
@@ -908,9 +1014,7 @@ function AttendanceManager() {
                             </button>
 
                             <button
-                              className={`btn btn-outline-warning ${
-                                status === "LATE" ? "active" : ""
-                              }`}
+                              className={`btn btn-outline-warning ${status === "LATE" ? "active" : ""}`}
                               onClick={() =>
                                 handleMarkStudent(student.id, "LATE")
                               }
@@ -921,9 +1025,7 @@ function AttendanceManager() {
                             </button>
 
                             <button
-                              className={`btn btn-outline-info ${
-                                status === "EXCUSED" ? "active" : ""
-                              }`}
+                              className={`btn btn-outline-info ${status === "EXCUSED" ? "active" : ""}`}
                               onClick={() =>
                                 handleMarkStudent(student.id, "EXCUSED")
                               }
@@ -946,10 +1048,20 @@ function AttendanceManager() {
 
       {!loading && !selectedClass && (
         <div className="alert alert-info">
-          <FaFilter className="me-2" /> Please select a class and arm to view
-          attendance.
+          <FaFilter className="me-2" />
+          Please select a class and arm to view attendance.
         </div>
       )}
+
+      <style>{`
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

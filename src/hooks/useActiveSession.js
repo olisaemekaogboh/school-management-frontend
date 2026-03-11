@@ -1,63 +1,83 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { sessionAPI } from "../services/api";
 
-function useActiveSession(defaultTerm = "FIRST") {
+function getSessionName(item) {
+  return item?.session || item?.sessionName || item?.name || "";
+}
+
+function sortSessions(list) {
+  return [...list].sort((a, b) => {
+    const aDate = new Date(a.startDate || 0).getTime();
+    const bDate = new Date(b.startDate || 0).getTime();
+    return bDate - aDate;
+  });
+}
+
+export default function useActiveSession(defaultTerm = "FIRST") {
+  const [availableSessions, setAvailableSessions] = useState([]);
+  const [activeSessionRecord, setActiveSessionRecord] = useState(null);
   const [session, setSession] = useState("");
   const [term, setTerm] = useState(defaultTerm);
   const [loadingSession, setLoadingSession] = useState(true);
   const [sessionError, setSessionError] = useState("");
 
-  useEffect(() => {
-    let mounted = true;
+  const normalizedSessions = useMemo(() => {
+    return (availableSessions || []).map((item) => ({
+      id: item.id,
+      session: getSessionName(item),
+      currentTerm: item.currentTerm || item.term || defaultTerm,
+      active: item.active === true || item.isActive === true,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      raw: item,
+    }));
+  }, [availableSessions, defaultTerm]);
 
-    const loadActiveSession = async () => {
-      setLoadingSession(true);
-      setSessionError("");
+  const refreshActiveSession = useCallback(async () => {
+    setLoadingSession(true);
+    setSessionError("");
 
-      try {
-        const response = await sessionAPI.getActiveSession();
-        const active = response?.data;
+    try {
+      const [sessionsRes, activeRes] = await Promise.all([
+        sessionAPI.getAllSessions(),
+        sessionAPI.getActiveSession(),
+      ]);
 
-        if (!mounted) return;
+      const allSessions = Array.isArray(sessionsRes?.data)
+        ? sessionsRes.data
+        : [];
+      const sorted = sortSessions(allSessions);
 
-        if (active?.session) {
-          setSession(active.session);
-        } else if (active?.name) {
-          setSession(active.name);
-        } else if (typeof active === "string") {
-          setSession(active);
-        } else {
-          setSession("");
-          setSessionError("No active session found");
-        }
+      setAvailableSessions(sorted);
 
-        if (active?.currentTerm) {
-          setTerm(active.currentTerm);
-        } else if (active?.term) {
-          setTerm(active.term);
-        } else {
-          setTerm(defaultTerm);
-        }
-      } catch (error) {
-        if (!mounted) return;
+      const active = activeRes?.data || null;
+      setActiveSessionRecord(active);
 
-        console.error("Failed to load active session:", error);
+      if (active) {
+        setSession(getSessionName(active));
+        setTerm(active.currentTerm || defaultTerm);
+      } else if (sorted.length > 0) {
+        setSession(getSessionName(sorted[0]));
+        setTerm(sorted[0].currentTerm || defaultTerm);
+      } else {
         setSession("");
         setTerm(defaultTerm);
-        setSessionError("Failed to load active session");
-      } finally {
-        if (mounted) {
-          setLoadingSession(false);
-        }
       }
-    };
-
-    loadActiveSession();
-
-    return () => {
-      mounted = false;
-    };
+    } catch (err) {
+      console.error("Failed to load active session:", err);
+      setSessionError("Failed to load active session");
+      setAvailableSessions([]);
+      setActiveSessionRecord(null);
+      setSession("");
+      setTerm(defaultTerm);
+    } finally {
+      setLoadingSession(false);
+    }
   }, [defaultTerm]);
+
+  useEffect(() => {
+    refreshActiveSession();
+  }, [refreshActiveSession]);
 
   return {
     session,
@@ -66,7 +86,11 @@ function useActiveSession(defaultTerm = "FIRST") {
     setTerm,
     loadingSession,
     sessionError,
+    availableSessions: normalizedSessions,
+    activeSession: session,
+    activeTerm: term,
+    activeSessionRecord,
+    refreshActiveSession,
+    getSessionName,
   };
 }
-
-export default useActiveSession;

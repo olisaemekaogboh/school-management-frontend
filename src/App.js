@@ -465,9 +465,8 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-
                   <Route
-                    path="/results/:studentId/:sessionYear/:sessionTerm/:term"
+                    path="/results/:studentId"
                     element={
                       <ProtectedRoute
                         requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}

@@ -27,6 +27,7 @@ import {
   FaCamera,
   FaEye,
   FaSpinner,
+  FaSyncAlt,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import moment from "moment";
@@ -49,14 +50,21 @@ function StudentDetails() {
   const [resultHistory, setResultHistory] = useState({});
   const [imageError, setImageError] = useState(false);
 
-  const { session, setSession, term, setTerm, loadingSession } =
-    useActiveSession("FIRST");
+  const {
+    session,
+    setSession,
+    term,
+    setTerm,
+    loadingSession,
+    availableSessions,
+    refreshActiveSession,
+  } = useActiveSession("FIRST");
 
-  const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
   const terms = ["FIRST", "SECOND", "THIRD"];
 
   useEffect(() => {
     fetchStudentDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -69,6 +77,7 @@ function StudentDetails() {
     } else if (activeTab === "history") {
       fetchAllResults();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, session, term, student]);
 
   const fetchStudentDetails = async () => {
@@ -107,9 +116,13 @@ function StudentDetails() {
 
   const fetchAllResults = async () => {
     const history = {};
+    const sessionsToCheck = availableSessions
+      .map((s) => s.session)
+      .filter(Boolean);
 
-    for (const sess of sessions) {
+    for (const sess of sessionsToCheck) {
       history[sess] = {};
+
       for (const t of terms) {
         try {
           const response = await resultAPI.getTermResult(id, sess, t);
@@ -157,6 +170,7 @@ function StudentDetails() {
       WITHDRAWN: { class: "bg-danger", icon: <FaTimesCircle /> },
     };
     const badge = badges[status] || { class: "bg-secondary", icon: null };
+
     return (
       <span className={`badge ${badge.class} p-2`}>
         {badge.icon} {status}
@@ -182,20 +196,20 @@ function StudentDetails() {
     return `http://localhost:8080/uploads/profile-pictures/${filename}`;
   };
 
+  const safeFixed = (value, digits = 2) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(digits) : "0.00";
+  };
+
   const viewResultSheet = () => {
-    if (!student || !session) {
-      toast.error("Student or session not available");
+    if (!student || !session || !term) {
+      toast.error("Student, session, or term not available");
       return;
     }
 
-    const sessionParts = session.split("/");
-    if (sessionParts.length !== 2) {
-      toast.error("Invalid session format");
-      return;
-    }
-
-    const [sessionYear, sessionTerm] = sessionParts;
-    navigate(`/results/${student.id}/${sessionYear}/${sessionTerm}/${term}`);
+    navigate(
+      `/results/${student.id}?session=${encodeURIComponent(session)}&term=${encodeURIComponent(term)}`,
+    );
   };
 
   if (loading || loadingSession) {
@@ -220,7 +234,7 @@ function StudentDetails() {
 
   return (
     <div className="student-details">
-      <div className="d-flex justify-content-between align-items-center mb-4 no-print">
+      <div className="d-flex justify-content-between align-items-center mb-4 no-print flex-wrap gap-2">
         <h2 className="mb-0">Student Profile</h2>
         <div>
           <Link to="/students" className="btn btn-secondary me-2">
@@ -248,8 +262,15 @@ function StudentDetails() {
             </span>
           )}
 
-          <button onClick={handlePrint} className="btn btn-info">
+          <button onClick={handlePrint} className="btn btn-info me-2">
             <FaPrint className="me-2" /> Print
+          </button>
+
+          <button
+            onClick={refreshActiveSession}
+            className="btn btn-outline-primary"
+          >
+            <FaSyncAlt className="me-2" /> Refresh Session
           </button>
         </div>
       </div>
@@ -343,7 +364,7 @@ function StudentDetails() {
               <div className="mt-3 text-muted">
                 Active Session:{" "}
                 <strong>{session || "No active session"}</strong> | Term:{" "}
-                <strong>{term}</strong>
+                <strong>{term || "N/A"}</strong>
               </div>
             </div>
           </div>
@@ -513,7 +534,7 @@ function StudentDetails() {
 
         {activeTab === "results" && (
           <div className="card">
-            <div className="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <div className="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
               <h5 className="mb-0">Term Results</h5>
               <div>
                 <select
@@ -522,12 +543,17 @@ function StudentDetails() {
                   value={session}
                   onChange={(e) => setSession(e.target.value)}
                 >
-                  {sessions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
+                  {availableSessions.length > 0 ? (
+                    availableSessions.map((s) => (
+                      <option key={s.id || s.session} value={s.session}>
+                        {s.session}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">No session available</option>
+                  )}
                 </select>
+
                 <select
                   className="form-select form-select-sm d-inline-block me-2 bg-dark text-white"
                   style={{ width: "120px" }}
@@ -540,6 +566,7 @@ function StudentDetails() {
                     </option>
                   ))}
                 </select>
+
                 {termResults && (
                   <button
                     className="btn btn-light btn-sm"
@@ -563,8 +590,8 @@ function StudentDetails() {
                           <th>Proj (10)</th>
                           <th>MT (10)</th>
                           <th>2nd (5)</th>
-                          <th>CA (40)</th>
-                          <th>Exam (60)</th>
+                          <th>CA</th>
+                          <th>Exam</th>
                           <th>Total</th>
                           <th>Grade</th>
                           <th>Remark</th>
@@ -574,16 +601,16 @@ function StudentDetails() {
                         {termResults.subjects?.map((subject, index) => (
                           <tr key={index}>
                             <td className="fw-bold">{subject.subject}</td>
-                            <td>{subject.resumptionTest}</td>
-                            <td>{subject.assignments}</td>
-                            <td>{subject.project}</td>
-                            <td>{subject.midtermTest}</td>
-                            <td>{subject.secondTest}</td>
+                            <td>{subject.resumptionTest ?? 0}</td>
+                            <td>{subject.assignments ?? 0}</td>
+                            <td>{subject.project ?? 0}</td>
+                            <td>{subject.midtermTest ?? 0}</td>
+                            <td>{subject.secondTest ?? 0}</td>
                             <td className="fw-bold">
-                              {subject.continuousAssessment}
+                              {subject.continuousAssessment ?? 0}
                             </td>
-                            <td>{subject.examination}</td>
-                            <td className="fw-bold">{subject.total}</td>
+                            <td>{subject.examination ?? 0}</td>
+                            <td className="fw-bold">{subject.total ?? 0}</td>
                             <td>
                               <span
                                 className={`badge ${getGradeBadge(subject.grade)}`}
@@ -591,7 +618,7 @@ function StudentDetails() {
                                 {subject.grade}
                               </span>
                             </td>
-                            <td>{subject.remarks}</td>
+                            <td>{subject.remarks || "-"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -603,7 +630,7 @@ function StudentDetails() {
                       <div className="border p-3 rounded bg-light">
                         <h6>Total Score</h6>
                         <h3 className="text-primary">
-                          {termResults.summary?.totalScore}
+                          {termResults.summary?.totalScore ?? 0}
                         </h3>
                       </div>
                     </div>
@@ -611,7 +638,7 @@ function StudentDetails() {
                       <div className="border p-3 rounded bg-light">
                         <h6>Average</h6>
                         <h3 className="text-success">
-                          {termResults.summary?.average?.toFixed(2)}%
+                          {safeFixed(termResults.summary?.average, 2)}%
                         </h3>
                       </div>
                     </div>
@@ -619,7 +646,7 @@ function StudentDetails() {
                       <div className="border p-3 rounded bg-light">
                         <h6>Class Position</h6>
                         <h3 className="text-warning">
-                          {termResults.summary?.positionInClass}
+                          {termResults.summary?.positionInClass || "N/A"}
                         </h3>
                       </div>
                     </div>
@@ -644,11 +671,15 @@ function StudentDetails() {
                 value={session}
                 onChange={(e) => setSession(e.target.value)}
               >
-                {sessions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
+                {availableSessions.length > 0 ? (
+                  availableSessions.map((s) => (
+                    <option key={s.id || s.session} value={s.session}>
+                      {s.session}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No session available</option>
+                )}
               </select>
             </div>
             <div className="card-body">
@@ -662,31 +693,32 @@ function StudentDetails() {
                           <tr>
                             <th>First Term Total:</th>
                             <td>
-                              {annualResult.annualSummary?.firstTermTotal}
+                              {annualResult.annualSummary?.firstTermTotal ?? 0}
                             </td>
                           </tr>
                           <tr>
                             <th>Second Term Total:</th>
                             <td>
-                              {annualResult.annualSummary?.secondTermTotal}
+                              {annualResult.annualSummary?.secondTermTotal ?? 0}
                             </td>
                           </tr>
                           <tr>
                             <th>Third Term Total:</th>
                             <td>
-                              {annualResult.annualSummary?.thirdTermTotal}
+                              {annualResult.annualSummary?.thirdTermTotal ?? 0}
                             </td>
                           </tr>
                           <tr>
                             <th>Annual Total:</th>
                             <td className="fw-bold">
-                              {annualResult.annualSummary?.annualTotal}
+                              {annualResult.annualSummary?.annualTotal ?? 0}
                             </td>
                           </tr>
                           <tr>
                             <th>Annual Average:</th>
                             <td className="fw-bold text-success">
-                              {annualResult.annualSummary?.annualAverage?.toFixed(
+                              {safeFixed(
+                                annualResult.annualSummary?.annualAverage,
                                 2,
                               )}
                               %
@@ -726,7 +758,8 @@ function StudentDetails() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sessions.map((sess) => {
+                    {availableSessions.map((sessionItem) => {
+                      const sess = sessionItem.session;
                       const firstTerm = resultHistory[sess]?.FIRST;
                       const secondTerm = resultHistory[sess]?.SECOND;
                       const thirdTerm = resultHistory[sess]?.THIRD;
@@ -784,6 +817,14 @@ function StudentDetails() {
                         </tr>
                       );
                     })}
+
+                    {availableSessions.length === 0 && (
+                      <tr>
+                        <td colSpan="5" className="text-center text-muted">
+                          No session history available
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

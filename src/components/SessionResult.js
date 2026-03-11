@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from "react";
-import { studentAPI, sessionResultAPI } from "../services/api";
+import React, { useState, useEffect, useMemo } from "react";
+import { studentAPI, sessionResultAPI, sessionAPI } from "../services/api";
 import { toast } from "react-toastify";
 import {
   FaChartBar,
   FaEye,
   FaTrophy,
   FaUsers,
-  FaSchool,
   FaGraduationCap,
   FaSpinner,
-  FaCalendarAlt,
   FaCheckCircle,
   FaTimesCircle,
+  FaSyncAlt,
 } from "react-icons/fa";
 import useActiveSession from "../hooks/useActiveSession";
 
@@ -23,6 +22,8 @@ function SessionResult() {
   const [statistics, setStatistics] = useState(null);
   const [graduates, setGraduates] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [availableSessions, setAvailableSessions] = useState([]);
   const [activeTab, setActiveTab] = useState("view");
   const [rankingsType, setRankingsType] = useState("school");
   const [selectedClass, setSelectedClass] = useState("");
@@ -30,7 +31,6 @@ function SessionResult() {
 
   const { session, setSession, loadingSession } = useActiveSession();
 
-  const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
   const classes = [
     "Nursery",
     "Primary 1",
@@ -47,15 +47,68 @@ function SessionResult() {
     "SSS 3",
   ];
 
+  const normalizedSessions = useMemo(() => {
+    return (availableSessions || []).map((item) => ({
+      id: item.id,
+      session:
+        item.session || item.sessionName || item.name || item.label || "",
+      currentTerm: item.currentTerm || "FIRST",
+      startDate: item.startDate,
+      endDate: item.endDate,
+      active: item.active === true || item.isActive === true,
+    }));
+  }, [availableSessions]);
+
   useEffect(() => {
     fetchStudents();
+    fetchSessions();
   }, []);
+
+  useEffect(() => {
+    if (!session && normalizedSessions.length > 0) {
+      const active = normalizedSessions.find((s) => s.active);
+      const fallback = active || normalizedSessions[0];
+      if (fallback?.session) {
+        setSession(fallback.session);
+      }
+    }
+  }, [normalizedSessions, session, setSession]);
+
+  useEffect(() => {
+    setSessionResult(null);
+    setRankings(null);
+    setStatistics(null);
+    setGraduates([]);
+  }, [session, activeTab, rankingsType, selectedClass, selectedArm]);
 
   useEffect(() => {
     if (selectedStudent && session) {
       fetchSessionResult();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStudent, session]);
+
+  const fetchSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const response = await sessionAPI.getAllSessions();
+      const list = Array.isArray(response.data) ? response.data : [];
+
+      const sorted = [...list].sort((a, b) => {
+        const aDate = new Date(a.startDate || 0).getTime();
+        const bDate = new Date(b.startDate || 0).getTime();
+        return bDate - aDate;
+      });
+
+      setAvailableSessions(sorted);
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      setAvailableSessions([]);
+      toast.error("Failed to load academic sessions");
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
 
   const fetchStudents = async () => {
     try {
@@ -88,13 +141,14 @@ function SessionResult() {
 
   const fetchRankings = async (type, className, arm) => {
     if (!session) {
-      toast.error("No active session found");
+      toast.error("No session selected");
       return;
     }
 
     setLoading(true);
     try {
       let response;
+
       if (type === "school") {
         response = await sessionResultAPI.getSchoolRankings(session);
       } else if (type === "class" && className) {
@@ -115,6 +169,7 @@ function SessionResult() {
       toast.success("Rankings loaded successfully");
     } catch (error) {
       console.error("Error fetching rankings:", error);
+      setRankings(null);
       toast.error("Failed to load rankings");
     } finally {
       setLoading(false);
@@ -123,7 +178,7 @@ function SessionResult() {
 
   const fetchStatistics = async () => {
     if (!session) {
-      toast.error("No active session found");
+      toast.error("No session selected");
       return;
     }
 
@@ -134,6 +189,7 @@ function SessionResult() {
       toast.success("Statistics loaded successfully");
     } catch (error) {
       console.error("Error fetching statistics:", error);
+      setStatistics(null);
       toast.error("Failed to load statistics");
     } finally {
       setLoading(false);
@@ -142,7 +198,7 @@ function SessionResult() {
 
   const fetchGraduates = async () => {
     if (!session) {
-      toast.error("No active session found");
+      toast.error("No session selected");
       return;
     }
 
@@ -153,6 +209,7 @@ function SessionResult() {
       toast.success("Graduation list loaded successfully");
     } catch (error) {
       console.error("Error fetching graduates:", error);
+      setGraduates([]);
       toast.error("Failed to load graduation list");
     } finally {
       setLoading(false);
@@ -161,7 +218,7 @@ function SessionResult() {
 
   const calculateAllResults = async () => {
     if (!session) {
-      toast.error("No active session found");
+      toast.error("No session selected");
       return;
     }
 
@@ -177,11 +234,12 @@ function SessionResult() {
     try {
       const response =
         await sessionResultAPI.calculateAllSessionResults(session);
-      toast.success(
-        `Session results calculated for ${response.data.length} students`,
-      );
+      const count = Array.isArray(response.data) ? response.data.length : 0;
+
+      toast.success(`Session results calculated for ${count} students`);
+
       if (selectedStudent) {
-        fetchSessionResult();
+        await fetchSessionResult();
       }
     } catch (error) {
       console.error("Error calculating results:", error);
@@ -193,7 +251,7 @@ function SessionResult() {
 
   const promoteStudents = async () => {
     if (!session) {
-      toast.error("No active session found");
+      toast.error("No session selected");
       return;
     }
 
@@ -211,8 +269,9 @@ function SessionResult() {
       toast.success(
         `Promotion complete: ${response.data.promoted} promoted, ${response.data.graduated} graduated, ${response.data.retained} retained`,
       );
+
       if (selectedStudent) {
-        fetchSessionResult();
+        await fetchSessionResult();
       }
     } catch (error) {
       console.error("Error promoting students:", error);
@@ -223,15 +282,22 @@ function SessionResult() {
   };
 
   const formatNumber = (num) => {
-    return num !== null && num !== undefined ? Number(num).toFixed(2) : "0.00";
+    const n = Number(num);
+    return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+  };
+
+  const formatOneDecimal = (num) => {
+    const n = Number(num);
+    return Number.isFinite(n) ? n.toFixed(1) : "0.0";
   };
 
   const getGradeFromAverage = (avg) => {
-    if (avg >= 70) return { grade: "A", class: "success" };
-    if (avg >= 60) return { grade: "B", class: "primary" };
-    if (avg >= 50) return { grade: "C", class: "info" };
-    if (avg >= 45) return { grade: "D", class: "warning" };
-    if (avg >= 40) return { grade: "E", class: "secondary" };
+    const value = Number(avg) || 0;
+    if (value >= 70) return { grade: "A", class: "success" };
+    if (value >= 60) return { grade: "B", class: "primary" };
+    if (value >= 50) return { grade: "C", class: "info" };
+    if (value >= 45) return { grade: "D", class: "warning" };
+    if (value >= 40) return { grade: "E", class: "secondary" };
     return { grade: "F", class: "danger" };
   };
 
@@ -247,21 +313,29 @@ function SessionResult() {
     );
   };
 
-  if (loadingSession) {
+  if (loadingSession || sessionsLoading) {
     return (
       <div className="text-center py-5">
         <FaSpinner className="spinner" size={40} />
-        <p className="mt-3">Loading active session...</p>
+        <p className="mt-3">Loading academic session...</p>
       </div>
     );
   }
 
   return (
     <div className="session-result container-fluid py-4">
-      <h2 className="mb-4">Session Result Management</h2>
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+          <h2 className="mb-1">Session Result Management</h2>
+          <div className="text-muted">
+            Active Session: <strong>{session || "No active session"}</strong>
+          </div>
+        </div>
 
-      <div className="mb-3 text-muted">
-        Active Session: <strong>{session || "No active session"}</strong>
+        <button className="btn btn-outline-primary" onClick={fetchSessions}>
+          <FaSyncAlt className="me-2" />
+          Refresh Sessions
+        </button>
       </div>
 
       <div className="d-flex gap-2 mb-4 flex-wrap">
@@ -325,11 +399,15 @@ function SessionResult() {
             value={session}
             onChange={(e) => setSession(e.target.value)}
           >
-            {sessions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
+            {normalizedSessions.length > 0 ? (
+              normalizedSessions.map((s) => (
+                <option key={s.id || s.session} value={s.session}>
+                  {s.session}
+                </option>
+              ))
+            ) : (
+              <option value="">No session available</option>
+            )}
           </select>
         </div>
 
@@ -338,7 +416,7 @@ function SessionResult() {
             <button
               className="btn btn-danger"
               onClick={calculateAllResults}
-              disabled={loading}
+              disabled={loading || !session}
             >
               {loading ? <FaSpinner className="spinner" /> : "📊 Calculate All"}
             </button>
@@ -346,7 +424,7 @@ function SessionResult() {
             <button
               className="btn btn-success"
               onClick={promoteStudents}
-              disabled={loading}
+              disabled={loading || !session}
             >
               🎓 Promote Students
             </button>
@@ -354,7 +432,7 @@ function SessionResult() {
             <button
               className="btn btn-info text-white"
               onClick={fetchStatistics}
-              disabled={loading}
+              disabled={loading || !session}
             >
               📈 Refresh Stats
             </button>
@@ -383,8 +461,11 @@ function SessionResult() {
                       <option value="">-- Choose a student --</option>
                       {students.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.fullName} - {s.admissionNumber} ({s.studentClass}{" "}
-                          {s.classArm})
+                          {(
+                            s.fullName ||
+                            `${s.firstName || ""} ${s.lastName || ""}`
+                          ).trim()}{" "}
+                          - {s.admissionNumber} ({s.studentClass} {s.classArm})
                         </option>
                       ))}
                     </select>
@@ -459,7 +540,13 @@ function SessionResult() {
                   )}
 
                   <div
-                    className={`col-md-${rankingsType === "school" ? "3" : rankingsType === "arm" ? "2" : "4"}`}
+                    className={`col-md-${
+                      rankingsType === "school"
+                        ? "3"
+                        : rankingsType === "arm"
+                          ? "2"
+                          : "4"
+                    }`}
                   >
                     <button
                       className="btn btn-warning w-100 text-white"
@@ -514,7 +601,9 @@ function SessionResult() {
                     <h6>Student Information</h6>
                     <p>
                       <strong>Name:</strong>{" "}
-                      {selectedStudent?.fullName || "N/A"}
+                      {selectedStudent?.fullName ||
+                        `${selectedStudent?.firstName || ""} ${selectedStudent?.lastName || ""}`.trim() ||
+                        "N/A"}
                     </p>
                     <p>
                       <strong>Admission:</strong>{" "}
@@ -670,7 +759,7 @@ function SessionResult() {
                   {rankings.className
                     ? `${rankings.className} ${rankings.arm || ""} `
                     : "School "}
-                  Rankings - {rankings.session} Session
+                  Rankings - {rankings.session || session} Session
                 </h5>
               </div>
               <div className="card-body">
@@ -703,18 +792,18 @@ function SessionResult() {
                           <td>{rank.classArm}</td>
                           <td>
                             <strong className="text-success">
-                              {rank.annualAverage?.toFixed(2)}%
+                              {formatNumber(rank.annualAverage)}%
                             </strong>
                           </td>
                           <td>
                             <span
                               className={
-                                rank.attendance >= 75
+                                Number(rank.attendance) >= 75
                                   ? "text-success"
                                   : "text-danger"
                               }
                             >
-                              {rank.attendance?.toFixed(1)}%
+                              {formatOneDecimal(rank.attendance)}%
                             </span>
                           </td>
                           <td>
@@ -726,11 +815,19 @@ function SessionResult() {
                           </td>
                         </tr>
                       ))}
+
+                      {!rankings.rankings?.length && (
+                        <tr>
+                          <td colSpan="8" className="text-center text-muted">
+                            No ranking data found
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
                 <p className="text-muted mt-3">
-                  Total Students: {rankings.totalStudents}
+                  Total Students: {rankings.totalStudents || 0}
                 </p>
               </div>
             </div>
@@ -796,7 +893,7 @@ function SessionResult() {
                       <div>
                         <h6 className="mb-1">Promotion Rate</h6>
                         <h2 className="mb-0">
-                          {statistics.promotionRate?.toFixed(1) || 0}%
+                          {formatOneDecimal(statistics.promotionRate)}%
                         </h2>
                       </div>
                       <FaTrophy size={40} className="opacity-50" />
@@ -838,17 +935,25 @@ function SessionResult() {
                     </thead>
                     <tbody>
                       {graduates.map((grad, index) => (
-                        <tr key={grad.studentId}>
+                        <tr key={grad.studentId || index}>
                           <td>{index + 1}</td>
                           <td>{grad.studentName}</td>
                           <td>{grad.admissionNumber}</td>
                           <td className="fw-bold text-success">
-                            {grad.finalAverage?.toFixed(2)}%
+                            {formatNumber(grad.finalAverage)}%
                           </td>
-                          <td>{grad.attendance?.toFixed(1)}%</td>
-                          <td>{grad.position}</td>
+                          <td>{formatOneDecimal(grad.attendance)}%</td>
+                          <td>{grad.position || "N/A"}</td>
                         </tr>
                       ))}
+
+                      {graduates.length === 0 && (
+                        <tr>
+                          <td colSpan="6" className="text-center text-muted">
+                            No graduates found
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

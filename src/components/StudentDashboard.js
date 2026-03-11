@@ -9,6 +9,7 @@ import {
   FaCalendarAlt,
   FaBookOpen,
   FaSpinner,
+  FaSyncAlt,
 } from "react-icons/fa";
 import moment from "moment";
 import useActiveSession from "../hooks/useActiveSession";
@@ -21,12 +22,14 @@ function StudentDashboard() {
   const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const { session, term, loadingSession } = useActiveSession("FIRST");
+  const { session, term, loadingSession, refreshActiveSession } =
+    useActiveSession("FIRST");
 
   useEffect(() => {
-    if (user && session) {
+    if (user && session && term) {
       fetchStudentData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, session, term]);
 
   const fetchStudentData = async () => {
@@ -47,9 +50,12 @@ function StudentDashboard() {
       setStudentData(studentProfile);
       setRecentResults(resultsRes.data?.subjects?.slice(0, 5) || []);
       setAttendance(attendanceRes.data || null);
-      setFees(feesRes.data || []);
+      setFees(Array.isArray(feesRes.data) ? feesRes.data : []);
     } catch (error) {
       console.error("Error fetching student data:", error);
+      setRecentResults([]);
+      setAttendance(null);
+      setFees([]);
     } finally {
       setLoading(false);
     }
@@ -67,14 +73,24 @@ function StudentDashboard() {
 
   return (
     <div className="student-dashboard container py-4">
-      <h2 className="mb-4">
-        <FaUserGraduate className="me-2" /> Welcome,{" "}
-        {studentData?.firstName || user?.firstName}!
-      </h2>
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h2 className="mb-0">
+          <FaUserGraduate className="me-2" /> Welcome,{" "}
+          {studentData?.firstName || user?.firstName}!
+        </h2>
+
+        <button
+          className="btn btn-outline-primary"
+          onClick={refreshActiveSession}
+        >
+          <FaSyncAlt className="me-2" />
+          Refresh Session
+        </button>
+      </div>
 
       <div className="mb-3 text-muted">
         Active Session: <strong>{session || "No active session"}</strong> |
-        Term: <strong>{term}</strong>
+        Term: <strong>{term || "N/A"}</strong>
       </div>
 
       <div className="row">
@@ -85,15 +101,16 @@ function StudentDashboard() {
             </div>
             <div className="card-body">
               <p>
-                <strong>Name:</strong> {studentData?.firstName}{" "}
-                {studentData?.lastName}
+                <strong>Name:</strong> {studentData?.firstName || ""}{" "}
+                {studentData?.lastName || ""}
               </p>
               <p>
-                <strong>Admission:</strong> {studentData?.admissionNumber}
+                <strong>Admission:</strong>{" "}
+                {studentData?.admissionNumber || "N/A"}
               </p>
               <p>
-                <strong>Class:</strong> {studentData?.studentClass}{" "}
-                {studentData?.classArm}
+                <strong>Class:</strong> {studentData?.studentClass || "N/A"}{" "}
+                {studentData?.classArm || ""}
               </p>
               <p>
                 <strong>Status:</strong>{" "}
@@ -218,7 +235,7 @@ function StudentDashboard() {
                         </td>
                         <td>{subject.examination ?? 0}</td>
                         <td>
-                          <strong>{subject.total}</strong>
+                          <strong>{subject.total ?? 0}</strong>
                         </td>
                         <td>
                           <span
@@ -234,7 +251,7 @@ function StudentDashboard() {
                                       : "danger"
                             }`}
                           >
-                            {subject.grade}
+                            {subject.grade || "-"}
                           </span>
                         </td>
                       </tr>
@@ -270,6 +287,16 @@ function StudentDashboard() {
           </div>
         </div>
       </div>
+
+      <style>{`
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

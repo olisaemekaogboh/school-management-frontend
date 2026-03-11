@@ -8,6 +8,7 @@ import {
   FaChartBar,
   FaCalendarAlt,
   FaSpinner,
+  FaSyncAlt,
 } from "react-icons/fa";
 import useActiveSession from "../hooks/useActiveSession";
 
@@ -16,7 +17,8 @@ function ParentDashboard() {
   const [wards, setWards] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const { session, term, loadingSession } = useActiveSession("FIRST");
+  const { session, term, loadingSession, refreshActiveSession } =
+    useActiveSession("FIRST");
 
   useEffect(() => {
     fetchWards();
@@ -44,13 +46,23 @@ function ParentDashboard() {
 
   return (
     <div className="parent-dashboard container py-4">
-      <h2 className="mb-4">
-        <FaChild className="me-2" /> Welcome, {user?.firstName}!
-      </h2>
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h2 className="mb-0">
+          <FaChild className="me-2" /> Welcome, {user?.firstName}!
+        </h2>
+
+        <button
+          className="btn btn-outline-primary"
+          onClick={refreshActiveSession}
+        >
+          <FaSyncAlt className="me-2" />
+          Refresh Session
+        </button>
+      </div>
 
       <div className="mb-3 text-muted">
         Active Session: <strong>{session || "No active session"}</strong> |
-        Term: <strong>{term}</strong>
+        Term: <strong>{term || "N/A"}</strong>
       </div>
 
       {wards.length === 0 ? (
@@ -64,16 +76,18 @@ function ParentDashboard() {
               <div className="card shadow-sm h-100">
                 <div className="card-header bg-primary text-white">
                   <h5 className="mb-0">
-                    {ward.fullName || `${ward.firstName} ${ward.lastName}`}
+                    {ward.fullName ||
+                      `${ward.firstName || ""} ${ward.lastName || ""}`.trim()}
                   </h5>
                 </div>
 
                 <div className="card-body">
                   <p>
-                    <strong>Admission:</strong> {ward.admissionNumber}
+                    <strong>Admission:</strong> {ward.admissionNumber || "N/A"}
                   </p>
                   <p>
-                    <strong>Class:</strong> {ward.studentClass} {ward.classArm}
+                    <strong>Class:</strong> {ward.studentClass || "N/A"}{" "}
+                    {ward.classArm || ""}
                   </p>
 
                   <div className="d-flex gap-2 mt-3 flex-wrap">
@@ -107,6 +121,16 @@ function ParentDashboard() {
           ))}
         </div>
       )}
+
+      <style>{`
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
