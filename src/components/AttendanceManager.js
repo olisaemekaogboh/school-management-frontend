@@ -1,7 +1,8 @@
-// src/components/AttendanceManager.js
-import React, { useState, useEffect } from "react";
-import { attendanceAPI, studentAPI } from "../services/api";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { attendanceAPI, studentAPI, teacherAPI } from "../services/api";
 import { toast } from "react-toastify";
+import { useAuth } from "../contexts/AuthContext";
 import {
   FaCalendarAlt,
   FaCheckCircle,
@@ -11,30 +12,43 @@ import {
   FaUsers,
   FaChartBar,
   FaSpinner,
-  FaSave,
   FaSearch,
   FaEye,
   FaFilter,
+  FaInfoCircle,
 } from "react-icons/fa";
 import moment from "moment";
+import useActiveSession from "../hooks/useActiveSession";
 
 function AttendanceManager() {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  const isAdmin = user?.role === "ADMIN";
+  const isTeacher = user?.role === "TEACHER";
+
+  const query = new URLSearchParams(location.search);
+  const classNameFromQuery = query.get("className") || "";
+  const armFromQuery = query.get("arm") || "";
+
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState([]);
-  const [selectedClass, setSelectedClass] = useState("");
-  const [selectedArm, setSelectedArm] = useState("");
+  const [selectedClass, setSelectedClass] = useState(classNameFromQuery);
+  const [selectedArm, setSelectedArm] = useState(armFromQuery);
   const [selectedDate, setSelectedDate] = useState(
     moment().format("YYYY-MM-DD"),
   );
-  const [session, setSession] = useState("2025/2026");
-  const [term, setTerm] = useState("FIRST");
   const [attendanceData, setAttendanceData] = useState({});
   const [classStats, setClassStats] = useState(null);
-  const [viewMode, setViewMode] = useState("mark"); // 'mark', 'stats', 'report'
+  const [viewMode, setViewMode] = useState("mark");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentAttendance, setStudentAttendance] = useState([]);
   const [studentSummary, setStudentSummary] = useState(null);
+  const [teacherAssignments, setTeacherAssignments] = useState([]);
+
+  const { session, setSession, term, setTerm, loadingSession } =
+    useActiveSession("FIRST");
 
   const classes = [
     { name: "Nursery", arms: ["A", "B"] },
@@ -61,23 +75,85 @@ function AttendanceManager() {
   const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
 
   useEffect(() => {
-    if (selectedClass && selectedArm) {
-      if (viewMode === "mark" || viewMode === "report") {
-        fetchStudents();
-      } else if (viewMode === "stats") {
-        fetchClassStatistics();
-      }
+    if (session) {
+      loadTeacherAssignments();
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (!selectedClass || !selectedArm || !session) return;
+
+    if (viewMode === "mark" || viewMode === "report") {
+      fetchStudents();
+    } else if (viewMode === "stats") {
+      fetchClassStatistics();
     }
   }, [selectedClass, selectedArm, selectedDate, session, term, viewMode]);
 
   useEffect(() => {
-    if (selectedStudent) {
+    if (selectedStudent && session) {
       fetchStudentAttendance();
     }
   }, [selectedStudent, session, term]);
 
+  const loadTeacherAssignments = async () => {
+    if (!isTeacher) return;
+
+    try {
+      const response = await teacherAPI.getMyTeacherProfile();
+      const teacher = response.data;
+      const assignments = teacher?.assignedClasses || teacher?.classes || [];
+
+      const normalized = assignments.map((c) => ({
+        className: c.className,
+        arm: c.arm,
+      }));
+
+      setTeacherAssignments(normalized);
+
+      if (!classNameFromQuery && normalized.length === 1) {
+        setSelectedClass(normalized[0].className);
+        setSelectedArm(normalized[0].arm);
+      }
+    } catch (error) {
+      console.error("Error loading teacher assignments:", error);
+    }
+  };
+
+  const allowedClassOptions = useMemo(() => {
+    if (isAdmin) return classes;
+
+    if (isTeacher) {
+      const grouped = {};
+      teacherAssignments.forEach((a) => {
+        if (!grouped[a.className]) grouped[a.className] = [];
+        if (!grouped[a.className].includes(a.arm))
+          grouped[a.className].push(a.arm);
+      });
+
+      return Object.entries(grouped).map(([name, arms]) => ({
+        name,
+        arms,
+      }));
+    }
+
+    return [];
+  }, [isAdmin, isTeacher, teacherAssignments]);
+
+  const isAllowedTeacherClass = (className, arm) => {
+    if (isAdmin) return true;
+    return teacherAssignments.some(
+      (a) => a.className === className && a.arm === arm,
+    );
+  };
+
   const fetchStudents = async () => {
     if (!selectedClass || !selectedArm) return;
+
+    if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
+      toast.error("You can only manage attendance for your assigned class");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -85,17 +161,17 @@ function AttendanceManager() {
         selectedClass,
         selectedArm,
       );
-      setStudents(response.data || []);
 
-      // Initialize attendance data
+      const studentList = response.data || [];
+      setStudents(studentList);
+
       const attendanceMap = {};
-      (response.data || []).forEach((student) => {
+      studentList.forEach((student) => {
         attendanceMap[student.id] = null;
       });
       setAttendanceData(attendanceMap);
 
-      // Fetch existing attendance for the date
-      await fetchExistingAttendance(response.data || []);
+      await fetchExistingAttendance(studentList);
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
@@ -114,6 +190,7 @@ function AttendanceManager() {
             session,
             term,
           );
+
           if (response.data) {
             setAttendanceData((prev) => ({
               ...prev,
@@ -121,7 +198,6 @@ function AttendanceManager() {
             }));
           }
         } catch (error) {
-          // Ignore 404 errors (no attendance record found)
           if (error.response?.status !== 404) {
             console.error(
               "Error fetching attendance for student:",
@@ -138,6 +214,13 @@ function AttendanceManager() {
 
   const fetchClassStatistics = async () => {
     if (!selectedClass || !selectedArm) return;
+
+    if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
+      toast.error(
+        "You can only view attendance statistics for your assigned class",
+      );
+      return;
+    }
 
     setLoading(true);
     try {
@@ -169,8 +252,9 @@ function AttendanceManager() {
         ),
         attendanceAPI.getStudentTermSummary(selectedStudent.id, session, term),
       ]);
+
       setStudentAttendance(attendanceRes.data || []);
-      setStudentSummary(summaryRes.data);
+      setStudentSummary(summaryRes.data || null);
     } catch (error) {
       console.error("Error fetching student attendance:", error);
       toast.error("Failed to load student attendance");
@@ -182,6 +266,11 @@ function AttendanceManager() {
   const handleMarkAll = async (status) => {
     if (!selectedClass || !selectedArm || students.length === 0) {
       toast.warning("Please select a class first");
+      return;
+    }
+
+    if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
+      toast.error("You can only mark attendance for your assigned class");
       return;
     }
 
@@ -199,7 +288,6 @@ function AttendanceManager() {
 
       toast.success(`All students marked as ${status}`);
 
-      // Update local state
       const newAttendanceData = {};
       studentIds.forEach((id) => {
         newAttendanceData[id] = status;
@@ -207,13 +295,20 @@ function AttendanceManager() {
       setAttendanceData(newAttendanceData);
     } catch (error) {
       console.error("Error marking bulk attendance:", error);
-      toast.error("Failed to mark attendance");
+      toast.error(
+        error?.response?.data?.message || "Failed to mark attendance",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleMarkStudent = async (studentId, status) => {
+    if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
+      toast.error("You can only mark attendance for your assigned class");
+      return;
+    }
+
     setLoading(true);
     try {
       await attendanceAPI.markAttendance(
@@ -226,14 +321,15 @@ function AttendanceManager() {
 
       toast.success(`Student marked as ${status}`);
 
-      // Update local state
       setAttendanceData((prev) => ({
         ...prev,
         [studentId]: status,
       }));
     } catch (error) {
       console.error("Error marking attendance:", error);
-      toast.error("Failed to mark attendance");
+      toast.error(
+        error?.response?.data?.message || "Failed to mark attendance",
+      );
     } finally {
       setLoading(false);
     }
@@ -248,8 +344,16 @@ function AttendanceManager() {
         icon: <FaCheckCircle />,
         text: "Present",
       },
-      ABSENT: { class: "bg-danger", icon: <FaTimesCircle />, text: "Absent" },
-      LATE: { class: "bg-warning", icon: <FaClock />, text: "Late" },
+      ABSENT: {
+        class: "bg-danger",
+        icon: <FaTimesCircle />,
+        text: "Absent",
+      },
+      LATE: {
+        class: "bg-warning",
+        icon: <FaClock />,
+        text: "Late",
+      },
       EXCUSED: {
         class: "bg-info",
         icon: <FaExclamationTriangle />,
@@ -261,6 +365,7 @@ function AttendanceManager() {
         text: "Holiday",
       },
     };
+
     return badges[status] || null;
   };
 
@@ -279,9 +384,18 @@ function AttendanceManager() {
     const fullName =
       `${student.firstName || ""} ${student.lastName || ""}`.toLowerCase();
     const admission = student.admissionNumber?.toLowerCase() || "";
-    const term = searchTerm.toLowerCase();
-    return fullName.includes(term) || admission.includes(term);
+    const q = searchTerm.toLowerCase();
+    return fullName.includes(q) || admission.includes(q);
   });
+
+  if (loadingSession) {
+    return (
+      <div className="text-center py-5">
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">Loading active session...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="attendance-manager container-fluid py-4">
@@ -289,7 +403,11 @@ function AttendanceManager() {
         <FaCalendarAlt className="me-2" /> Attendance Management
       </h2>
 
-      {/* Control Panel */}
+      <div className="mb-3 text-muted">
+        Active Session: <strong>{session || "No active session"}</strong> |
+        Term: <strong>{term}</strong>
+      </div>
+
       <div className="card mb-4">
         <div className="card-header bg-primary text-white">
           <h5 className="mb-0">Attendance Controls</h5>
@@ -308,6 +426,7 @@ function AttendanceManager() {
                 <option value="report">Student Report</option>
               </select>
             </div>
+
             <div className="col-md-2 mb-3">
               <label className="form-label">Class</label>
               <select
@@ -320,13 +439,14 @@ function AttendanceManager() {
                 }}
               >
                 <option value="">Select Class</option>
-                {classes.map((c) => (
+                {allowedClassOptions.map((c) => (
                   <option key={c.name} value={c.name}>
                     {c.name}
                   </option>
                 ))}
               </select>
             </div>
+
             <div className="col-md-2 mb-3">
               <label className="form-label">Arm</label>
               <select
@@ -340,7 +460,7 @@ function AttendanceManager() {
               >
                 <option value="">Select Arm</option>
                 {selectedClass &&
-                  classes
+                  allowedClassOptions
                     .find((c) => c.name === selectedClass)
                     ?.arms.map((arm) => (
                       <option key={arm} value={arm}>
@@ -349,6 +469,7 @@ function AttendanceManager() {
                     ))}
               </select>
             </div>
+
             {(viewMode === "mark" || viewMode === "report") && (
               <div className="col-md-2 mb-3">
                 <label className="form-label">Date</label>
@@ -360,6 +481,7 @@ function AttendanceManager() {
                 />
               </div>
             )}
+
             <div className="col-md-2 mb-3">
               <label className="form-label">Session</label>
               <select
@@ -374,6 +496,7 @@ function AttendanceManager() {
                 ))}
               </select>
             </div>
+
             <div className="col-md-2 mb-3">
               <label className="form-label">Term</label>
               <select
@@ -393,6 +516,7 @@ function AttendanceManager() {
           {viewMode === "mark" && selectedClass && selectedArm && (
             <div className="mt-3">
               <label className="form-label me-3">Quick Actions:</label>
+
               <button
                 className="btn btn-success me-2"
                 onClick={() => handleMarkAll("PRESENT")}
@@ -400,6 +524,7 @@ function AttendanceManager() {
               >
                 <FaCheckCircle className="me-1" /> Mark All Present
               </button>
+
               <button
                 className="btn btn-danger me-2"
                 onClick={() => handleMarkAll("ABSENT")}
@@ -407,6 +532,7 @@ function AttendanceManager() {
               >
                 <FaTimesCircle className="me-1" /> Mark All Absent
               </button>
+
               <button
                 className="btn btn-warning me-2"
                 onClick={() => handleMarkAll("LATE")}
@@ -414,6 +540,7 @@ function AttendanceManager() {
               >
                 <FaClock className="me-1" /> Mark All Late
               </button>
+
               <button
                 className="btn btn-info me-2"
                 onClick={() => handleMarkAll("EXCUSED")}
@@ -443,7 +570,6 @@ function AttendanceManager() {
         </div>
       </div>
 
-      {/* Loading Spinner */}
       {loading && (
         <div className="text-center py-5">
           <div className="spinner-border text-primary" role="status">
@@ -453,7 +579,6 @@ function AttendanceManager() {
         </div>
       )}
 
-      {/* Statistics View */}
       {!loading && viewMode === "stats" && classStats && (
         <div className="card">
           <div className="card-header bg-info text-white">
@@ -472,6 +597,7 @@ function AttendanceManager() {
                   </div>
                 </div>
               </div>
+
               <div className="col-md-3">
                 <div className="card bg-success text-white">
                   <div className="card-body text-center">
@@ -480,6 +606,7 @@ function AttendanceManager() {
                   </div>
                 </div>
               </div>
+
               <div className="col-md-3">
                 <div className="card bg-danger text-white">
                   <div className="card-body text-center">
@@ -488,6 +615,7 @@ function AttendanceManager() {
                   </div>
                 </div>
               </div>
+
               <div className="col-md-3">
                 <div className="card bg-warning text-white">
                   <div className="card-body text-center">
@@ -551,10 +679,8 @@ function AttendanceManager() {
         </div>
       )}
 
-      {/* Student Report View */}
       {!loading && viewMode === "report" && (
         <div className="row">
-          {/* Student List */}
           <div className="col-md-4">
             <div className="card">
               <div className="card-header bg-primary text-white">
@@ -587,6 +713,7 @@ function AttendanceManager() {
                       <FaEye />
                     </button>
                   ))}
+
                   {filteredStudents.length === 0 && (
                     <div className="list-group-item text-center text-muted">
                       No students found
@@ -597,7 +724,6 @@ function AttendanceManager() {
             </div>
           </div>
 
-          {/* Student Attendance Details */}
           <div className="col-md-8">
             {selectedStudent ? (
               <div className="card">
@@ -608,7 +734,6 @@ function AttendanceManager() {
                   </h5>
                 </div>
                 <div className="card-body">
-                  {/* Summary Cards */}
                   {studentSummary && (
                     <div className="row mb-4">
                       <div className="col-md-3">
@@ -619,6 +744,7 @@ function AttendanceManager() {
                           </div>
                         </div>
                       </div>
+
                       <div className="col-md-3">
                         <div className="card bg-success text-white">
                           <div className="card-body text-center">
@@ -627,6 +753,7 @@ function AttendanceManager() {
                           </div>
                         </div>
                       </div>
+
                       <div className="col-md-3">
                         <div className="card bg-danger text-white">
                           <div className="card-body text-center">
@@ -635,6 +762,7 @@ function AttendanceManager() {
                           </div>
                         </div>
                       </div>
+
                       <div className="col-md-3">
                         <div className="card bg-warning text-white">
                           <div className="card-body text-center">
@@ -648,11 +776,11 @@ function AttendanceManager() {
                     </div>
                   )}
 
-                  {/* Attendance Records */}
                   <h6 className="mb-3">
                     Attendance Records for{" "}
                     {terms.find((t) => t.value === term)?.label}
                   </h6>
+
                   <div className="table-responsive">
                     <table className="table table-striped">
                       <thead>
@@ -676,6 +804,7 @@ function AttendanceManager() {
                             <td>{record.remarks || "-"}</td>
                           </tr>
                         ))}
+
                         {studentAttendance.length === 0 && (
                           <tr>
                             <td colSpan="3" className="text-center text-muted">
@@ -690,7 +819,7 @@ function AttendanceManager() {
               </div>
             ) : (
               <div className="alert alert-info">
-                <FaEye className="me-2" />
+                <FaInfoCircle className="me-2" />
                 Select a student from the list to view their attendance report
               </div>
             )}
@@ -698,7 +827,6 @@ function AttendanceManager() {
         </div>
       )}
 
-      {/* Attendance Marking View */}
       {!loading && viewMode === "mark" && students.length > 0 && (
         <div className="card">
           <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
@@ -715,6 +843,7 @@ function AttendanceManager() {
               Present / {students.length} Total
             </span>
           </div>
+
           <div className="card-body">
             <div className="table-responsive">
               <table className="table table-striped table-hover">
@@ -753,7 +882,9 @@ function AttendanceManager() {
                         <td className="text-center">
                           <div className="btn-group btn-group-sm">
                             <button
-                              className={`btn btn-outline-success ${status === "PRESENT" ? "active" : ""}`}
+                              className={`btn btn-outline-success ${
+                                status === "PRESENT" ? "active" : ""
+                              }`}
                               onClick={() =>
                                 handleMarkStudent(student.id, "PRESENT")
                               }
@@ -762,8 +893,11 @@ function AttendanceManager() {
                             >
                               <FaCheckCircle />
                             </button>
+
                             <button
-                              className={`btn btn-outline-danger ${status === "ABSENT" ? "active" : ""}`}
+                              className={`btn btn-outline-danger ${
+                                status === "ABSENT" ? "active" : ""
+                              }`}
                               onClick={() =>
                                 handleMarkStudent(student.id, "ABSENT")
                               }
@@ -772,8 +906,11 @@ function AttendanceManager() {
                             >
                               <FaTimesCircle />
                             </button>
+
                             <button
-                              className={`btn btn-outline-warning ${status === "LATE" ? "active" : ""}`}
+                              className={`btn btn-outline-warning ${
+                                status === "LATE" ? "active" : ""
+                              }`}
                               onClick={() =>
                                 handleMarkStudent(student.id, "LATE")
                               }
@@ -782,8 +919,11 @@ function AttendanceManager() {
                             >
                               <FaClock />
                             </button>
+
                             <button
-                              className={`btn btn-outline-info ${status === "EXCUSED" ? "active" : ""}`}
+                              className={`btn btn-outline-info ${
+                                status === "EXCUSED" ? "active" : ""
+                              }`}
                               onClick={() =>
                                 handleMarkStudent(student.id, "EXCUSED")
                               }
@@ -804,7 +944,6 @@ function AttendanceManager() {
         </div>
       )}
 
-      {/* No Selection Message */}
       {!loading && !selectedClass && (
         <div className="alert alert-info">
           <FaFilter className="me-2" /> Please select a class and arm to view

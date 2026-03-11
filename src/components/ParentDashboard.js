@@ -9,11 +9,14 @@ import {
   FaCalendarAlt,
   FaSpinner,
 } from "react-icons/fa";
+import useActiveSession from "../hooks/useActiveSession";
 
 function ParentDashboard() {
   const { user } = useAuth();
   const [wards, setWards] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const { session, term, loadingSession } = useActiveSession("FIRST");
 
   useEffect(() => {
     fetchWards();
@@ -31,7 +34,7 @@ function ParentDashboard() {
     }
   };
 
-  if (loading) {
+  if (loading || loadingSession) {
     return (
       <div className="text-center py-5">
         <FaSpinner className="spin" size={40} />
@@ -44,6 +47,11 @@ function ParentDashboard() {
       <h2 className="mb-4">
         <FaChild className="me-2" /> Welcome, {user?.firstName}!
       </h2>
+
+      <div className="mb-3 text-muted">
+        Active Session: <strong>{session || "No active session"}</strong> |
+        Term: <strong>{term}</strong>
+      </div>
 
       {wards.length === 0 ? (
         <div className="alert alert-info">
