@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { studentAPI, resultAPI, attendanceAPI, feeAPI } from "../services/api";
+import { authAPI, resultAPI, attendanceAPI, feeAPI } from "../services/api";
 import { Link } from "react-router-dom";
 import {
   FaUserGraduate,
@@ -11,6 +11,7 @@ import {
   FaSpinner,
 } from "react-icons/fa";
 import moment from "moment";
+import useActiveSession from "../hooks/useActiveSession";
 
 function StudentDashboard() {
   const { user } = useAuth();
@@ -20,36 +21,32 @@ function StudentDashboard() {
   const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const session = "2025/2026";
-  const term = "FIRST";
+  const { session, term, loadingSession } = useActiveSession("FIRST");
 
   useEffect(() => {
-    if (user) {
+    if (user && session) {
       fetchStudentData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, session, term]);
 
   const fetchStudentData = async () => {
     try {
-      const studentId = user?.studentId;
+      setLoading(true);
 
-      if (!studentId) {
-        setLoading(false);
-        return;
-      }
+      const [meRes, resultsRes, attendanceRes, feesRes] = await Promise.all([
+        authAPI.getCurrentUser(),
+        resultAPI.getMyTermResult(session, term),
+        attendanceAPI.getMyAttendanceSummary(session, term),
+        feeAPI.getMyFees(session, term),
+      ]);
 
-      const [studentRes, resultsRes, attendanceRes, feesRes] =
-        await Promise.all([
-          studentAPI.getStudentById(studentId),
-          resultAPI.getMyTermResult(session, term),
-          attendanceAPI.getMyAttendanceSummary(session, term),
-          feeAPI.getStudentFees(studentId, session, term),
-        ]);
+      const currentUser = meRes.data;
+      const studentProfile =
+        currentUser?.student || currentUser?.studentProfile || null;
 
-      setStudentData(studentRes.data);
+      setStudentData(studentProfile);
       setRecentResults(resultsRes.data?.subjects?.slice(0, 5) || []);
-      setAttendance(attendanceRes.data);
+      setAttendance(attendanceRes.data || null);
       setFees(feesRes.data || []);
     } catch (error) {
       console.error("Error fetching student data:", error);
@@ -60,7 +57,7 @@ function StudentDashboard() {
 
   const attendancePercentage = Number(attendance?.attendancePercentage || 0);
 
-  if (loading) {
+  if (loading || loadingSession) {
     return (
       <div className="text-center py-5">
         <FaSpinner className="spin" size={40} />
@@ -75,9 +72,14 @@ function StudentDashboard() {
         {studentData?.firstName || user?.firstName}!
       </h2>
 
+      <div className="mb-3 text-muted">
+        Active Session: <strong>{session || "No active session"}</strong> |
+        Term: <strong>{term}</strong>
+      </div>
+
       <div className="row">
         <div className="col-md-4 mb-4">
-          <div className="card h-100">
+          <div className="card h-100 shadow-sm">
             <div className="card-header bg-primary text-white">
               <h5 className="mb-0">My Information</h5>
             </div>
@@ -95,14 +97,16 @@ function StudentDashboard() {
               </p>
               <p>
                 <strong>Status:</strong>{" "}
-                <span className="badge bg-success">{studentData?.status}</span>
+                <span className="badge bg-success">
+                  {studentData?.status || "ACTIVE"}
+                </span>
               </p>
             </div>
           </div>
         </div>
 
         <div className="col-md-4 mb-4">
-          <div className="card h-100">
+          <div className="card h-100 shadow-sm">
             <div className="card-header bg-success text-white">
               <h5 className="mb-0">Attendance</h5>
             </div>
@@ -111,12 +115,14 @@ function StudentDashboard() {
                 {attendancePercentage.toFixed(1)}%
               </h1>
               <p>Attendance Rate</p>
+
               <div className="progress" style={{ height: "10px" }}>
                 <div
                   className="progress-bar bg-success"
                   style={{ width: `${attendancePercentage}%` }}
                 />
               </div>
+
               <p className="mt-3">
                 Present: {attendance?.daysPresent || 0} | Absent:{" "}
                 {attendance?.daysAbsent || 0}
@@ -126,7 +132,7 @@ function StudentDashboard() {
         </div>
 
         <div className="col-md-4 mb-4">
-          <div className="card h-100">
+          <div className="card h-100 shadow-sm">
             <div className="card-header bg-warning">
               <h5 className="mb-0">Fee Status</h5>
             </div>
@@ -147,6 +153,7 @@ function StudentDashboard() {
                         <span>{fee.feeType}</span>
                         <span
                           className={
+                            fee.paymentStatus === "PAID" ||
                             fee.status === "PAID"
                               ? "text-success"
                               : "text-danger"
@@ -155,12 +162,14 @@ function StudentDashboard() {
                           ₦{balance.toLocaleString()}
                         </span>
                       </div>
+
                       <div className="progress" style={{ height: "5px" }}>
                         <div
                           className="progress-bar bg-success"
                           style={{ width: `${paidPercent}%` }}
                         />
                       </div>
+
                       <small className="text-muted">
                         Due:{" "}
                         {fee.dueDate
@@ -178,7 +187,7 @@ function StudentDashboard() {
 
       <div className="row mt-4">
         <div className="col-12">
-          <div className="card">
+          <div className="card shadow-sm">
             <div className="card-header bg-info text-white">
               <h5 className="mb-0">Recent Results</h5>
             </div>
@@ -204,8 +213,10 @@ function StudentDashboard() {
                     recentResults.map((subject, index) => (
                       <tr key={index}>
                         <td>{subject.subject}</td>
-                        <td>{subject.continuousAssessment}</td>
-                        <td>{subject.examination}</td>
+                        <td>
+                          {subject.continuousAssessment ?? subject.ca ?? 0}
+                        </td>
+                        <td>{subject.examination ?? 0}</td>
                         <td>
                           <strong>{subject.total}</strong>
                         </td>
@@ -238,7 +249,7 @@ function StudentDashboard() {
 
       <div className="row mt-4">
         <div className="col-12">
-          <div className="card">
+          <div className="card shadow-sm">
             <div className="card-body">
               <h5 className="mb-3">Quick Links</h5>
               <div className="d-flex gap-2 flex-wrap">

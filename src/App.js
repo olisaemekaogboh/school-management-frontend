@@ -1,4 +1,3 @@
-// src/App.js
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -51,9 +50,9 @@ import TeacherManagement from "./components/TeacherManagement";
 import TeacherForm from "./components/TeacherForm";
 import TeacherDetails from "./components/TeacherDetails";
 
-// Class Management - Updated imports
+// Class Management
 import ClassManagement from "./components/ClassManagement";
-import ClassManager from "./components/ClassManager"; // New Class Manager component
+import ClassManager from "./components/ClassManager";
 import ClassDetails from "./components/ClassDetails";
 import ClassView from "./components/ClassView";
 
@@ -62,7 +61,7 @@ import SubjectManagement from "./components/SubjectManagement";
 import ResultManagement from "./components/ResultManagement";
 import SessionResult from "./components/SessionResult";
 import AttendanceManagement from "./components/AttendanceManagement";
-import AttendanceManager from "./components/AttendanceManager"; // New Attendance Manager
+import AttendanceManager from "./components/AttendanceManager";
 import ResultSheet from "./components/ResultSheet";
 import FeeManagement from "./components/FeeManagement";
 import FeePayments from "./components/FeePayments";
@@ -82,6 +81,7 @@ import ParentDetails from "./components/parent/ParentDetails";
 import Reports from "./components/Reports";
 import ReportGenerator from "./components/ReportGenerator";
 import Search from "./components/Search";
+import SessionManagement from "./components/SessionManagement";
 
 // Parent portal
 import ParentPortal from "./components/ParentPortal";
@@ -141,7 +141,7 @@ function App() {
                   <Route
                     path="/students"
                     element={
-                      <ProtectedRoute requiredRole="ADMIN">
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
                         <StudentManagement />
                       </ProtectedRoute>
                     }
@@ -289,9 +289,20 @@ function App() {
                   />
 
                   <Route
-                    path="/fees"
+                    path="/sessions"
                     element={
                       <ProtectedRoute requiredRole="ADMIN">
+                        <SessionManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/fees"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "STUDENT", "PARENT"]}
+                      >
                         <FeeManagement />
                       </ProtectedRoute>
                     }
@@ -440,7 +451,9 @@ function App() {
                   <Route
                     path="/attendance"
                     element={
-                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
                         <AttendanceManagement />
                       </ProtectedRoute>
                     }
@@ -469,9 +482,7 @@ function App() {
                   <Route
                     path="/session-results"
                     element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
-                      >
+                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
                         <SessionResult />
                       </ProtectedRoute>
                     }
@@ -492,7 +503,7 @@ function App() {
                     path="/timetable"
                     element={
                       <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "STUDENT"]}
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
                       >
                         <Timetable />
                       </ProtectedRoute>

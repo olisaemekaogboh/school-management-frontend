@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { studentAPI, resultAPI, teacherAPI } from "../services/api";
+import { useLocation, useNavigate, Navigate } from "react-router-dom";
+import { studentAPI, resultAPI, teacherAPI, authAPI } from "../services/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -15,26 +15,35 @@ import {
   FaInfoCircle,
 } from "react-icons/fa";
 import moment from "moment";
+import useActiveSession from "../hooks/useActiveSession";
 import "./ResultManagement.css";
 
 function ResultManagement() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAdmin, isTeacher, isStudent, isParent } = useAuth();
+
+  const query = new URLSearchParams(location.search);
+  const classNameFromQuery = query.get("className") || "";
+  const armFromQuery = query.get("arm") || "";
+  const studentIdFromQuery = query.get("student") || "";
 
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [session, setSession] = useState("2025/2026");
-  const [term, setTerm] = useState("FIRST");
   const [subjects, setSubjects] = useState([]);
   const [resultSheet, setResultSheet] = useState(null);
   const [rankings, setRankings] = useState(null);
   const [activeTab, setActiveTab] = useState(isStudent ? "view" : "input");
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [rankingsType, setRankingsType] = useState("school");
-  const [selectedClass, setSelectedClass] = useState("");
-  const [selectedArm, setSelectedArm] = useState("");
-  const [teacherClasses, setTeacherClasses] = useState([]);
+  const [rankingsType, setRankingsType] = useState("arm");
+  const [selectedClass, setSelectedClass] = useState(classNameFromQuery);
+  const [selectedArm, setSelectedArm] = useState(armFromQuery);
+  const [teacherAssignments, setTeacherAssignments] = useState([]);
+  const [currentStudentProfile, setCurrentStudentProfile] = useState(null);
+
+  const { session, setSession, term, setTerm, loadingSession } =
+    useActiveSession("FIRST");
 
   const subjectList = [
     "Mathematics",
@@ -68,21 +77,6 @@ function ResultManagement() {
 
   const sessions = ["2023/2024", "2024/2025", "2025/2026", "2026/2027"];
   const terms = ["FIRST", "SECOND", "THIRD"];
-  const classes = [
-    "Nursery",
-    "Primary 1",
-    "Primary 2",
-    "Primary 3",
-    "Primary 4",
-    "Primary 5",
-    "Primary 6",
-    "JSS 1",
-    "JSS 2",
-    "JSS 3",
-    "SSS 1",
-    "SSS 2",
-    "SSS 3",
-  ];
 
   const safeNumber = (value, fallback = 0) => {
     const n = Number(value);
@@ -94,93 +88,121 @@ function ResultManagement() {
   };
 
   const filteredStudents = useMemo(() => {
-    if (!searchTerm.trim()) return students;
+    let list = [...students];
+
+    if (selectedClass) {
+      list = list.filter((s) => s.studentClass === selectedClass);
+    }
+
+    if (selectedArm) {
+      list = list.filter((s) => s.classArm === selectedArm);
+    }
+
+    if (!searchTerm.trim()) return list;
 
     const q = searchTerm.toLowerCase();
-    return students.filter(
+    return list.filter(
       (s) =>
         s.fullName?.toLowerCase().includes(q) ||
+        `${s.firstName || ""} ${s.lastName || ""}`.toLowerCase().includes(q) ||
         s.admissionNumber?.toLowerCase().includes(q) ||
         s.studentClass?.toLowerCase().includes(q),
     );
-  }, [students, searchTerm]);
-
-  const availableRankingClasses = useMemo(() => {
-    if (isAdmin) return classes;
-    if (isTeacher) return teacherClasses;
-    return [];
-  }, [isAdmin, isTeacher, teacherClasses]);
+  }, [students, searchTerm, selectedClass, selectedArm]);
 
   useEffect(() => {
-    loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (session) {
+      loadInitialData();
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (!isStudent && studentIdFromQuery && students.length > 0) {
+      const found = students.find(
+        (s) => String(s.id) === String(studentIdFromQuery),
+      );
+      if (found) setSelectedStudent(found);
+    }
+  }, [studentIdFromQuery, students, isStudent]);
+
+  if (isParent) {
+    return <Navigate to="/parent-dashboard" replace />;
+  }
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
 
-      if (isParent) {
-        setStudents([]);
-        return;
-      }
+      if (isStudent) {
+        const meRes = await authAPI.getCurrentUser();
+        const me = meRes.data;
+        const studentProfile = me?.student || me?.studentProfile || null;
 
-      if (isStudent && user?.studentId) {
-        const response = await studentAPI.getStudentById(user.studentId);
-        const me = response.data;
-        const oneStudent = [me];
-
-        setStudents(oneStudent);
-        setSelectedStudent(me);
+        setCurrentStudentProfile(studentProfile);
+        if (studentProfile) {
+          setSelectedStudent(studentProfile);
+        }
         setActiveTab("view");
         return;
       }
 
       if (isTeacher) {
-        let allowedClasses = [];
+        const teacherRes = await teacherAPI.getMyTeacherProfile();
+        const teacher = teacherRes.data;
 
-        try {
-          const teacherProfile = await teacherAPI.getMyTeacherProfile();
-          allowedClasses =
-            teacherProfile.data?.assignedClasses?.map((c) => c.className) ||
-            teacherProfile.data?.classNames ||
-            [];
-        } catch (error) {
-          console.error("Error loading teacher classes:", error);
+        const assignments = teacher?.assignedClasses || teacher?.classes || [];
+
+        const normalizedAssignments = assignments.map((c) => ({
+          className: c.className,
+          arm: c.arm,
+        }));
+
+        setTeacherAssignments(normalizedAssignments);
+
+        let allStudents = [];
+
+        if (classNameFromQuery && armFromQuery) {
+          const res = await studentAPI.getStudentsByClassAndArm(
+            classNameFromQuery,
+            armFromQuery,
+          );
+          allStudents = res.data || [];
+          setSelectedClass(classNameFromQuery);
+          setSelectedArm(armFromQuery);
+        } else {
+          const responses = await Promise.all(
+            normalizedAssignments.map((a) =>
+              studentAPI.getStudentsByClassAndArm(a.className, a.arm),
+            ),
+          );
+
+          allStudents = responses.flatMap((r) => r.data || []);
         }
 
-        setTeacherClasses(allowedClasses);
-
-        if (allowedClasses.length === 0) {
-          setStudents([]);
-          return;
-        }
-
-        const responses = await Promise.all(
-          allowedClasses.map((className) =>
-            studentAPI.getStudentsByClass(className),
-          ),
-        );
-
-        const combined = responses.flatMap((res) => res.data || []);
         const uniqueStudents = Array.from(
-          new Map(combined.map((student) => [student.id, student])).values(),
+          new Map(allStudents.map((student) => [student.id, student])).values(),
         );
 
         setStudents(uniqueStudents);
 
-        if (allowedClasses.length === 1) {
-          setSelectedClass(allowedClasses[0]);
+        if (!classNameFromQuery && normalizedAssignments.length === 1) {
+          setSelectedClass(normalizedAssignments[0].className);
+          setSelectedArm(normalizedAssignments[0].arm);
         }
 
         return;
       }
 
-      const response = await studentAPI.getAllStudents();
-      setStudents(response.data || []);
+      if (isAdmin) {
+        const response = await studentAPI.getAllStudents();
+        setStudents(response.data || []);
+
+        if (classNameFromQuery) setSelectedClass(classNameFromQuery);
+        if (armFromQuery) setSelectedArm(armFromQuery);
+      }
     } catch (error) {
-      console.error("Error fetching students:", error);
-      toast.error("Failed to load students");
+      console.error("Error loading result management data:", error);
+      toast.error("Failed to load result data");
     } finally {
       setLoading(false);
     }
@@ -251,6 +273,11 @@ function ResultManagement() {
       return;
     }
 
+    if (!session) {
+      toast.error("No active session found");
+      return;
+    }
+
     if (subjects.length === 0) {
       toast.error("Please add at least one subject");
       return;
@@ -270,10 +297,8 @@ function ResultManagement() {
     setLoading(true);
 
     try {
-      let successCount = 0;
-
       for (const subject of subjects) {
-        const resultData = {
+        await resultAPI.addOrUpdateResultDTO({
           studentId: selectedStudent.id,
           subject: subject.name,
           session,
@@ -285,18 +310,12 @@ function ResultManagement() {
           secondTest: safeNumber(subject.secondTest),
           examination: safeNumber(subject.examination),
           remarks: "",
-        };
-
-        await resultAPI.addOrUpdateResultDTO(resultData);
-        successCount++;
+        });
       }
 
-      toast.success(`${successCount} subject(s) saved successfully`);
+      toast.success(`${subjects.length} subject(s) saved successfully`);
       setSubjects([]);
-
-      if (activeTab === "view") {
-        await fetchStudentResult();
-      }
+      await fetchStudentResult();
     } catch (error) {
       console.error("Error saving results:", error);
       toast.error(error?.response?.data?.message || "Failed to save results");
@@ -306,18 +325,23 @@ function ResultManagement() {
   };
 
   const fetchStudentResult = async () => {
+    if (!session) {
+      toast.error("No active session found");
+      return;
+    }
+
     setLoading(true);
 
     try {
       if (isStudent) {
         const response = await resultAPI.getMyTermResult(session, term);
         setResultSheet(response.data);
-        toast.success("Result loaded successfully");
         return;
       }
 
       if (!selectedStudent) {
         toast.error("Please select a student");
+        setLoading(false);
         return;
       }
 
@@ -327,7 +351,6 @@ function ResultManagement() {
         term,
       );
       setResultSheet(response.data);
-      toast.success("Result loaded successfully");
     } catch (error) {
       console.error("Error fetching result:", error);
       setResultSheet(null);
@@ -343,33 +366,50 @@ function ResultManagement() {
       return;
     }
 
+    if (!session) {
+      toast.error("No active session found");
+      return;
+    }
+
     setLoading(true);
+
     try {
       let response;
 
       if (rankingsType === "school") {
+        if (!isAdmin) {
+          toast.error("Only admin can view school rankings");
+          setLoading(false);
+          return;
+        }
         response = await resultAPI.getSchoolRankings(session, term);
-      } else if (rankingsType === "class" && selectedClass) {
+      } else if (rankingsType === "class") {
+        if (!selectedClass || !selectedArm) {
+          toast.error("Please select class and arm");
+          setLoading(false);
+          return;
+        }
         response = await resultAPI.getClassRankings(
           selectedClass,
+          selectedArm,
           session,
           term,
         );
-      } else if (rankingsType === "arm" && selectedClass && selectedArm) {
+      } else if (rankingsType === "arm") {
+        if (!selectedClass || !selectedArm) {
+          toast.error("Please select class and arm");
+          setLoading(false);
+          return;
+        }
         response = await resultAPI.getArmRankings(
           selectedClass,
           selectedArm,
           session,
           term,
         );
-      } else {
-        toast.error("Please select all required fields");
-        setLoading(false);
-        return;
       }
 
       setRankings(response.data);
-      toast.success("Rankings loaded successfully");
     } catch (error) {
       console.error("Error fetching rankings:", error);
       toast.error("Failed to load rankings");
@@ -379,12 +419,15 @@ function ResultManagement() {
   };
 
   const viewResultSheet = () => {
-    const targetStudent = isStudent
-      ? selectedStudent || students[0]
-      : selectedStudent;
+    const targetStudent = isStudent ? currentStudentProfile : selectedStudent;
 
     if (!targetStudent) {
       toast.error("Please select a student");
+      return;
+    }
+
+    if (!session) {
+      toast.error("No active session found");
       return;
     }
 
@@ -394,9 +437,10 @@ function ResultManagement() {
       return;
     }
 
-    const [year, termPart] = sessionParts;
-
-    navigate(`/results/${targetStudent.id}/${year}/${termPart}/${term}`);
+    const [sessionYear, sessionTerm] = sessionParts;
+    navigate(
+      `/results/${targetStudent.id}/${sessionYear}/${sessionTerm}/${term}`,
+    );
   };
 
   const clearForm = () => {
@@ -421,12 +465,14 @@ function ResultManagement() {
     return colors[grade] || "bg-secondary";
   };
 
-  if (isParent) {
+  const rankingOptionsForTeacher = teacherAssignments.map(
+    (a) => `${a.className}__${a.arm}`,
+  );
+
+  if (loadingSession) {
     return (
-      <div className="result-management">
-        <div className="alert alert-info">
-          Please access your ward&apos;s results from the Parent Dashboard.
-        </div>
+      <div className="text-center py-5">
+        <FaSpinner className="spin" size={40} />
       </div>
     );
   }
@@ -441,8 +487,12 @@ function ResultManagement() {
           {isStudent
             ? "View your academic results"
             : isTeacher
-              ? "Enter and view results for your class"
+              ? "Enter and view results for your assigned class only"
               : "Enter, view and analyze student results"}
+        </p>
+        <p className="text-muted mb-0">
+          Active Session: <strong>{session || "No active session"}</strong> |
+          Term: <strong>{term}</strong>
         </p>
       </div>
 
@@ -506,8 +556,9 @@ function ResultManagement() {
                     <option value="">Choose a student</option>
                     {filteredStudents.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.fullName} - {s.admissionNumber} ({s.studentClass}{" "}
-                        {s.classArm})
+                        {s.fullName ||
+                          `${s.firstName || ""} ${s.lastName || ""}`.trim()}{" "}
+                        - {s.admissionNumber} ({s.studentClass} {s.classArm})
                       </option>
                     ))}
                   </select>
@@ -561,15 +612,13 @@ function ResultManagement() {
 
           {!selectedStudent && (
             <div className="alert-info">
-              <FaInfoCircle /> Please select a student from the dropdown above
-              to enter results.
+              <FaInfoCircle /> Please select a student from the dropdown above.
             </div>
           )}
 
           {selectedStudent && subjects.length === 0 && (
             <div className="alert-warning">
-              <FaPlus /> No subjects added. Click "Add Subject" to start
-              entering results.
+              <FaPlus /> No subjects added yet. Click "Add Subject" to start.
             </div>
           )}
 
@@ -763,11 +812,7 @@ function ResultManagement() {
               </button>
 
               {resultSheet && (
-                <button
-                  className="btn-success"
-                  onClick={viewResultSheet}
-                  title="View printable result sheet"
-                >
+                <button className="btn-success" onClick={viewResultSheet}>
                   <FaPrint /> Printable Result
                 </button>
               )}
@@ -787,21 +832,25 @@ function ResultManagement() {
                       <strong>Student:</strong>{" "}
                       {resultSheet.studentInfo?.name ||
                         selectedStudent?.fullName ||
+                        currentStudentProfile?.fullName ||
                         user?.firstName}
                     </p>
                     <p>
                       <strong>Admission:</strong>{" "}
                       {resultSheet.studentInfo?.admissionNumber ||
                         selectedStudent?.admissionNumber ||
+                        currentStudentProfile?.admissionNumber ||
                         "-"}
                     </p>
                     <p>
                       <strong>Class:</strong>{" "}
                       {resultSheet.studentInfo?.class ||
                         selectedStudent?.studentClass ||
+                        currentStudentProfile?.studentClass ||
                         "-"}{" "}
                       {resultSheet.studentInfo?.arm ||
                         selectedStudent?.classArm ||
+                        currentStudentProfile?.classArm ||
                         ""}
                     </p>
                   </div>
@@ -893,36 +942,64 @@ function ResultManagement() {
               value={rankingsType}
               onChange={(e) => setRankingsType(e.target.value)}
             >
-              <option value="school">School Rankings</option>
+              {isAdmin && <option value="school">School Rankings</option>}
               <option value="class">Class Rankings</option>
               <option value="arm">Class Arm Rankings</option>
             </select>
 
-            {rankingsType !== "school" && (
-              <select
-                className="form-select"
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-              >
-                <option value="">Select Class</option>
-                {availableRankingClasses.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
+            {isAdmin ? (
+              <>
+                <select
+                  className="form-select"
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                >
+                  <option value="">Select Class</option>
+                  {[
+                    ...new Set(
+                      students.map((s) => s.studentClass).filter(Boolean),
+                    ),
+                  ].map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
 
-            {rankingsType === "arm" && (
+                <select
+                  className="form-select"
+                  value={selectedArm}
+                  onChange={(e) => setSelectedArm(e.target.value)}
+                >
+                  <option value="">Select Arm</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </select>
+              </>
+            ) : (
               <select
                 className="form-select"
-                value={selectedArm}
-                onChange={(e) => setSelectedArm(e.target.value)}
+                value={
+                  selectedClass && selectedArm
+                    ? `${selectedClass}__${selectedArm}`
+                    : ""
+                }
+                onChange={(e) => {
+                  const [c, a] = e.target.value.split("__");
+                  setSelectedClass(c || "");
+                  setSelectedArm(a || "");
+                }}
               >
-                <option value="">Select Arm</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
+                <option value="">Select Assigned Class</option>
+                {rankingOptionsForTeacher.map((value) => {
+                  const [c, a] = value.split("__");
+                  return (
+                    <option key={value} value={value}>
+                      {c} {a}
+                    </option>
+                  );
+                })}
               </select>
             )}
 

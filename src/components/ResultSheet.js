@@ -1,4 +1,3 @@
-// src/components/ResultSheet.js
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { studentAPI, resultAPI } from "../services/api";
@@ -21,80 +20,48 @@ function ResultSheet() {
   const { studentId, sessionYear, sessionTerm, term } = useParams();
   const navigate = useNavigate();
   const [resultData, setResultData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const componentRef = useRef();
 
-  // Reconstruct session from URL parameters
   const session = `${sessionYear}/${sessionTerm}`;
 
   useEffect(() => {
-    console.log("ResultSheet mounted with params:", {
-      studentId,
-      sessionYear,
-      sessionTerm,
-      term,
-      reconstructedSession: session,
-    });
-
-    if (studentId && session && term) {
+    if (studentId && sessionYear && sessionTerm && term) {
       fetchResultData();
     } else {
       setError("Missing required parameters");
       setLoading(false);
     }
-  }, [studentId, session, term]);
+  }, [studentId, sessionYear, sessionTerm, term]);
 
   const fetchResultData = async () => {
-    console.log("Fetching result data...");
     setLoading(true);
     setError(null);
 
     try {
-      // Fetch student details first
-      console.log("Fetching student with ID:", studentId);
-      const studentResponse = await studentAPI.getStudentById(studentId);
-      console.log("Student response:", studentResponse.data);
+      const [studentResponse, resultResponse] = await Promise.all([
+        studentAPI.getStudentById(studentId),
+        resultAPI.getTermResult(studentId, session, term),
+      ]);
+
       setStudent(studentResponse.data);
-
-      // Fetch result sheet
-      console.log("Fetching result for:", { studentId, session, term });
-      console.log(
-        "API URL:",
-        `/results/student/${studentId}/term?session=${session}&term=${term}`,
-      );
-
-      const resultResponse = await resultAPI.getTermResult(
-        studentId,
-        session,
-        term,
-      );
-
-      console.log("Result response:", resultResponse.data);
       setResultData(resultResponse.data);
-      toast.success("Result loaded successfully");
     } catch (error) {
-      console.error("Error fetching result:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        config: error.config,
-      });
+      console.error("Error fetching result sheet:", error);
 
-      // Handle specific error cases
       if (error.response?.status === 404) {
         setError("No result found for this student in the selected term");
-        toast.info("No results found for this student in the selected term");
+      } else if (error.response?.status === 403) {
+        setError("You are not allowed to view this result");
       } else {
         setError(
           error.response?.data?.message ||
             error.message ||
             "Failed to load result sheet",
         );
-        toast.error("Failed to load result sheet");
       }
     } finally {
       setLoading(false);
@@ -164,8 +131,8 @@ function ResultSheet() {
       );
 
       const fileName = `${student?.fullName?.replace(/\s+/g, "_") || "student"}_${term}_${sessionYear}_${sessionTerm}.pdf`;
-
       pdf.save(fileName);
+
       toast.success("PDF downloaded successfully");
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -174,6 +141,12 @@ function ResultSheet() {
       setDownloading(false);
     }
   };
+
+  const studentPhotoUrl = resultData?.studentInfo?.profilePictureUrl
+    ? `http://localhost:8080${resultData.studentInfo.profilePictureUrl}`
+    : student?.profilePictureUrl
+      ? `http://localhost:8080${student.profilePictureUrl}`
+      : null;
 
   if (loading) {
     return (
@@ -257,13 +230,11 @@ function ResultSheet() {
         </div>
       </div>
 
-      {/* Printable Result Sheet */}
       <div
         ref={componentRef}
         className="result-sheet printable bg-white p-4"
         style={{ fontFamily: "Arial, sans-serif" }}
       >
-        {/* School Header */}
         <div className="text-center mb-4 border-bottom pb-3">
           <h1 className="display-6 text-success mb-0">
             FAITH FOUNDATION INTERNATIONAL SCHOOL
@@ -275,12 +246,10 @@ function ResultSheet() {
           <p className="mb-0">Website: www.faithfoundation.edu.ng</p>
         </div>
 
-        {/* Result Title */}
         <h3 className="text-center mb-4 text-uppercase fw-bold">
           {term} TERM RESULT SHEET - {session} SESSION
         </h3>
 
-        {/* Student Info with Photo */}
         <div className="row mb-4">
           <div className="col-md-8">
             <table className="table table-bordered">
@@ -326,51 +295,24 @@ function ResultSheet() {
               </tbody>
             </table>
           </div>
+
           <div className="col-md-4 text-center">
             <div className="student-photo-container p-3 bg-light rounded">
-              {resultData?.studentInfo?.profilePictureUrl ? (
-                <div className="position-relative">
-                  <img
-                    src={`http://localhost:8080${resultData.studentInfo.profilePictureUrl}`}
-                    alt={resultData.studentInfo.name}
-                    className="img-fluid rounded-circle border border-4 border-success"
-                    style={{
-                      width: "180px",
-                      height: "180px",
-                      objectFit: "cover",
-                      boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-                    }}
-                    onError={(e) => {
-                      console.error("Image failed to load:", e.target.src);
-                      e.target.onerror = null;
-                      e.target.src = "/default-avatar.png";
-                    }}
-                  />
-                  <div className="mt-2">
-                    <span className="badge bg-success">
-                      ID: {resultData.studentInfo.admissionNumber}
-                    </span>
-                  </div>
-                </div>
-              ) : student?.profilePictureUrl ? (
-                <div className="position-relative">
-                  <img
-                    src={`http://localhost:8080${student.profilePictureUrl}`}
-                    alt={student.fullName}
-                    className="img-fluid rounded-circle border border-4 border-success"
-                    style={{
-                      width: "180px",
-                      height: "180px",
-                      objectFit: "cover",
-                      boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-                    }}
-                    onError={(e) => {
-                      console.error("Image failed to load:", e.target.src);
-                      e.target.onerror = null;
-                      e.target.src = "/default-avatar.png";
-                    }}
-                  />
-                </div>
+              {studentPhotoUrl ? (
+                <img
+                  src={studentPhotoUrl}
+                  alt={resultData?.studentInfo?.name || student?.fullName}
+                  className="img-fluid rounded-circle border border-4 border-success"
+                  style={{
+                    width: "180px",
+                    height: "180px",
+                    objectFit: "cover",
+                    boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+                  }}
+                  onError={(e) => {
+                    e.target.style.display = "none";
+                  }}
+                />
               ) : (
                 <div className="text-center">
                   <FaUserCircle size={150} color="#ccc" />
@@ -386,135 +328,17 @@ function ResultSheet() {
           </div>
         </div>
 
-        {/* Attendance Record */}
-        <div className="row mb-4">
-          <div className="col-md-6">
-            <div className="border p-3 rounded">
-              <h6 className="bg-light p-2 mb-3">ATTENDANCE RECORD</h6>
-              <table className="table table-sm">
-                <tbody>
-                  <tr>
-                    <td>Total School Days:</td>
-                    <td className="fw-bold">
-                      {resultData?.summary?.totalSchoolDays || 0}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Days Present:</td>
-                    <td className="fw-bold text-success">
-                      {resultData?.summary?.daysPresent || 0}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Days Absent:</td>
-                    <td className="fw-bold text-danger">
-                      {resultData?.summary?.daysAbsent || 0}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Attendance Percentage:</td>
-                    <td className="fw-bold">
-                      {resultData?.summary?.attendancePercentage?.toFixed(1) ||
-                        0}
-                      %
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colSpan="2">
-                      <div className="progress" style={{ height: "10px" }}>
-                        <div
-                          className={`progress-bar ${
-                            (resultData?.summary?.attendancePercentage || 0) >=
-                            90
-                              ? "bg-success"
-                              : (resultData?.summary?.attendancePercentage ||
-                                    0) >= 75
-                                ? "bg-primary"
-                                : (resultData?.summary?.attendancePercentage ||
-                                      0) >= 60
-                                  ? "bg-warning"
-                                  : "bg-danger"
-                          }`}
-                          style={{
-                            width: `${resultData?.summary?.attendancePercentage || 0}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div className="col-md-6">
-            <div className="border p-3 rounded">
-              <h6 className="bg-light p-2 mb-3">ATTENDANCE STATUS</h6>
-              <div className="row text-center">
-                <div className="col-4">
-                  <div className="p-2">
-                    <span
-                      className="badge bg-success p-3"
-                      style={{ fontSize: "1.2rem" }}
-                    >
-                      {resultData?.summary?.daysPresent || 0}
-                    </span>
-                    <p className="mt-2 mb-0">Present</p>
-                  </div>
-                </div>
-                <div className="col-4">
-                  <div className="p-2">
-                    <span
-                      className="badge bg-danger p-3"
-                      style={{ fontSize: "1.2rem" }}
-                    >
-                      {resultData?.summary?.daysAbsent || 0}
-                    </span>
-                    <p className="mt-2 mb-0">Absent</p>
-                  </div>
-                </div>
-                <div className="col-4">
-                  <div className="p-2">
-                    <span
-                      className="badge bg-info p-3"
-                      style={{ fontSize: "1.2rem" }}
-                    >
-                      {(
-                        ((resultData?.summary?.daysPresent || 0) /
-                          (resultData?.summary?.totalSchoolDays || 1)) *
-                        100
-                      ).toFixed(0)}
-                      %
-                    </span>
-                    <p className="mt-2 mb-0">Rate</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Subjects Table */}
         <div className="table-responsive mb-4">
           <table className="table table-bordered table-striped">
             <thead className="bg-success text-white">
               <tr>
-                <th rowSpan="2">S/N</th>
-                <th rowSpan="2">SUBJECT</th>
-                <th colSpan="5" className="text-center">
-                  CONTINUOUS ASSESSMENT (40)
-                </th>
-                <th rowSpan="2">CA TOTAL (40)</th>
-                <th rowSpan="2">EXAM (60)</th>
-                <th rowSpan="2">TOTAL (100)</th>
-                <th rowSpan="2">GRADE</th>
-                <th rowSpan="2">REMARK</th>
-              </tr>
-              <tr>
-                <th>RT (5)</th>
-                <th>ASS (10)</th>
-                <th>PROJ (10)</th>
-                <th>MT (10)</th>
-                <th>2ND (5)</th>
+                <th>S/N</th>
+                <th>SUBJECT</th>
+                <th>CA</th>
+                <th>EXAM</th>
+                <th>TOTAL</th>
+                <th>GRADE</th>
+                <th>REMARK</th>
               </tr>
             </thead>
             <tbody>
@@ -522,12 +346,7 @@ function ResultSheet() {
                 <tr key={index}>
                   <td>{index + 1}</td>
                   <td className="fw-bold">{subject.subject}</td>
-                  <td>{subject.resumptionTest}</td>
-                  <td>{subject.assignments}</td>
-                  <td>{subject.project}</td>
-                  <td>{subject.midtermTest}</td>
-                  <td>{subject.secondTest}</td>
-                  <td className="fw-bold">{subject.continuousAssessment}</td>
+                  <td>{subject.continuousAssessment}</td>
                   <td>{subject.examination}</td>
                   <td className="fw-bold">{subject.total}</td>
                   <td className={`fw-bold ${getGradeColor(subject.grade)}`}>
@@ -540,7 +359,6 @@ function ResultSheet() {
           </table>
         </div>
 
-        {/* Summary Section */}
         <div className="row mb-4">
           <div className="col-md-3">
             <div className="border p-3 rounded bg-light text-center">
@@ -562,125 +380,23 @@ function ResultSheet() {
             <div className="border p-3 rounded bg-light text-center">
               <h6>CLASS POSITION</h6>
               <h3 className="text-warning">
-                {resultData?.summary?.positionInClass} /{" "}
-                {resultData?.summary?.totalStudentsInClass}
+                {resultData?.summary?.positionInClass}
               </h3>
-              <small className="text-muted">
-                Out of {resultData?.summary?.totalStudentsInClass} students
-              </small>
             </div>
           </div>
           <div className="col-md-3">
             <div className="border p-3 rounded bg-light text-center">
               <h6>ARM POSITION</h6>
               <h3 className="text-info">
-                {resultData?.summary?.positionInArm} /{" "}
-                {resultData?.summary?.totalStudentsInArm || 1}
+                {resultData?.summary?.positionInArm}
               </h3>
-              <small className="text-muted">
-                Out of {resultData?.summary?.totalStudentsInArm || 1} students
-              </small>
             </div>
           </div>
         </div>
 
-        {/* Grade Key */}
-        <div className="row mb-4">
-          <div className="col-12">
-            <div className="border p-3 rounded">
-              <h6 className="bg-light p-2 mb-3">GRADING SYSTEM</h6>
-              <div className="row">
-                <div className="col-md-2">
-                  <span className="badge bg-success">A</span> 70-100% -
-                  Excellent
-                </div>
-                <div className="col-md-2">
-                  <span className="badge bg-primary">B</span> 60-69% - Very Good
-                </div>
-                <div className="col-md-2">
-                  <span className="badge bg-info">C</span> 50-59% - Good
-                </div>
-                <div className="col-md-2">
-                  <span className="badge bg-warning">D</span> 45-49% - Pass
-                </div>
-                <div className="col-md-2">
-                  <span className="badge bg-secondary">E</span> 40-44% - Fair
-                </div>
-                <div className="col-md-2">
-                  <span className="badge bg-danger">F</span> 0-39% - Fail
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Comments and Signatures */}
-        <div className="row mb-4">
-          <div className="col-md-6">
-            <div className="border p-3 rounded">
-              <h6 className="bg-light p-2 mb-3">CLASS TEACHER'S COMMENT</h6>
-              <p className="fst-italic">
-                "A very good performance. Keep up the good work!"
-              </p>
-              <div className="row mt-4">
-                <div className="col-6">
-                  <p>_________________________</p>
-                  <p className="fw-bold">Class Teacher's Signature</p>
-                  <p className="text-muted small">
-                    Date: {formatDate(new Date())}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="col-md-6">
-            <div className="border p-3 rounded">
-              <h6 className="bg-light p-2 mb-3">PRINCIPAL'S COMMENT</h6>
-              <p className="fst-italic">
-                "Excellent performance. Promoted to the next class."
-              </p>
-              <div className="row mt-4">
-                <div className="col-6">
-                  <p>_________________________</p>
-                  <p className="fw-bold">Principal's Signature</p>
-                  <p className="text-muted small">
-                    Date: {formatDate(new Date())}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Next Term Information */}
-        <div className="border p-3 rounded bg-light">
-          <div className="row">
-            <div className="col-md-4">
-              <p className="mb-0">
-                <strong>Term Ends:</strong> 12th December, 2025
-              </p>
-            </div>
-            <div className="col-md-4">
-              <p className="mb-0">
-                <strong>Next Term Begins:</strong> 6th January, 2026
-              </p>
-            </div>
-            <div className="col-md-4">
-              <p className="mb-0">
-                <strong>Next Term Class:</strong>{" "}
-                {resultData?.studentInfo?.class} {resultData?.studentInfo?.arm}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
         <div className="text-center mt-4 pt-3 border-top">
           <p className="text-muted small mb-0">
             This is a computer-generated result and is valid without signature
-          </p>
-          <p className="text-muted small">
-            Powered by Faith Foundation International School Management System
           </p>
         </div>
       </div>

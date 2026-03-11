@@ -570,51 +570,98 @@ export const feeAPI = {
   createFee: (data) => api.post("/fees", data),
   updateFee: (id, data) => api.put(`/fees/${id}`, data),
   getFee: (id) => api.get(`/fees/${id}`),
+
   getStudentFees: (studentId, session, term) =>
     api.get(`/fees/student/${studentId}`, {
       params: { session, term },
     }),
-  recordPayment: (feeId, amount, paymentMethod, reference) =>
+
+  getStudentAllFees: (studentId) => api.get(`/fees/student/${studentId}/all`),
+
+  getStudentPaymentHistory: (studentId, session) =>
+    api.get(`/fees/student/${studentId}/payments`, {
+      params: session ? { session } : {},
+    }),
+
+  hasOutstandingFees: (studentId, session, term) =>
+    api.get(`/fees/student/${studentId}/has-outstanding`, {
+      params: { session, term },
+    }),
+
+  getTotalOutstanding: (studentId, session, term) =>
+    api.get(`/fees/student/${studentId}/outstanding/total`, {
+      params: { session, term },
+    }),
+
+  getOutstandingByType: (studentId, session, term) =>
+    api.get(`/fees/student/${studentId}/outstanding/by-type`, {
+      params: { session, term },
+    }),
+
+  getMyFees: (session, term) =>
+    api.get("/fees/me", {
+      params: { session, term },
+    }),
+
+  getMyPaymentHistory: (session) =>
+    api.get("/fees/me/payments", {
+      params: session ? { session } : {},
+    }),
+
+  recordPayment: (feeId, amount, paymentMethod, reference, notes) =>
     api.post(`/fees/${feeId}/payment`, null, {
+      params: {
+        amount,
+        paymentMethod,
+        ...(reference ? { reference } : {}),
+        ...(notes ? { notes } : {}),
+      },
+    }),
+
+  recordPartialPayment: (feeId, amount, paymentMethod, reference) =>
+    api.post(`/fees/${feeId}/partial-payment`, null, {
       params: {
         amount,
         paymentMethod,
         ...(reference ? { reference } : {}),
       },
     }),
+
   getOverdueFees: () => api.get("/fees/overdue"),
   getUpcomingFees: (days = 7) =>
     api.get("/fees/upcoming", { params: { days } }),
+
   getFeeStatistics: (session, term) =>
     api.get("/fees/statistics", {
       params: { session, term },
     }),
+
   getDefaultingStudents: (session, term) =>
     api.get("/fees/defaulters", {
       params: { session, term },
     }),
+
   sendFeeReminders: (session, term, daysBeforeDue = 7) =>
     api.post("/fees/reminders/send", null, {
       params: { session, term, daysBeforeDue },
     }),
+
   sendOverdueReminders: () => api.post("/fees/reminders/overdue"),
+
   generateFeeReport: (session, term) =>
     api.get("/fees/report", {
       params: { session, term },
     }),
-  getPaymentHistory: (feeId) => api.get(`/fees/${feeId}/payments`),
+
+  getFeePaymentHistory: (feeId) => api.get(`/fees/${feeId}/payments`),
+
   sendSingleReminder: (feeId) => api.post(`/fees/${feeId}/send-reminder`),
-  exportToCSV: (session, term) =>
-    api.get("/fees/export", {
-      params: { session, term, format: "csv" },
-      responseType: "blob",
-    }),
-  getFeeSummary: (session, term) =>
-    api.get("/fees/summary", {
+
+  getDashboardData: (session, term) =>
+    api.get("/fees/dashboard", {
       params: { session, term },
     }),
 };
-
 /* ================================
    TIMETABLE API
 ================================ */
@@ -656,17 +703,14 @@ export const parentAPI = {
     api.get("/parents/by-email", { params: { email } }),
   deleteParent: (id) => api.delete(`/parents/${id}`),
   getAllParents: () => api.get("/parents"),
+
+  // admin use
   getWards: (parentId) => api.get(`/parents/${parentId}/wards`),
   linkStudent: (parentId, studentId) =>
     api.post(`/parents/${parentId}/wards/${studentId}`),
   unlinkStudent: (parentId, studentId) =>
     api.delete(`/parents/${parentId}/wards/${studentId}`),
-  getParentDashboard: (parentId, session, term) =>
-    api.get(`/parents/${parentId}/dashboard`, {
-      params: { session, term },
-    }),
 };
-
 /* ================================
    LIBRARY API
 ================================ */
@@ -788,42 +832,68 @@ export const teacherPortalAPI = {
 
 export const studentPortalAPI = {
   getDashboard: () => api.get("/student/dashboard"),
-  getMyProfile: () => api.get("/students/me"),
+  getMyProfile: () => api.get("/auth/me"),
+
   getMyTermResult: (session, term) =>
     api.get("/results/me/term", { params: { session, term } }),
+
   getMySessionResult: (session) =>
-    api.get("/session-results/me", { params: { session } }),
+    api.get("/results/me/annual", { params: { session } }),
+
   getMyAttendance: (session, term) =>
-    api.get("/attendance/me", { params: { session, term } }),
+    api.get("/attendance/me/term", { params: { session, term } }),
+
+  getMyAttendanceSummary: (session, term) =>
+    api.get("/attendance/me/summary", { params: { session, term } }),
+
   getMyFees: (session, term) =>
     api.get("/fees/me", { params: { session, term } }),
+
+  getMyPaymentHistory: (session) =>
+    api.get("/fees/me/payments", {
+      params: session ? { session } : {},
+    }),
+
   getMyTimetable: (session, term) =>
     api.get("/student/timetable", { params: { session, term } }),
+
   getMyTransport: () => api.get("/student/transport"),
 };
 
 export const parentPortalAPI = {
-  getDashboard: () => api.get("/parent/dashboard"),
+  getDashboard: () => api.get("/parents/me/dashboard"),
   getMyProfile: () => api.get("/parents/me"),
   getMyWards: () => api.get("/parents/me/wards"),
+
   getWardTermResult: (studentId, session, term) =>
-    api.get(`/parents/me/wards/${studentId}/results/term`, {
+    api.get(`/results/student/${studentId}/term`, {
       params: { session, term },
     }),
+
   getWardSessionResult: (studentId, session) =>
-    api.get(`/parents/me/wards/${studentId}/results/session`, {
+    api.get(`/results/student/${studentId}/annual`, {
       params: { session },
     }),
+
   getWardAttendance: (studentId, session, term) =>
-    api.get(`/parents/me/wards/${studentId}/attendance`, {
+    api.get(`/attendance/student/${studentId}/summary`, {
       params: { session, term },
     }),
+
+  getWardAttendanceList: (studentId, session, term) =>
+    api.get(`/attendance/student/${studentId}/term`, {
+      params: { session, term },
+    }),
+
   getWardFees: (studentId, session, term) =>
-    api.get(`/parents/me/wards/${studentId}/fees`, {
+    api.get(`/fees/student/${studentId}`, {
       params: { session, term },
     }),
-  getWardTransport: (studentId) =>
-    api.get(`/parents/me/wards/${studentId}/transport`),
+
+  getWardPaymentHistory: (studentId, session) =>
+    api.get(`/fees/student/${studentId}/payments`, {
+      params: session ? { session } : {},
+    }),
 };
 
 export default api;

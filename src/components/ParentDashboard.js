@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link } from "react-router-dom";
-import { parentAPI } from "../services/api";
+import { parentPortalAPI } from "../services/api";
 import {
   FaChild,
   FaMoneyBill,
@@ -16,20 +16,16 @@ function ParentDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user?.parentId) {
-      fetchWards();
-    } else {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+    fetchWards();
+  }, []);
 
   const fetchWards = async () => {
     try {
-      const response = await parentAPI.getWards(user.parentId);
+      const response = await parentPortalAPI.getMyWards();
       setWards(response.data || []);
     } catch (error) {
       console.error("Error fetching wards:", error);
+      setWards([]);
     } finally {
       setLoading(false);
     }
@@ -57,12 +53,13 @@ function ParentDashboard() {
         <div className="row">
           {wards.map((ward) => (
             <div key={ward.id} className="col-md-6 mb-4">
-              <div className="card">
+              <div className="card shadow-sm h-100">
                 <div className="card-header bg-primary text-white">
                   <h5 className="mb-0">
                     {ward.fullName || `${ward.firstName} ${ward.lastName}`}
                   </h5>
                 </div>
+
                 <div className="card-body">
                   <p>
                     <strong>Admission:</strong> {ward.admissionNumber}
@@ -73,22 +70,27 @@ function ParentDashboard() {
 
                   <div className="d-flex gap-2 mt-3 flex-wrap">
                     <Link
-                      to={`/results?student=${ward.id}`}
+                      to={`/results?student=${ward.id}&scope=parent`}
                       className="btn btn-sm btn-outline-primary"
                     >
-                      <FaChartBar /> Results
+                      <FaChartBar className="me-1" />
+                      Results
                     </Link>
+
                     <Link
-                      to={`/attendance?student=${ward.id}`}
+                      to={`/attendance?student=${ward.id}&scope=parent`}
                       className="btn btn-sm btn-outline-success"
                     >
-                      <FaCalendarAlt /> Attendance
+                      <FaCalendarAlt className="me-1" />
+                      Attendance
                     </Link>
+
                     <Link
-                      to={`/fees?student=${ward.id}`}
+                      to={`/fees?student=${ward.id}&scope=parent`}
                       className="btn btn-sm btn-outline-warning"
                     >
-                      <FaMoneyBill /> Fees
+                      <FaMoneyBill className="me-1" />
+                      Fees
                     </Link>
                   </div>
                 </div>

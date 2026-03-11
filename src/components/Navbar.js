@@ -1,4 +1,3 @@
-// src/components/Navbar.js
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -26,9 +25,13 @@ import {
   FaPlusCircle,
   FaArrowUp,
   FaChartBar,
-  FaLayerGroup, // Added for classes
-  FaPlus, // Added for add class
-  FaList, // Added for class list
+  FaLayerGroup,
+  FaList,
+  FaClock,
+  FaRoute,
+  FaBook,
+  FaSearch,
+  FaFileAlt,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -76,7 +79,6 @@ function Navbar() {
     navigate("/login");
   };
 
-  // Public navigation items (for non-authenticated users)
   const publicNavItems = [
     { type: "link", path: "/login", icon: <FaSignInAlt />, label: "Login" },
     {
@@ -87,7 +89,6 @@ function Navbar() {
     },
   ];
 
-  // Role-based navigation items
   const adminNavItems = [
     { type: "link", path: "/", icon: <FaHome />, label: "Dashboard" },
     {
@@ -135,7 +136,7 @@ function Navbar() {
     },
     {
       type: "dropdown",
-      label: "Classes", // New Classes dropdown
+      label: "Classes",
       icon: <FaLayerGroup />,
       name: "classes",
       items: [
@@ -167,16 +168,72 @@ function Navbar() {
           label: "Session Results",
           icon: <FaGraduationCap />,
         },
+        {
+          path: "/sessions",
+          label: "Session Management",
+          icon: <FaClock />,
+        },
       ],
     },
-    { type: "link", path: "/fees", icon: <FaMoneyBill />, label: "Fees" },
     {
-      type: "link",
-      path: "/announcements",
-      icon: <FaBullhorn />,
-      label: "Announcements",
+      type: "dropdown",
+      label: "Finance",
+      icon: <FaMoneyBill />,
+      name: "finance",
+      items: [
+        { path: "/fees", label: "Fees", icon: <FaMoneyBill /> },
+        { path: "/fees/payments", label: "Payments", icon: <FaMoneyBill /> },
+        {
+          path: "/fees/defaulters",
+          label: "Defaulters",
+          icon: <FaMoneyBill />,
+        },
+      ],
     },
-    { type: "link", path: "/transport", icon: <FaBus />, label: "Transport" },
+    {
+      type: "dropdown",
+      label: "Communication",
+      icon: <FaBullhorn />,
+      name: "communication",
+      items: [
+        {
+          path: "/announcements",
+          label: "Announcements",
+          icon: <FaBullhorn />,
+        },
+        {
+          path: "/announcements/new",
+          label: "New Announcement",
+          icon: <FaPlusCircle />,
+        },
+      ],
+    },
+    {
+      type: "dropdown",
+      label: "Operations",
+      icon: <FaBus />,
+      name: "operations",
+      items: [
+        { path: "/transport", label: "Transport", icon: <FaBus /> },
+        { path: "/transport/routes", label: "Routes", icon: <FaRoute /> },
+        { path: "/library", label: "Library", icon: <FaBook /> },
+      ],
+    },
+    {
+      type: "dropdown",
+      label: "Reports",
+      icon: <FaFileAlt />,
+      name: "reports",
+      items: [
+        { path: "/reports", label: "Reports", icon: <FaFileAlt /> },
+        {
+          path: "/reports/generate",
+          label: "Generate Report",
+          icon: <FaChartBar />,
+        },
+        { path: "/search", label: "Search", icon: <FaSearch /> },
+      ],
+    },
     { type: "link", path: "/users", icon: <FaUserShield />, label: "Users" },
   ];
 
@@ -251,6 +308,7 @@ function Navbar() {
       items: [
         { path: "/results", label: "Results", icon: <FaChartBar /> },
         { path: "/attendance", label: "Attendance", icon: <FaCalendarAlt /> },
+        { path: "/fees", label: "Fees", icon: <FaMoneyBill /> },
         { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
       ],
     },
@@ -259,6 +317,12 @@ function Navbar() {
       path: "/announcements",
       icon: <FaBullhorn />,
       label: "Announcements",
+    },
+    {
+      type: "link",
+      path: "/transport/tracking",
+      icon: <FaBus />,
+      label: "Bus Tracking",
     },
   ];
 
@@ -294,9 +358,14 @@ function Navbar() {
       icon: <FaBullhorn />,
       label: "Announcements",
     },
+    {
+      type: "link",
+      path: "/transport/tracking",
+      icon: <FaBus />,
+      label: "Bus Tracking",
+    },
   ];
 
-  // Determine which navigation items to show based on authentication and role
   let navItems = publicNavItems;
   const role = user?.role;
 
@@ -309,7 +378,9 @@ function Navbar() {
 
   return (
     <nav
-      className={`navbar navbar-expand-lg navbar-dark navbar-school ${scrolled ? "scrolled" : ""}`}
+      className={`navbar navbar-expand-lg navbar-dark navbar-school ${
+        scrolled ? "scrolled" : ""
+      }`}
     >
       <div className="container-fluid">
         <Link className="navbar-brand school-logo" to="/" onClick={closeMenu}>
@@ -338,23 +409,31 @@ function Navbar() {
                 {item.type === "dropdown" ? (
                   <div className="nav-dropdown">
                     <button
-                      className={`nav-link dropdown-toggle ${isDropdownActive(item.items) ? "active" : ""}`}
+                      className={`nav-link dropdown-toggle ${
+                        isDropdownActive(item.items) ? "active" : ""
+                      }`}
                       onClick={() => toggleDropdown(item.name)}
                       aria-expanded={openDropdown === item.name}
                     >
                       <span className="nav-icon">{item.icon}</span>
                       <span className="nav-label">{item.label}</span>
                       <FaChevronDown
-                        className={`dropdown-arrow ${openDropdown === item.name ? "rotated" : ""}`}
+                        className={`dropdown-arrow ${
+                          openDropdown === item.name ? "rotated" : ""
+                        }`}
                       />
                     </button>
                     <div
-                      className={`dropdown-menu ${openDropdown === item.name ? "show" : ""}`}
+                      className={`dropdown-menu ${
+                        openDropdown === item.name ? "show" : ""
+                      }`}
                     >
                       {item.items.map((subItem, subIndex) => (
                         <Link
                           key={subIndex}
-                          className={`dropdown-item ${isActive(subItem.path) ? "active" : ""}`}
+                          className={`dropdown-item ${
+                            isActive(subItem.path) ? "active" : ""
+                          }`}
                           to={subItem.path}
                           onClick={closeMenu}
                         >
@@ -404,11 +483,15 @@ function Navbar() {
                     {user?.firstName || "User"}
                   </span>
                   <FaChevronDown
-                    className={`user-arrow ${openDropdown === "user" ? "rotated" : ""}`}
+                    className={`user-arrow ${
+                      openDropdown === "user" ? "rotated" : ""
+                    }`}
                   />
                 </button>
                 <div
-                  className={`dropdown-menu user-dropdown-menu ${openDropdown === "user" ? "show" : ""}`}
+                  className={`dropdown-menu user-dropdown-menu ${
+                    openDropdown === "user" ? "show" : ""
+                  }`}
                 >
                   <Link
                     to="/profile"
