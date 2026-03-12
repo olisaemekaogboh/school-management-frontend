@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { studentAPI } from "../services/api";
+import { Link, useSearchParams } from "react-router-dom";
+import { studentAPI, teacherAPI } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "react-toastify";
 import {
   FaSearch,
@@ -8,31 +9,39 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-  FaFilter,
-  FaSort,
-  FaDownload,
-  FaPrint,
   FaArrowUp,
   FaArrowDown,
 } from "react-icons/fa";
-import moment from "moment";
 
 function StudentManagement() {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+
+  const mine = searchParams.get("mine");
+  const classId = searchParams.get("classId");
+
+  const isTeacher = user?.role === "TEACHER";
+  const isAdmin = user?.role === "ADMIN";
+
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pageTitle, setPageTitle] = useState("Student Management");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     class: "",
     status: "",
     gender: "",
   });
+
   const [sortConfig, setSortConfig] = useState({
     key: "admissionNumber",
     direction: "asc",
   });
+
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const itemsPerPage = 10;
 
   const classes = [
     "Nursery",
@@ -49,6 +58,7 @@ function StudentManagement() {
     "SSS 2",
     "SSS 3",
   ];
+
   const statuses = [
     "ACTIVE",
     "GRADUATED",
@@ -56,24 +66,55 @@ function StudentManagement() {
     "SUSPENDED",
     "WITHDRAWN",
   ];
+
   const genders = ["MALE", "FEMALE"];
 
   useEffect(() => {
     fetchStudents();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mine, classId, user?.role]);
 
   useEffect(() => {
     filterAndSortStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [students, searchTerm, filters, sortConfig]);
 
   const fetchStudents = async () => {
     setLoading(true);
+
     try {
+      // STRICT teacher-only mode
+      if (isTeacher && mine === "true" && classId) {
+        const teacherClassesRes = await teacherAPI.getMyClasses();
+        const teacherClasses = teacherClassesRes.data || [];
+
+        const myClass = teacherClasses.find(
+          (cls) => String(cls.id) === String(classId),
+        );
+
+        if (!myClass) {
+          setStudents([]);
+          setPageTitle("My Students");
+          toast.error("You are not assigned to this class");
+          return;
+        }
+
+        const studentsRes = await teacherAPI.getMyClassStudents(classId);
+        const teacherStudents = studentsRes.data || [];
+
+        setStudents(teacherStudents);
+        setPageTitle(`My Students - ${myClass.className} ${myClass.arm}`);
+        return;
+      }
+
+      // Admin / normal full list
       const response = await studentAPI.getAllStudents();
-      setStudents(response.data);
+      setStudents(response.data || []);
+      setPageTitle("Student Management");
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
+      setStudents([]);
     } finally {
       setLoading(false);
     }
@@ -82,58 +123,52 @@ function StudentManagement() {
   const filterAndSortStudents = () => {
     let filtered = [...students];
 
-    // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (s) =>
           s.fullName?.toLowerCase().includes(term) ||
+          s.firstName?.toLowerCase().includes(term) ||
+          s.lastName?.toLowerCase().includes(term) ||
           s.admissionNumber?.toLowerCase().includes(term) ||
           s.parentName?.toLowerCase().includes(term) ||
           s.parentPhone?.includes(term),
       );
     }
 
-    // Apply class filter
     if (filters.class) {
       filtered = filtered.filter((s) => s.studentClass === filters.class);
     }
 
-    // Apply status filter
     if (filters.status) {
       filtered = filtered.filter((s) => s.status === filters.status);
     }
 
-    // Apply gender filter
     if (filters.gender) {
       filtered = filtered.filter((s) => s.gender === filters.gender);
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       let aValue = a[sortConfig.key];
       let bValue = b[sortConfig.key];
 
       if (sortConfig.key === "fullName") {
-        aValue = a.fullName || "";
-        bValue = b.fullName || "";
+        aValue =
+          a.fullName || `${a.firstName || ""} ${a.lastName || ""}`.trim();
+        bValue =
+          b.fullName || `${b.firstName || ""} ${b.lastName || ""}`.trim();
       }
 
-      if (typeof aValue === "string") {
-        aValue = aValue.toLowerCase();
-        bValue = bValue.toLowerCase();
-      }
+      if (typeof aValue === "string") aValue = aValue.toLowerCase();
+      if (typeof bValue === "string") bValue = bValue.toLowerCase();
 
-      if (aValue < bValue) {
-        return sortConfig.direction === "asc" ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === "asc" ? 1 : -1;
-      }
+      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
     });
 
     setFilteredStudents(filtered);
+    setCurrentPage(1);
   };
 
   const handleSort = (key) => {
@@ -147,6 +182,8 @@ function StudentManagement() {
   };
 
   const handleDelete = async (id) => {
+    if (!isAdmin) return;
+
     if (window.confirm("Are you sure you want to delete this student?")) {
       try {
         await studentAPI.deleteStudent(id);
@@ -164,7 +201,6 @@ function StudentManagement() {
     setSearchTerm("");
   };
 
-  // Pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredStudents.slice(
@@ -187,13 +223,15 @@ function StudentManagement() {
   return (
     <div className="student-management container-fluid py-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="mb-0">Student Management</h2>
-        <Link to="/students/new" className="btn btn-nigerian">
-          <FaPlus className="me-2" /> Register New Student
-        </Link>
+        <h2 className="mb-0">{pageTitle}</h2>
+
+        {isAdmin && (
+          <Link to="/students/new" className="btn btn-nigerian">
+            <FaPlus className="me-2" /> Register New Student
+          </Link>
+        )}
       </div>
 
-      {/* Search and Filters */}
       <div className="card mb-4">
         <div className="card-body">
           <div className="row">
@@ -211,6 +249,7 @@ function StudentManagement() {
                 />
               </div>
             </div>
+
             <div className="col-md-2 mb-3">
               <select
                 className="form-select"
@@ -227,6 +266,7 @@ function StudentManagement() {
                 ))}
               </select>
             </div>
+
             <div className="col-md-2 mb-3">
               <select
                 className="form-select"
@@ -243,6 +283,7 @@ function StudentManagement() {
                 ))}
               </select>
             </div>
+
             <div className="col-md-2 mb-3">
               <select
                 className="form-select"
@@ -260,6 +301,7 @@ function StudentManagement() {
               </select>
             </div>
           </div>
+
           <div className="d-flex justify-content-end">
             <button
               className="btn btn-outline-secondary"
@@ -271,7 +313,6 @@ function StudentManagement() {
         </div>
       </div>
 
-      {/* Students Table */}
       {loading ? (
         <div className="text-center py-5">
           <div className="spinner-border text-nigerian" role="status">
@@ -328,11 +369,15 @@ function StudentManagement() {
                   <th>Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {currentItems.map((student) => (
                   <tr key={student.id}>
                     <td className="fw-bold">{student.admissionNumber}</td>
-                    <td>{student.fullName}</td>
+                    <td>
+                      {student.fullName ||
+                        `${student.firstName || ""} ${student.lastName || ""}`.trim()}
+                    </td>
                     <td>{student.studentClass}</td>
                     <td>{student.classArm}</td>
                     <td>{student.gender}</td>
@@ -352,20 +397,26 @@ function StudentManagement() {
                         >
                           <FaEye />
                         </Link>
-                        <Link
-                          to={`/students/edit/${student.id}`}
-                          className="btn btn-warning"
-                          title="Edit"
-                        >
-                          <FaEdit />
-                        </Link>
-                        <button
-                          className="btn btn-danger"
-                          onClick={() => handleDelete(student.id)}
-                          title="Delete"
-                        >
-                          <FaTrash />
-                        </button>
+
+                        {isAdmin && (
+                          <>
+                            <Link
+                              to={`/students/edit/${student.id}`}
+                              className="btn btn-warning"
+                              title="Edit"
+                            >
+                              <FaEdit />
+                            </Link>
+
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => handleDelete(student.id)}
+                              title="Delete"
+                            >
+                              <FaTrash />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -382,7 +433,6 @@ function StudentManagement() {
             </table>
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <nav className="mt-4">
               <ul className="pagination justify-content-center">
@@ -396,6 +446,7 @@ function StudentManagement() {
                     Previous
                   </button>
                 </li>
+
                 {[...Array(totalPages)].map((_, i) => (
                   <li
                     key={i + 1}
@@ -409,6 +460,7 @@ function StudentManagement() {
                     </button>
                   </li>
                 ))}
+
                 <li
                   className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}
                 >
@@ -424,8 +476,8 @@ function StudentManagement() {
           )}
 
           <div className="text-muted mt-2">
-            Showing {indexOfFirstItem + 1} to{" "}
-            {Math.min(indexOfLastItem, filteredStudents.length)} of{" "}
+            Showing {filteredStudents.length === 0 ? 0 : indexOfFirstItem + 1}{" "}
+            to {Math.min(indexOfLastItem, filteredStudents.length)} of{" "}
             {filteredStudents.length} students
           </div>
         </>

@@ -1,6 +1,4 @@
-// src/components/TeacherManagement.js
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { teacherAPI } from "../services/api";
 import { toast } from "react-toastify";
 import {
@@ -18,8 +16,6 @@ import {
   FaEnvelope,
   FaPhone,
   FaBookOpen,
-  FaMapMarkerAlt,
-  FaCalendarAlt,
   FaChevronDown,
   FaChevronUp,
   FaTimes,
@@ -28,41 +24,16 @@ import {
   FaSpinner,
   FaArrowLeft,
   FaArrowRight,
-  FaDownload,
   FaUpload,
   FaUsers,
   FaClock,
   FaTimesCircle,
   FaUser,
-  FaImage,
 } from "react-icons/fa";
 import moment from "moment";
 import "./TeacherManagement.css";
 
 const TeacherManagement = () => {
-  // State
-  const [teachers, setTeachers] = useState([]);
-  const [filteredTeachers, setFilteredTeachers] = useState([]);
-  const [statistics, setStatistics] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [editingTeacher, setEditingTeacher] = useState(null);
-  const [viewingTeacher, setViewingTeacher] = useState(null);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [teacherToDelete, setTeacherToDelete] = useState(null);
-  const [imageErrors, setImageErrors] = useState({}); // Track image loading errors
-
-  // Filters
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterSubject, setFilterSubject] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [expandedRows, setExpandedRows] = useState([]);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-
-  // Form Data
   const initialFormState = {
     firstName: "",
     lastName: "",
@@ -75,38 +46,41 @@ const TeacherManagement = () => {
     address: "",
     qualification: "",
     specialization: "",
-    biography: "",
+    employeeId: "",
     employmentStatus: "ACTIVE",
-    dateOfEmployment: moment().format("YYYY-MM-DD"),
+    dateOfJoining: moment().format("YYYY-MM-DD"),
     emergencyContactName: "",
     emergencyContactPhone: "",
     emergencyContactRelationship: "",
     maritalStatus: "",
-    numberOfChildren: 0,
-    stateOfOrigin: "",
-    localGovernmentArea: "",
-    nationality: "Nigerian",
-    religion: "",
-    bankName: "",
-    accountNumber: "",
-    accountName: "",
-    pensionId: "",
-    taxId: "",
-    nextOfKinName: "",
-    nextOfKinPhone: "",
-    nextOfKinRelationship: "",
-    nextOfKinAddress: "",
     subjects: [],
-    additionalQualifications: [],
+    qualifications: [],
   };
 
+  const [teachers, setTeachers] = useState([]);
+  const [filteredTeachers, setFilteredTeachers] = useState([]);
+  const [statistics, setStatistics] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState(null);
+  const [viewingTeacher, setViewingTeacher] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [teacherToDelete, setTeacherToDelete] = useState(null);
+  const [imageErrors, setImageErrors] = useState({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterSubject, setFilterSubject] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [expandedRows, setExpandedRows] = useState([]);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [formData, setFormData] = useState(initialFormState);
   const [newSubject, setNewSubject] = useState("");
   const [newQualification, setNewQualification] = useState("");
   const [profilePicture, setProfilePicture] = useState(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState("");
 
-  // Constants
   const employmentStatuses = [
     "ACTIVE",
     "ON_LEAVE",
@@ -114,8 +88,10 @@ const TeacherManagement = () => {
     "RETIRED",
     "RESIGNED",
   ];
+
   const genders = ["MALE", "FEMALE"];
   const maritalStatuses = ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"];
+
   const subjectList = [
     "Mathematics",
     "English",
@@ -146,25 +122,22 @@ const TeacherManagement = () => {
     "Fine Arts",
   ];
 
-  // Fetch data on mount
   useEffect(() => {
     fetchTeachers();
     fetchStatistics();
   }, []);
 
-  // Filter teachers when search/filters change
   useEffect(() => {
     applyFilters();
   }, [searchTerm, filterStatus, filterSubject, teachers]);
 
-  // API Calls
   const fetchTeachers = async () => {
     setLoading(true);
     try {
       const response = await teacherAPI.getAllTeachers();
-      setTeachers(response.data);
-      setFilteredTeachers(response.data);
-      // Reset image errors when new data loads
+      const data = Array.isArray(response.data) ? response.data : [];
+      setTeachers(data);
+      setFilteredTeachers(data);
       setImageErrors({});
     } catch (error) {
       console.error("Error fetching teachers:", error);
@@ -183,7 +156,6 @@ const TeacherManagement = () => {
     }
   };
 
-  // Filter Logic
   const applyFilters = () => {
     let filtered = [...teachers];
 
@@ -194,6 +166,7 @@ const TeacherManagement = () => {
           t.firstName?.toLowerCase().includes(term) ||
           t.lastName?.toLowerCase().includes(term) ||
           t.teacherId?.toLowerCase().includes(term) ||
+          t.employeeId?.toLowerCase().includes(term) ||
           t.email?.toLowerCase().includes(term) ||
           t.phoneNumber?.includes(term),
       );
@@ -211,63 +184,53 @@ const TeacherManagement = () => {
     setCurrentPage(1);
   };
 
-  // Handle image load error
   const handleImageError = (teacherId) => {
     setImageErrors((prev) => ({ ...prev, [teacherId]: true }));
   };
 
-  // In TeacherManagement.js, update the getProfileImageUrl function:
-
   const getProfileImageUrl = (teacher) => {
     if (!teacher.profilePictureUrl) return null;
 
-    // If it's already a full URL, use it as is
     if (teacher.profilePictureUrl.startsWith("http")) {
       return teacher.profilePictureUrl;
     }
 
-    // If the URL already starts with 'uploads/', don't add it again
     if (teacher.profilePictureUrl.startsWith("uploads/")) {
       return `http://localhost:8080/${teacher.profilePictureUrl}`;
     }
 
-    // Otherwise, construct the URL
     return `http://localhost:8080/uploads/teachers/${teacher.profilePictureUrl}`;
   };
 
-  // Form Handlers
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Check file size (5MB max)
-      const maxSize = 5 * 1024 * 1024;
-      if (file.size > maxSize) {
-        toast.error("File size exceeds 5MB limit");
-        return;
-      }
+    if (!file) return;
 
-      // Check file type
-      const allowedTypes = [
-        "image/jpeg",
-        "image/jpg",
-        "image/png",
-        "image/gif",
-      ];
-      if (!allowedTypes.includes(file.type)) {
-        toast.error("Only JPG, PNG, and GIF images are allowed");
-        return;
-      }
-
-      setProfilePicture(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setProfilePicturePreview(reader.result);
-      reader.readAsDataURL(file);
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error("File size exceeds 5MB limit");
+      return;
     }
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
+
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Only JPG, PNG, and GIF images are allowed");
+      return;
+    }
+
+    setProfilePicture(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setProfilePicturePreview(reader.result);
+    reader.readAsDataURL(file);
   };
 
   const handleAddSubject = () => {
@@ -290,14 +253,11 @@ const TeacherManagement = () => {
   const handleAddQualification = () => {
     if (
       newQualification &&
-      !formData.additionalQualifications.includes(newQualification)
+      !formData.qualifications.includes(newQualification)
     ) {
       setFormData((prev) => ({
         ...prev,
-        additionalQualifications: [
-          ...prev.additionalQualifications,
-          newQualification,
-        ],
+        qualifications: [...prev.qualifications, newQualification],
       }));
       setNewQualification("");
     }
@@ -306,9 +266,7 @@ const TeacherManagement = () => {
   const handleRemoveQualification = (qualification) => {
     setFormData((prev) => ({
       ...prev,
-      additionalQualifications: prev.additionalQualifications.filter(
-        (q) => q !== qualification,
-      ),
+      qualifications: prev.qualifications.filter((q) => q !== qualification),
     }));
   };
 
@@ -319,27 +277,50 @@ const TeacherManagement = () => {
     setProfilePicturePreview("");
   };
 
-  // CRUD Operations
+  const buildTeacherPayload = () => {
+    return {
+      ...formData,
+      phoneNumber: formData.phoneNumber?.trim() || "",
+      alternatePhone: formData.alternatePhone?.trim() || "",
+      firstName: formData.firstName?.trim() || "",
+      lastName: formData.lastName?.trim() || "",
+      middleName: formData.middleName?.trim() || "",
+      email: formData.email?.trim() || "",
+      address: formData.address?.trim() || "",
+      qualification: formData.qualification?.trim() || "",
+      specialization: formData.specialization?.trim() || "",
+      employeeId: formData.employeeId?.trim() || "",
+      emergencyContactName: formData.emergencyContactName?.trim() || "",
+      emergencyContactPhone: formData.emergencyContactPhone?.trim() || "",
+      emergencyContactRelationship:
+        formData.emergencyContactRelationship?.trim() || "",
+      subjects: formData.subjects || [],
+      qualifications: formData.qualifications || [],
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const formDataToSend = new FormData();
-      const teacherBlob = new Blob([JSON.stringify(formData)], {
+      const payload = buildTeacherPayload();
+      const multipart = new FormData();
+      const teacherBlob = new Blob([JSON.stringify(payload)], {
         type: "application/json",
       });
-      formDataToSend.append("teacher", teacherBlob);
+
+      multipart.append("teacher", teacherBlob);
 
       if (profilePicture) {
-        formDataToSend.append("profilePicture", profilePicture);
+        multipart.append("profilePicture", profilePicture);
       }
 
       if (editingTeacher) {
-        await teacherAPI.updateTeacher(editingTeacher.id, formDataToSend);
+        await teacherAPI.updateTeacher(editingTeacher.id, multipart);
         toast.success("Teacher updated successfully");
       } else {
-        await teacherAPI.createTeacher(formDataToSend);
+        await teacherAPI.createTeacher(multipart);
         toast.success("Teacher created successfully");
       }
 
@@ -357,8 +338,8 @@ const TeacherManagement = () => {
 
   const handleDelete = async () => {
     if (!teacherToDelete) return;
-    setLoading(true);
 
+    setLoading(true);
     try {
       await teacherAPI.deleteTeacher(teacherToDelete.id);
       toast.success("Teacher deleted successfully");
@@ -374,7 +355,6 @@ const TeacherManagement = () => {
     }
   };
 
-  // View/Edit Handlers
   const handleView = (teacher) => {
     setViewingTeacher(teacher);
     setShowViewModal(true);
@@ -393,37 +373,21 @@ const TeacherManagement = () => {
       address: teacher.address || "",
       qualification: teacher.qualification || "",
       specialization: teacher.specialization || "",
-      biography: teacher.biography || "",
+      employeeId: teacher.employeeId || "",
       employmentStatus: teacher.employmentStatus || "ACTIVE",
-      dateOfEmployment:
-        teacher.dateOfEmployment || moment().format("YYYY-MM-DD"),
+      dateOfJoining: teacher.dateOfJoining || moment().format("YYYY-MM-DD"),
       emergencyContactName: teacher.emergencyContactName || "",
       emergencyContactPhone: teacher.emergencyContactPhone || "",
       emergencyContactRelationship: teacher.emergencyContactRelationship || "",
       maritalStatus: teacher.maritalStatus || "",
-      numberOfChildren: teacher.numberOfChildren || 0,
-      stateOfOrigin: teacher.stateOfOrigin || "",
-      localGovernmentArea: teacher.localGovernmentArea || "",
-      nationality: teacher.nationality || "Nigerian",
-      religion: teacher.religion || "",
-      bankName: teacher.bankName || "",
-      accountNumber: teacher.accountNumber || "",
-      accountName: teacher.accountName || "",
-      pensionId: teacher.pensionId || "",
-      taxId: teacher.taxId || "",
-      nextOfKinName: teacher.nextOfKinName || "",
-      nextOfKinPhone: teacher.nextOfKinPhone || "",
-      nextOfKinRelationship: teacher.nextOfKinRelationship || "",
-      nextOfKinAddress: teacher.nextOfKinAddress || "",
       subjects: teacher.subjects || [],
-      additionalQualifications: teacher.additionalQualifications || [],
+      qualifications: teacher.qualifications || [],
     });
+
     setEditingTeacher(teacher);
 
-    // Handle profile picture preview for edit
     if (teacher.profilePictureUrl) {
-      const imageUrl = getProfileImageUrl(teacher);
-      setProfilePicturePreview(imageUrl);
+      setProfilePicturePreview(getProfileImageUrl(teacher));
     } else {
       setProfilePicturePreview("");
     }
@@ -431,7 +395,6 @@ const TeacherManagement = () => {
     setShowForm(true);
   };
 
-  // Export Functions
   const handleExportPDF = async () => {
     try {
       const response = await teacherAPI.exportToPDF();
@@ -466,7 +429,6 @@ const TeacherManagement = () => {
     }
   };
 
-  // UI Helpers
   const toggleRowExpansion = (teacherId) => {
     setExpandedRows((prev) =>
       prev.includes(teacherId)
@@ -503,10 +465,10 @@ const TeacherManagement = () => {
         label: "Resigned",
       },
     };
+
     return badges[status] || badges.ACTIVE;
   };
 
-  // Pagination
   const paginatedTeachers = () => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredTeachers.slice(start, start + itemsPerPage);
@@ -516,7 +478,6 @@ const TeacherManagement = () => {
 
   return (
     <div className="teacher-management">
-      {/* Header Section */}
       <div className="header-section">
         <div className="header-top">
           <h1>
@@ -547,7 +508,6 @@ const TeacherManagement = () => {
           </div>
         </div>
 
-        {/* Statistics Cards */}
         {statistics && (
           <div className="stats-grid">
             <div className="stat-card primary">
@@ -584,7 +544,6 @@ const TeacherManagement = () => {
         )}
       </div>
 
-      {/* Mobile Filter Toggle */}
       <button
         className="mobile-filter-toggle"
         onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -592,7 +551,6 @@ const TeacherManagement = () => {
         <FaFilter /> {showMobileFilters ? "Hide Filters" : "Show Filters"}
       </button>
 
-      {/* Filters Section */}
       <div className={`filters-section ${showMobileFilters ? "show" : ""}`}>
         <div className="filters-grid">
           <div className="filter-group">
@@ -640,14 +598,19 @@ const TeacherManagement = () => {
 
           <div className="filter-group">
             <label>&nbsp;</label>
-            <button className="btn-primary" onClick={() => setShowForm(true)}>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                resetForm();
+                setShowForm(true);
+              }}
+            >
               <FaPlus /> Add Teacher
             </button>
           </div>
         </div>
       </div>
 
-      {/* Teachers Table */}
       <div className="table-section">
         {loading ? (
           <div className="loading-spinner">
@@ -769,6 +732,7 @@ const TeacherManagement = () => {
                           </div>
                         </td>
                       </tr>
+
                       {expandedRows.includes(teacher.id) && (
                         <tr className="expanded-row">
                           <td colSpan="8">
@@ -792,34 +756,16 @@ const TeacherManagement = () => {
                                     <strong>Marital:</strong>{" "}
                                     {teacher.maritalStatus || "-"}
                                   </p>
-                                  <p>
-                                    <strong>Children:</strong>{" "}
-                                    {teacher.numberOfChildren || 0}
-                                  </p>
-                                  <p>
-                                    <strong>Religion:</strong>{" "}
-                                    {teacher.religion || "-"}
-                                  </p>
                                 </div>
+
                                 <div>
                                   <h4>Location</h4>
-                                  <p>
-                                    <strong>State:</strong>{" "}
-                                    {teacher.stateOfOrigin || "-"}
-                                  </p>
-                                  <p>
-                                    <strong>LGA:</strong>{" "}
-                                    {teacher.localGovernmentArea || "-"}
-                                  </p>
-                                  <p>
-                                    <strong>Nationality:</strong>{" "}
-                                    {teacher.nationality || "-"}
-                                  </p>
                                   <p>
                                     <strong>Address:</strong>{" "}
                                     {teacher.address || "-"}
                                   </p>
                                 </div>
+
                                 <div>
                                   <h4>Employment</h4>
                                   <p>
@@ -831,14 +777,15 @@ const TeacherManagement = () => {
                                     {teacher.specialization || "-"}
                                   </p>
                                   <p>
-                                    <strong>Employed:</strong>{" "}
-                                    {teacher.dateOfEmployment
-                                      ? moment(teacher.dateOfEmployment).format(
+                                    <strong>Joined:</strong>{" "}
+                                    {teacher.dateOfJoining
+                                      ? moment(teacher.dateOfJoining).format(
                                           "DD/MM/YYYY",
                                         )
                                       : "-"}
                                   </p>
                                 </div>
+
                                 <div>
                                   <h4>Emergency</h4>
                                   <p>
@@ -870,10 +817,16 @@ const TeacherManagement = () => {
                                 </div>
                               )}
 
-                              {teacher.biography && (
-                                <div className="biography-section">
-                                  <h4>Biography</h4>
-                                  <p>{teacher.biography}</p>
+                              {teacher.qualifications?.length > 0 && (
+                                <div className="subjects-section">
+                                  <h4>Qualifications</h4>
+                                  <div className="tags">
+                                    {teacher.qualifications.map((qual) => (
+                                      <span key={qual} className="tag">
+                                        {qual}
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -899,7 +852,6 @@ const TeacherManagement = () => {
               </table>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="pagination">
                 <button
@@ -925,7 +877,6 @@ const TeacherManagement = () => {
         )}
       </div>
 
-      {/* Add/Edit Teacher Modal */}
       {showForm && (
         <div
           className="modal-overlay"
@@ -956,7 +907,6 @@ const TeacherManagement = () => {
 
             <div className="modal-body scrollable">
               <form onSubmit={handleSubmit}>
-                {/* Personal Information */}
                 <div className="form-section">
                   <h3>Personal Information</h3>
 
@@ -1091,58 +1041,6 @@ const TeacherManagement = () => {
                     </div>
                   </div>
 
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Children</label>
-                      <input
-                        type="number"
-                        name="numberOfChildren"
-                        value={formData.numberOfChildren}
-                        onChange={handleInputChange}
-                        min="0"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Religion</label>
-                      <input
-                        type="text"
-                        name="religion"
-                        value={formData.religion}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Nationality</label>
-                      <input
-                        type="text"
-                        name="nationality"
-                        value={formData.nationality}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>State of Origin</label>
-                      <input
-                        type="text"
-                        name="stateOfOrigin"
-                        value={formData.stateOfOrigin}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>LGA</label>
-                      <input
-                        type="text"
-                        name="localGovernmentArea"
-                        value={formData.localGovernmentArea}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                  </div>
-
                   <div className="form-group">
                     <label>Address</label>
                     <textarea
@@ -1154,7 +1052,6 @@ const TeacherManagement = () => {
                   </div>
                 </div>
 
-                {/* Professional Information */}
                 <div className="form-section">
                   <h3>Professional Information</h3>
 
@@ -1210,11 +1107,11 @@ const TeacherManagement = () => {
 
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Date Employed</label>
+                      <label>Date Joined</label>
                       <input
                         type="date"
-                        name="dateOfEmployment"
-                        value={formData.dateOfEmployment}
+                        name="dateOfJoining"
+                        value={formData.dateOfJoining}
                         onChange={handleInputChange}
                       />
                     </div>
@@ -1260,10 +1157,10 @@ const TeacherManagement = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>Additional Qualifications</label>
+                    <label>Qualifications</label>
                     <div className="tags-input">
                       <div className="tags-list">
-                        {formData.additionalQualifications.map((qual) => (
+                        {formData.qualifications.map((qual) => (
                           <span key={qual} className="tag">
                             {qual}
                             <button
@@ -1292,20 +1189,8 @@ const TeacherManagement = () => {
                       </div>
                     </div>
                   </div>
-
-                  <div className="form-group">
-                    <label>Biography</label>
-                    <textarea
-                      name="biography"
-                      value={formData.biography}
-                      onChange={handleInputChange}
-                      rows="3"
-                      placeholder="Brief biography..."
-                    />
-                  </div>
                 </div>
 
-                {/* Emergency Contact */}
                 <div className="form-section">
                   <h3>Emergency Contact</h3>
 
@@ -1341,7 +1226,6 @@ const TeacherManagement = () => {
                   </div>
                 </div>
 
-                {/* Form Actions */}
                 <div className="form-actions">
                   <button
                     type="button"
@@ -1373,7 +1257,6 @@ const TeacherManagement = () => {
         </div>
       )}
 
-      {/* View Teacher Modal */}
       {showViewModal && viewingTeacher && (
         <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
           <div
@@ -1409,6 +1292,7 @@ const TeacherManagement = () => {
                       </div>
                     )}
                   </div>
+
                   <div className="profile-title">
                     <h2>
                       {viewingTeacher.firstName} {viewingTeacher.lastName}
@@ -1457,26 +1341,6 @@ const TeacherManagement = () => {
                         <label>Marital Status:</label>{" "}
                         <span>{viewingTeacher.maritalStatus || "-"}</span>
                       </div>
-                      <div>
-                        <label>Children:</label>{" "}
-                        <span>{viewingTeacher.numberOfChildren || 0}</span>
-                      </div>
-                      <div>
-                        <label>Religion:</label>{" "}
-                        <span>{viewingTeacher.religion || "-"}</span>
-                      </div>
-                      <div>
-                        <label>Nationality:</label>{" "}
-                        <span>{viewingTeacher.nationality || "-"}</span>
-                      </div>
-                      <div>
-                        <label>State of Origin:</label>{" "}
-                        <span>{viewingTeacher.stateOfOrigin || "-"}</span>
-                      </div>
-                      <div>
-                        <label>LGA:</label>{" "}
-                        <span>{viewingTeacher.localGovernmentArea || "-"}</span>
-                      </div>
                       <div className="full-width">
                         <label>Address:</label>{" "}
                         <span>{viewingTeacher.address || "-"}</span>
@@ -1522,10 +1386,10 @@ const TeacherManagement = () => {
                         <span>{viewingTeacher.specialization || "-"}</span>
                       </div>
                       <div>
-                        <label>Date Employed:</label>{" "}
+                        <label>Date Joined:</label>{" "}
                         <span>
-                          {viewingTeacher.dateOfEmployment
-                            ? moment(viewingTeacher.dateOfEmployment).format(
+                          {viewingTeacher.dateOfJoining
+                            ? moment(viewingTeacher.dateOfJoining).format(
                                 "DD/MM/YYYY",
                               )
                             : "-"}
@@ -1546,23 +1410,14 @@ const TeacherManagement = () => {
                       </>
                     )}
 
-                    {viewingTeacher.additionalQualifications?.length > 0 && (
+                    {viewingTeacher.qualifications?.length > 0 && (
                       <>
-                        <label>Additional Qualifications:</label>
+                        <label>Qualifications:</label>
                         <ul>
-                          {viewingTeacher.additionalQualifications.map(
-                            (q, i) => (
-                              <li key={i}>{q}</li>
-                            ),
-                          )}
+                          {viewingTeacher.qualifications.map((q, i) => (
+                            <li key={i}>{q}</li>
+                          ))}
                         </ul>
-                      </>
-                    )}
-
-                    {viewingTeacher.biography && (
-                      <>
-                        <label>Biography:</label>
-                        <p>{viewingTeacher.biography}</p>
                       </>
                     )}
                   </div>
@@ -1615,7 +1470,6 @@ const TeacherManagement = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && teacherToDelete && (
         <div
           className="modal-overlay"

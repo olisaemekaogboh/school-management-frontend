@@ -1,6 +1,7 @@
 // src/components/Footer.js
 import React from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import {
   FaFacebook,
   FaTwitter,
@@ -9,90 +10,133 @@ import {
   FaMapMarkerAlt,
   FaPhone,
   FaEnvelope,
+  FaHeart,
 } from "react-icons/fa";
 
 import "./Footer.css";
+
 function Footer() {
+  const { isAuthenticated, user } = useAuth();
+  const currentYear = new Date().getFullYear();
+
+  // Get dashboard link based on user role
+  const getDashboardLink = () => {
+    if (!isAuthenticated) return "/";
+    switch (user?.role) {
+      case "TEACHER":
+        return "/teacher-dashboard";
+      case "PARENT":
+        return "/parent-dashboard";
+      case "STUDENT":
+        return "/student-dashboard";
+      default:
+        return "/";
+    }
+  };
+
   return (
-    <footer className="mt-5">
-      <div className="footer-circle"></div>
+    <footer className="footer-simple">
       <div className="container">
-        <div className="row">
-          <div className="col-md-4 mb-4">
-            <h5 className="text-gold mb-3">
-              Faith Foundation International School
-            </h5>
-            <p className="text-white-50">
-              Providing quality education with Nigerian values and global
-              standards since 2008.
+        <div className="footer-grid">
+          {/* School Info */}
+          <div className="footer-col">
+            <h5>Faith Foundation</h5>
+            <p className="footer-description">
+              Excellence in Education, Pride in Heritage
             </p>
             <div className="social-links">
-              <a href="#" className="text-white me-3">
-                <FaFacebook size={24} />
+              <a href="#" className="social-link" aria-label="Facebook">
+                <FaFacebook size={14} />
               </a>
-              <a href="#" className="text-white me-3">
-                <FaTwitter size={24} />
+              <a href="#" className="social-link" aria-label="Twitter">
+                <FaTwitter size={14} />
               </a>
-              <a href="#" className="text-white me-3">
-                <FaInstagram size={24} />
+              <a href="#" className="social-link" aria-label="Instagram">
+                <FaInstagram size={14} />
               </a>
-              <a href="#" className="text-white">
-                <FaYoutube size={24} />
+              <a href="#" className="social-link" aria-label="YouTube">
+                <FaYoutube size={14} />
               </a>
             </div>
           </div>
 
-          <div className="col-md-4 mb-4">
-            <h5 className="text-gold mb-3">Quick Links</h5>
-            <ul className="list-unstyled">
-              <li className="mb-2">
-                <Link to="/" className="text-white-50">
-                  Home
-                </Link>
+          {/* Quick Links - Based on Auth Status */}
+          <div className="footer-col">
+            <h5>Quick Links</h5>
+            <ul className="footer-links">
+              <li>
+                <Link to={getDashboardLink()}>Dashboard</Link>
               </li>
-              <li className="mb-2">
-                <Link to="/students" className="text-white-50">
-                  Students
-                </Link>
+              {isAuthenticated ? (
+                <>
+                  <li>
+                    <Link to="/profile">Profile</Link>
+                  </li>
+                  <li>
+                    <Link to="/settings">Settings</Link>
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li>
+                    <Link to="/login">Login</Link>
+                  </li>
+                  <li>
+                    <Link to="/register">Register</Link>
+                  </li>
+                </>
+              )}
+            </ul>
+          </div>
+
+          {/* Resources - Conditional based on role */}
+          <div className="footer-col">
+            <h5>Resources</h5>
+            <ul className="footer-links">
+              {user?.role === "TEACHER" && (
+                <li>
+                  <Link to="/attendance">Attendance</Link>
+                </li>
+              )}
+              {(user?.role === "STUDENT" || user?.role === "PARENT") && (
+                <li>
+                  <Link to="/results">Results</Link>
+                </li>
+              )}
+              <li>
+                <Link to="/announcements">Announcements</Link>
               </li>
-              <li className="mb-2">
-                <Link to="/search" className="text-white-50">
-                  Search
-                </Link>
-              </li>
-              <li className="mb-2">
-                <Link to="/statistics" className="text-white-50">
-                  Statistics
-                </Link>
+              <li>
+                <Link to="/timetable">Timetable</Link>
               </li>
             </ul>
           </div>
 
-          <div className="col-md-4 mb-4">
-            <h5 className="text-gold mb-3">Contact Info</h5>
-            <ul className="list-unstyled">
-              <li className="mb-2 text-white-50">
-                <FaMapMarkerAlt className="me-2" />
-                12 Bishop Shanahan, Fegge Onitsha, Anambra
+          {/* Contact Info */}
+          <div className="footer-col">
+            <h5>Contact</h5>
+            <ul className="contact-info">
+              <li>
+                <FaMapMarkerAlt size={12} className="contact-icon" />
+                <span>12 Bishop Shanahan, Fegge</span>
               </li>
-              <li className="mb-2 text-white-50">
-                <FaPhone className="me-2" />
-                +234 9030175230
+              <li>
+                <FaPhone size={12} className="contact-icon" />
+                <span>+234 903 017 5230</span>
               </li>
-              <li className="mb-2 text-white-50">
-                <FaEnvelope className="me-2" />
-                info@faithfoundation.edu.ng
+              <li>
+                <FaEnvelope size={12} className="contact-icon" />
+                <span>info@faithfoundation.edu.ng</span>
               </li>
             </ul>
           </div>
         </div>
 
-        <hr className="bg-white" />
-
-        <div className="text-center text-white-50">
-          <p className="mb-0">
-            &copy; {new Date().getFullYear()} Faith Foundation International
-            School. All rights reserved. | Proudly Nigerian
+        {/* Bottom Bar */}
+        <div className="footer-bottom">
+          <p className="copyright">&copy; {currentYear} Faith Foundation</p>
+          <p className="credit">
+            Made with <FaHeart size={10} className="heart" /> in Nigeria
           </p>
         </div>
       </div>

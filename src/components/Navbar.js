@@ -1,3 +1,4 @@
+// src/components/Navbar.js
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -32,8 +33,10 @@ import {
   FaBook,
   FaSearch,
   FaFileAlt,
+  FaUserGraduate,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
+import "./Navbar.css";
 
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -344,14 +347,39 @@ function Navbar() {
     else if (role === "STUDENT") navItems = studentNavItems;
   }
 
+  // Determine home path based on user role
+  const getHomePath = () => {
+    if (!isAuthenticated) return "/";
+    if (role === "TEACHER") return "/teacher-dashboard";
+    if (role === "PARENT") return "/parent-dashboard";
+    if (role === "STUDENT") return "/student-dashboard";
+    return "/"; // ADMIN and others go to main dashboard
+  };
+
   return (
     <nav
       className={`navbar navbar-expand-lg navbar-dark navbar-school ${scrolled ? "scrolled" : ""}`}
     >
       <div className="container-fluid">
-        <Link className="navbar-brand school-logo" to="/" onClick={closeMenu}>
-          <FaSchool className="me-2" />
-          <span className="brand-text">FFIS</span>
+        <Link
+          className="navbar-brand school-logo"
+          to={getHomePath()}
+          onClick={closeMenu}
+        >
+          {/* Show different icons based on user role */}
+          {role === "ADMIN" && <FaSchool className="me-2" />}
+          {role === "TEACHER" && <FaChalkboardTeacher className="me-2" />}
+          {role === "PARENT" && <FaUserTie className="me-2" />}
+          {role === "STUDENT" && <FaUserGraduate className="me-2" />}
+          {!isAuthenticated && <FaSchool className="me-2" />}
+
+          <span className="brand-text">
+            {role === "ADMIN" && "Admin Portal"}
+            {role === "TEACHER" && "Teacher Portal"}
+            {role === "PARENT" && "Parent Portal"}
+            {role === "STUDENT" && "Student Portal"}
+            {!isAuthenticated && "FFIS"}
+          </span>
         </Link>
 
         <button
@@ -435,7 +463,10 @@ function Navbar() {
                   aria-expanded={openDropdown === "user"}
                 >
                   <div className="user-avatar">
-                    <FaUser />
+                    {role === "ADMIN" && <FaUserShield />}
+                    {role === "TEACHER" && <FaChalkboardTeacher />}
+                    {role === "PARENT" && <FaUserTie />}
+                    {role === "STUDENT" && <FaUserGraduate />}
                   </div>
                   <span className="user-name d-none d-lg-inline">
                     {user?.firstName || "User"}
@@ -447,6 +478,21 @@ function Navbar() {
                 <div
                   className={`dropdown-menu user-dropdown-menu ${openDropdown === "user" ? "show" : ""}`}
                 >
+                  <Link
+                    to={
+                      role === "TEACHER"
+                        ? "/teacher-dashboard"
+                        : role === "PARENT"
+                          ? "/parent-dashboard"
+                          : role === "STUDENT"
+                            ? "/student-dashboard"
+                            : "/profile"
+                    }
+                    className="dropdown-item"
+                    onClick={closeMenu}
+                  >
+                    <FaUser /> Dashboard
+                  </Link>
                   <Link
                     to="/profile"
                     className="dropdown-item"

@@ -1,3 +1,4 @@
+// src/components/RouteManagement.js
 import React, { useEffect, useMemo, useState } from "react";
 import { transportAPI } from "../services/api";
 import { toast } from "react-toastify";
@@ -28,7 +29,7 @@ const emptyRoute = {
   status: "ACTIVE", // ACTIVE, INACTIVE, MAINTENANCE (based on your model)
 };
 
-export default function RouteManagement() {
+function RouteManagement() {
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -743,3 +744,5 @@ function BusLocationCard({ routeId }) {
     </div>
   );
 }
+
+export default RouteManagement;

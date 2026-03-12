@@ -12,10 +12,6 @@ import {
   FaUsers,
   FaChalkboardTeacher,
   FaLayerGroup,
-  FaTimes,
-  FaDownload,
-  FaUpload,
-  FaCheck,
   FaBan,
 } from "react-icons/fa";
 
@@ -26,6 +22,7 @@ function ClassManager() {
   const [showForm, setShowForm] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
   const [stats, setStats] = useState(null);
+
   const [formData, setFormData] = useState({
     className: "",
     arm: "",
@@ -33,7 +30,7 @@ function ClassManager() {
     capacity: 35,
     classCode: "",
     description: "",
-    classTeacherId: "", // Added for teacher assignment
+    classTeacherId: "",
   });
 
   const categories = [
@@ -41,27 +38,32 @@ function ClassManager() {
     { value: "PRIMARY", label: "Primary" },
     { value: "JUNIOR_SECONDARY", label: "Junior Secondary (JSS)" },
     { value: "SENIOR_SECONDARY", label: "Senior Secondary (SSS)" },
-    { value: "OTHER", label: "Other" },
   ];
 
   const arms = ["A", "B", "C", "D"];
 
   useEffect(() => {
-    fetchClasses();
-    fetchStatistics();
-    fetchTeachers();
+    loadData();
   }, []);
 
-  const fetchClasses = async () => {
+  const loadData = async () => {
     setLoading(true);
+    try {
+      await Promise.all([fetchClasses(), fetchStatistics(), fetchTeachers()]);
+    } catch (error) {
+      console.error("Error loading class manager data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchClasses = async () => {
     try {
       const response = await classAPI.getAllClasses();
       setClasses(response.data || []);
     } catch (error) {
       console.error("Error fetching classes:", error);
       toast.error("Failed to load classes");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -71,55 +73,55 @@ function ClassManager() {
       setTeachers(response.data || []);
     } catch (error) {
       console.error("Error fetching teachers:", error);
+      toast.error("Failed to load teachers");
     }
   };
 
   const fetchStatistics = async () => {
     try {
       const response = await classAPI.getClassStatistics();
-      setStats(response.data);
+      setStats(response.data || {});
     } catch (error) {
       console.error("Error fetching statistics:", error);
+      toast.error("Failed to load class statistics");
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
 
-    // Auto-generate class code when both className and arm are set
-    if (name === "className" || name === "arm") {
-      const className = name === "className" ? value : formData.className;
-      const arm = name === "arm" ? value : formData.arm;
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [name]: value,
+      };
+
+      const className = name === "className" ? value : updated.className;
+      const arm = name === "arm" ? value : updated.arm;
 
       if (className && arm) {
-        const classCode =
+        updated.classCode =
           `${className.replace(/\s+/g, "")}-${arm}`.toUpperCase();
-        setFormData((prev) => ({
-          ...prev,
-          classCode: classCode,
-        }));
       }
-    }
+
+      return updated;
+    });
   };
 
   const validateForm = () => {
-    if (!formData.className?.trim()) {
+    if (!formData.className.trim()) {
       toast.error("Class name is required");
       return false;
     }
     if (!formData.arm) {
-      toast.error("Arm is required");
+      toast.error("Class arm is required");
       return false;
     }
     if (!formData.category) {
       toast.error("Category is required");
       return false;
     }
-    if (!formData.capacity || formData.capacity < 1) {
+    if (!formData.capacity || Number(formData.capacity) < 1) {
       toast.error("Valid capacity is required");
       return false;
     }
@@ -129,42 +131,36 @@ function ClassManager() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
 
     try {
-      const classData = {
+      const payload = {
         className: formData.className.trim(),
         arm: formData.arm,
         category: formData.category,
-        capacity: parseInt(formData.capacity),
+        capacity: Number(formData.capacity),
         classCode:
           formData.classCode ||
           `${formData.className.replace(/\s+/g, "")}-${formData.arm}`.toUpperCase(),
         description: formData.description?.trim() || "",
+        classTeacherId: formData.classTeacherId
+          ? Number(formData.classTeacherId)
+          : null,
       };
 
-      // Only add classTeacherId if it has a value
-      if (formData.classTeacherId) {
-        classData.classTeacherId = formData.classTeacherId;
-      }
-
       if (editingClass) {
-        await classAPI.updateClass(editingClass.id, classData);
+        await classAPI.updateClass(editingClass.id, payload);
         toast.success("Class updated successfully");
       } else {
-        await classAPI.createClass(classData);
+        await classAPI.createClass(payload);
         toast.success("Class created successfully");
       }
 
-      setShowForm(false);
-      setEditingClass(null);
       resetForm();
-      fetchClasses();
-      fetchStatistics();
+      setShowForm(false);
+      await loadData();
     } catch (error) {
       console.error("Error saving class:", error);
       toast.error(error.response?.data?.message || "Failed to save class");
@@ -182,35 +178,32 @@ function ClassManager() {
       capacity: cls.capacity || 35,
       classCode: cls.classCode || "",
       description: cls.description || "",
-      classTeacherId: cls.classTeacherId || "", // Include teacher ID for editing
+      classTeacherId: cls.classTeacherId ? String(cls.classTeacherId) : "",
     });
     setShowForm(true);
   };
 
   const handleDelete = async (id) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this class? This action cannot be undone.",
-      )
-    ) {
-      return;
-    }
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this class? This action cannot be undone.",
+    );
+    if (!confirmed) return;
 
     setLoading(true);
     try {
       await classAPI.deleteClass(id);
       toast.success("Class deleted successfully");
-      fetchClasses();
-      fetchStatistics();
+      await loadData();
     } catch (error) {
       console.error("Error deleting class:", error);
-      toast.error("Failed to delete class");
+      toast.error(error.response?.data?.message || "Failed to delete class");
     } finally {
       setLoading(false);
     }
   };
 
   const resetForm = () => {
+    setEditingClass(null);
     setFormData({
       className: "",
       arm: "",
@@ -220,7 +213,6 @@ function ClassManager() {
       description: "",
       classTeacherId: "",
     });
-    setEditingClass(null);
   };
 
   const getCategoryColor = (category) => {
@@ -229,9 +221,35 @@ function ClassManager() {
       PRIMARY: "success",
       JUNIOR_SECONDARY: "warning",
       SENIOR_SECONDARY: "danger",
-      OTHER: "secondary",
     };
     return colors[category] || "secondary";
+  };
+
+  const getTeacherName = (cls) => {
+    if (cls.classTeacherName) return cls.classTeacherName;
+
+    if (cls.classTeacher?.firstName || cls.classTeacher?.lastName) {
+      return `${cls.classTeacher?.firstName || ""} ${cls.classTeacher?.lastName || ""}`.trim();
+    }
+
+    return null;
+  };
+
+  const getStudentCount = (cls) => {
+    if (typeof cls.studentCount === "number") return cls.studentCount;
+    if (Array.isArray(cls.students)) return cls.students.length;
+    if (typeof cls.currentEnrollment === "number") return cls.currentEnrollment;
+    return 0;
+  };
+
+  const formatCreatedAt = (cls) => {
+    const dateValue = cls.createdAt || cls.updatedAt;
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return "N/A";
+
+    return date.toLocaleDateString();
   };
 
   return (
@@ -251,45 +269,46 @@ function ClassManager() {
         </button>
       </div>
 
-      {/* Statistics Cards */}
       {stats && (
         <div className="row mb-4">
           <div className="col-md-3">
             <div className="card bg-primary text-white">
               <div className="card-body">
                 <h5 className="card-title">Total Classes</h5>
-                <h2>{stats.totalClasses || classes.length}</h2>
+                <h2>{stats.totalClasses ?? classes.length ?? 0}</h2>
               </div>
             </div>
           </div>
+
           <div className="col-md-3">
             <div className="card bg-success text-white">
               <div className="card-body">
                 <h5 className="card-title">Total Students</h5>
-                <h2>{stats.totalStudents || 0}</h2>
+                <h2>{stats.totalStudents ?? stats.totalEnrollment ?? 0}</h2>
               </div>
             </div>
           </div>
+
           <div className="col-md-3">
             <div className="card bg-info text-white">
               <div className="card-body">
                 <h5 className="card-title">Classes with Teacher</h5>
-                <h2>{stats.classesWithTeacher || 0}</h2>
+                <h2>{stats.classesWithTeacher ?? 0}</h2>
               </div>
             </div>
           </div>
+
           <div className="col-md-3">
             <div className="card bg-warning text-white">
               <div className="card-body">
                 <h5 className="card-title">Available Seats</h5>
-                <h2>{stats.availableSeats || 0}</h2>
+                <h2>{stats.availableSeats ?? stats.availableSpaces ?? 0}</h2>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Create/Edit Form Modal */}
       {showForm && (
         <div
           className="modal fade show d-block"
@@ -313,8 +332,9 @@ function ClassManager() {
                     setShowForm(false);
                     resetForm();
                   }}
-                ></button>
+                />
               </div>
+
               <form onSubmit={handleSubmit}>
                 <div className="modal-body">
                   <div className="row">
@@ -329,9 +349,10 @@ function ClassManager() {
                         value={formData.className}
                         onChange={handleInputChange}
                         required
-                        placeholder="e.g., JSS 1, SSS 2"
+                        placeholder="e.g. JSS 1, SSS 2"
                       />
                     </div>
+
                     <div className="col-md-6 mb-3">
                       <label className="form-label">
                         Arm <span className="text-danger">*</span>
@@ -372,6 +393,7 @@ function ClassManager() {
                         ))}
                       </select>
                     </div>
+
                     <div className="col-md-6 mb-3">
                       <label className="form-label">
                         Capacity <span className="text-danger">*</span>
@@ -390,7 +412,7 @@ function ClassManager() {
                   </div>
 
                   <div className="mb-3">
-                    <label className="form-label">Class Teacher</label>
+                    <label className="form-label">Assigned Teacher</label>
                     <select
                       className="form-select"
                       name="classTeacherId"
@@ -416,9 +438,6 @@ function ClassManager() {
                       onChange={handleInputChange}
                       placeholder="Auto-generated if left empty"
                     />
-                    <small className="text-muted">
-                      Unique identifier (e.g., JSS1-A, SSS2-B)
-                    </small>
                   </div>
 
                   <div className="mb-3">
@@ -430,9 +449,10 @@ function ClassManager() {
                       value={formData.description}
                       onChange={handleInputChange}
                       placeholder="Optional description"
-                    ></textarea>
+                    />
                   </div>
                 </div>
+
                 <div className="modal-footer">
                   <button
                     type="button"
@@ -444,6 +464,7 @@ function ClassManager() {
                   >
                     Cancel
                   </button>
+
                   <button
                     type="submit"
                     className="btn btn-primary"
@@ -451,12 +472,12 @@ function ClassManager() {
                   >
                     {loading ? (
                       <>
-                        <FaSpinner className="spinner-border spinner-border-sm me-2" />{" "}
+                        <FaSpinner className="spinner-border spinner-border-sm me-2" />
                         Saving...
                       </>
                     ) : (
                       <>
-                        <FaSave className="me-2" />{" "}
+                        <FaSave className="me-2" />
                         {editingClass ? "Update" : "Create"}
                       </>
                     )}
@@ -468,7 +489,6 @@ function ClassManager() {
         </div>
       )}
 
-      {/* Classes Grid */}
       {loading && !showForm ? (
         <div className="text-center py-5">
           <div className="spinner-border text-primary" role="status">
@@ -478,67 +498,78 @@ function ClassManager() {
         </div>
       ) : (
         <div className="row">
-          {classes.map((cls) => (
-            <div key={cls.id} className="col-md-4 mb-3">
-              <div className="card h-100">
-                <div
-                  className={`card-header bg-${getCategoryColor(cls.category)} text-white d-flex justify-content-between align-items-center`}
-                >
-                  <div>
-                    <FaLayerGroup className="me-2" /> {cls.category}
+          {classes.map((cls) => {
+            const teacherName = getTeacherName(cls);
+            const studentCount = getStudentCount(cls);
+
+            return (
+              <div key={cls.id} className="col-md-4 mb-3">
+                <div className="card h-100">
+                  <div
+                    className={`card-header bg-${getCategoryColor(cls.category)} text-white d-flex justify-content-between align-items-center`}
+                  >
+                    <div>
+                      <FaLayerGroup className="me-2" /> {cls.category}
+                    </div>
+                    <small>{cls.classCode || "N/A"}</small>
                   </div>
-                  <small>{cls.classCode}</small>
-                </div>
-                <div className="card-body">
-                  <h5 className="card-title">
-                    {cls.className} - Arm {cls.arm}
-                  </h5>
-                  <div className="mb-2">
-                    <span className="badge bg-info me-2">
-                      <FaUsers className="me-1" /> {cls.currentEnrollment || 0}/
-                      {cls.capacity} Students
-                    </span>
-                    {cls.classTeacherName ? (
-                      <span className="badge bg-success">
-                        <FaChalkboardTeacher className="me-1" />{" "}
-                        {cls.classTeacherName}
+
+                  <div className="card-body">
+                    <h5 className="card-title">
+                      {cls.className} - Arm {cls.arm}
+                    </h5>
+
+                    <div className="mb-2">
+                      <span className="badge bg-info me-2">
+                        <FaUsers className="me-1" /> {studentCount}/
+                        {cls.capacity || 0} Students
                       </span>
-                    ) : (
-                      <span className="badge bg-warning">
-                        <FaBan className="me-1" /> No Teacher
-                      </span>
+
+                      {teacherName ? (
+                        <span className="badge bg-success">
+                          <FaChalkboardTeacher className="me-1" /> {teacherName}
+                        </span>
+                      ) : (
+                        <span className="badge bg-warning text-dark">
+                          <FaBan className="me-1" /> No Teacher
+                        </span>
+                      )}
+                    </div>
+
+                    {cls.description && (
+                      <p className="card-text small text-muted">
+                        {cls.description}
+                      </p>
                     )}
                   </div>
-                  {cls.description && (
-                    <p className="card-text small text-muted">
-                      {cls.description}
-                    </p>
-                  )}
-                </div>
-                <div className="card-footer bg-light d-flex justify-content-between">
-                  <small className="text-muted">
-                    Created: {new Date(cls.createdAt).toLocaleDateString()}
-                  </small>
-                  <div>
-                    <button
-                      className="btn btn-sm btn-warning me-1"
-                      onClick={() => handleEdit(cls)}
-                      title="Edit Class"
-                    >
-                      <FaEdit />
-                    </button>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => handleDelete(cls.id)}
-                      title="Delete Class"
-                    >
-                      <FaTrash />
-                    </button>
+
+                  <div className="card-footer bg-light d-flex justify-content-between">
+                    <small className="text-muted">
+                      Created: {formatCreatedAt(cls)}
+                    </small>
+
+                    <div>
+                      <button
+                        className="btn btn-sm btn-warning me-1"
+                        onClick={() => handleEdit(cls)}
+                        title="Edit Class"
+                      >
+                        <FaEdit />
+                      </button>
+
+                      <button
+                        className="btn btn-sm btn-danger"
+                        onClick={() => handleDelete(cls.id)}
+                        title="Delete Class"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {classes.length === 0 && !loading && (
             <div className="col-12">

@@ -55,10 +55,12 @@ function ResultManagement() {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [subjectsLoading, setSubjectsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [rankingsType, setRankingsType] = useState("school");
+  const [rankingsType, setRankingsType] = useState(
+    isTeacher ? "arm" : "school",
+  );
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
-  const [teacherClasses, setTeacherClasses] = useState([]);
+  const [teacherClassAssignments, setTeacherClassAssignments] = useState([]);
 
   const terms = ["FIRST", "SECOND", "THIRD"];
 
@@ -110,8 +112,41 @@ function ResultManagement() {
     }));
   }, [availableSessions]);
 
+  const availableRankingClasses = useMemo(() => {
+    if (isAdmin) return classes;
+    if (isTeacher) {
+      return Array.from(
+        new Set(teacherClassAssignments.map((c) => c.className)),
+      );
+    }
+    return [];
+  }, [isAdmin, isTeacher, teacherClassAssignments]);
+
+  const availableRankingArms = useMemo(() => {
+    if (!selectedClass) return [];
+    if (isAdmin) return ["A", "B", "C"];
+    if (isTeacher) {
+      return teacherClassAssignments
+        .filter((c) => c.className === selectedClass)
+        .map((c) => c.arm);
+    }
+    return [];
+  }, [selectedClass, isAdmin, isTeacher, teacherClassAssignments]);
+
+  const sortedSubjects = useMemo(() => {
+    return [...availableSubjects].sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || "")),
+    );
+  }, [availableSubjects]);
+
   const filteredStudents = useMemo(() => {
-    const source = isParent ? parentWards : students;
+    let source = isParent ? parentWards : students;
+
+    if (isTeacher && selectedClass && selectedArm) {
+      source = source.filter(
+        (s) => s.studentClass === selectedClass && s.classArm === selectedArm,
+      );
+    }
 
     if (!searchTerm.trim()) return source;
 
@@ -123,19 +158,15 @@ function ResultManagement() {
         s.admissionNumber?.toLowerCase().includes(q) ||
         s.studentClass?.toLowerCase().includes(q),
     );
-  }, [students, parentWards, searchTerm, isParent]);
-
-  const availableRankingClasses = useMemo(() => {
-    if (isAdmin) return classes;
-    if (isTeacher) return teacherClasses;
-    return [];
-  }, [isAdmin, isTeacher, teacherClasses]);
-
-  const sortedSubjects = useMemo(() => {
-    return [...availableSubjects].sort((a, b) =>
-      String(a.name || "").localeCompare(String(b.name || "")),
-    );
-  }, [availableSubjects]);
+  }, [
+    students,
+    parentWards,
+    searchTerm,
+    isParent,
+    isTeacher,
+    selectedClass,
+    selectedArm,
+  ]);
 
   useEffect(() => {
     loadInitialData();
@@ -153,6 +184,22 @@ function ResultManagement() {
     selectedArm,
     rankingsType,
   ]);
+
+  useEffect(() => {
+    if (!isTeacher || !selectedClass) return;
+
+    const classArms = teacherClassAssignments
+      .filter((c) => c.className === selectedClass)
+      .map((c) => c.arm);
+
+    if (!classArms.includes(selectedArm)) {
+      if (classArms.length === 1) {
+        setSelectedArm(classArms[0]);
+      } else if (selectedArm) {
+        setSelectedArm("");
+      }
+    }
+  }, [isTeacher, selectedClass, teacherClassAssignments]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadSessionData = async () => {
     setSessionsLoading(true);
@@ -272,57 +319,29 @@ function ResultManagement() {
 
   const loadTeacherStudents = async () => {
     try {
-      let assignedClasses = [];
+      const classesResponse = await teacherAPI.getMyClasses();
+      const assignmentsRaw = Array.isArray(classesResponse.data)
+        ? classesResponse.data
+        : [];
 
-      try {
-        const teacherProfile = await teacherAPI.getMyTeacherProfile();
-        const profile = teacherProfile.data || {};
+      const assignments = assignmentsRaw
+        .filter((c) => c?.id && c?.className && c?.arm)
+        .map((c) => ({
+          id: c.id,
+          className: c.className,
+          arm: c.arm,
+        }));
 
-        if (Array.isArray(profile.assignedClasses)) {
-          assignedClasses = profile.assignedClasses.map((c) => ({
-            className: c.className || c.name || "",
-            arm: c.arm || c.classArm || "",
-          }));
-        } else if (Array.isArray(profile.classNames)) {
-          assignedClasses = profile.classNames.map((className) => ({
-            className,
-            arm: "",
-          }));
-        } else if (profile.className) {
-          assignedClasses = [
-            {
-              className: profile.className,
-              arm: profile.arm || profile.classArm || "",
-            },
-          ];
-        }
-      } catch (error) {
-        console.error("Error loading teacher profile:", error);
-      }
+      setTeacherClassAssignments(assignments);
 
-      const normalizedClasses = assignedClasses.filter((c) => c.className);
-      const uniqueClassNames = Array.from(
-        new Set(normalizedClasses.map((c) => c.className)),
-      );
-
-      setTeacherClasses(uniqueClassNames);
-
-      if (normalizedClasses.length === 0) {
+      if (assignments.length === 0) {
         setStudents([]);
         toast.info("No class assigned to this teacher account");
         return;
       }
 
       const responses = await Promise.all(
-        normalizedClasses.map((entry) => {
-          if (entry.arm) {
-            return studentAPI.getStudentsByClassAndArm(
-              entry.className,
-              entry.arm,
-            );
-          }
-          return studentAPI.getStudentsByClass(entry.className);
-        }),
+        assignments.map((entry) => teacherAPI.getMyClassStudents(entry.id)),
       );
 
       const combined = responses.flatMap((res) => res.data || []);
@@ -332,16 +351,15 @@ function ResultManagement() {
 
       setStudents(uniqueStudents);
 
-      if (normalizedClasses.length === 1) {
-        setSelectedClass(normalizedClasses[0].className);
-        if (normalizedClasses[0].arm) {
-          setSelectedArm(normalizedClasses[0].arm);
-        }
+      if (assignments.length === 1) {
+        setSelectedClass(assignments[0].className);
+        setSelectedArm(assignments[0].arm);
       }
     } catch (error) {
       console.error("Error loading teacher students:", error);
       toast.error("Failed to load your students");
       setStudents([]);
+      setTeacherClassAssignments([]);
     }
   };
 
@@ -353,6 +371,22 @@ function ResultManagement() {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
     }
+  };
+
+  const teacherCanAccessStudent = (student) => {
+    if (!isTeacher) return true;
+    return teacherClassAssignments.some(
+      (c) =>
+        c.className === student?.studentClass && c.arm === student?.classArm,
+    );
+  };
+
+  const selectedTeacherAssignment = () => {
+    return (
+      teacherClassAssignments.find(
+        (c) => c.className === selectedClass && c.arm === selectedArm,
+      ) || null
+    );
   };
 
   const handleAddSubject = () => {
@@ -447,6 +481,13 @@ function ResultManagement() {
       return;
     }
 
+    if (isTeacher && !teacherCanAccessStudent(selectedStudent)) {
+      toast.error(
+        "You can only enter results for students in your assigned class arm",
+      );
+      return;
+    }
+
     if (subjects.length === 0) {
       toast.error("Please add at least one subject");
       return;
@@ -534,6 +575,13 @@ function ResultManagement() {
         return;
       }
 
+      if (isTeacher && !teacherCanAccessStudent(selectedStudent)) {
+        toast.error(
+          "You can only view results for students in your assigned class arm",
+        );
+        return;
+      }
+
       const response = await resultAPI.getTermResult(
         selectedStudent.id,
         session,
@@ -544,7 +592,10 @@ function ResultManagement() {
     } catch (error) {
       console.error("Error fetching result:", error);
       setResultSheet(null);
-      toast.info("No results found for the selected term");
+      toast.error(
+        error?.response?.data?.message ||
+          "No results found for the selected term",
+      );
     } finally {
       setLoading(false);
     }
@@ -563,37 +614,59 @@ function ResultManagement() {
     try {
       let response;
 
-      if (rankingsType === "school") {
-        response = await resultAPI.getSchoolRankings(session, term);
-      } else if (rankingsType === "class") {
-        if (!selectedClass) {
-          toast.error("Please select a class");
-          setLoading(false);
-          return;
-        }
-
-        response = await resultAPI.getClassRankings(
-          selectedClass,
-          session,
-          term,
-        );
-      } else if (rankingsType === "arm") {
+      if (isTeacher) {
         if (!selectedClass || !selectedArm) {
-          toast.error("Please select class and arm");
+          toast.error("Please select your assigned class and arm");
           setLoading(false);
           return;
         }
 
-        response = await resultAPI.getArmRankings(
-          selectedClass,
-          selectedArm,
+        const assignment = selectedTeacherAssignment();
+
+        if (!assignment) {
+          toast.error("You can only view rankings for your assigned class arm");
+          setLoading(false);
+          return;
+        }
+
+        response = await teacherAPI.getMyClassResults(
+          assignment.id,
           session,
           term,
         );
       } else {
-        toast.error("Invalid ranking type");
-        setLoading(false);
-        return;
+        if (rankingsType === "school") {
+          response = await resultAPI.getSchoolRankings(session, term);
+        } else if (rankingsType === "class") {
+          if (!selectedClass) {
+            toast.error("Please select a class");
+            setLoading(false);
+            return;
+          }
+
+          response = await resultAPI.getClassRankings(
+            selectedClass,
+            session,
+            term,
+          );
+        } else if (rankingsType === "arm") {
+          if (!selectedClass || !selectedArm) {
+            toast.error("Please select class and arm");
+            setLoading(false);
+            return;
+          }
+
+          response = await resultAPI.getArmRankings(
+            selectedClass,
+            selectedArm,
+            session,
+            term,
+          );
+        } else {
+          toast.error("Invalid ranking type");
+          setLoading(false);
+          return;
+        }
       }
 
       setRankings(response.data);
@@ -656,7 +729,7 @@ function ResultManagement() {
   const renderPageTitle = () => {
     if (isStudent) return "View your academic results";
     if (isParent) return "View your ward's academic results";
-    if (isTeacher) return "Enter and view results for your assigned class";
+    if (isTeacher) return "Enter and view results for your assigned class arm";
     return "Enter, view and analyze student results";
   };
 
@@ -754,6 +827,48 @@ function ResultManagement() {
                     />
                   </div>
                 </div>
+
+                {isTeacher && (
+                  <>
+                    <div className="filter-group">
+                      <label>Class</label>
+                      <select
+                        value={selectedClass}
+                        onChange={(e) => {
+                          setSelectedClass(e.target.value);
+                          setSelectedArm("");
+                          setSelectedStudent(null);
+                        }}
+                      >
+                        <option value="">Select Class</option>
+                        {availableRankingClasses.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="filter-group">
+                      <label>Arm</label>
+                      <select
+                        value={selectedArm}
+                        onChange={(e) => {
+                          setSelectedArm(e.target.value);
+                          setSelectedStudent(null);
+                        }}
+                        disabled={!selectedClass}
+                      >
+                        <option value="">Select Arm</option>
+                        {availableRankingArms.map((arm) => (
+                          <option key={arm} value={arm}>
+                            {arm}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 <div className="filter-group">
                   <label>{renderStudentSelectorLabel()}</label>
@@ -1195,15 +1310,17 @@ function ResultManagement() {
       {activeTab === "rankings" && (isAdmin || isTeacher) && (
         <div className="rankings-tab">
           <div className="filters-row">
-            <select
-              className="form-select"
-              value={rankingsType}
-              onChange={(e) => setRankingsType(e.target.value)}
-            >
-              <option value="school">School Rankings</option>
-              <option value="class">Class Rankings</option>
-              <option value="arm">Class Arm Rankings</option>
-            </select>
+            {isAdmin && (
+              <select
+                className="form-select"
+                value={rankingsType}
+                onChange={(e) => setRankingsType(e.target.value)}
+              >
+                <option value="school">School Rankings</option>
+                <option value="class">Class Rankings</option>
+                <option value="arm">Class Arm Rankings</option>
+              </select>
+            )}
 
             <select
               className="form-select"
@@ -1233,15 +1350,13 @@ function ResultManagement() {
               ))}
             </select>
 
-            {rankingsType !== "school" && (
+            {(isTeacher || rankingsType !== "school") && (
               <select
                 className="form-select"
                 value={selectedClass}
                 onChange={(e) => {
                   setSelectedClass(e.target.value);
-                  if (rankingsType === "class") {
-                    setSelectedArm("");
-                  }
+                  setSelectedArm("");
                 }}
               >
                 <option value="">Select Class</option>
@@ -1253,16 +1368,18 @@ function ResultManagement() {
               </select>
             )}
 
-            {rankingsType === "arm" && (
+            {(isTeacher || rankingsType === "arm") && (
               <select
                 className="form-select"
                 value={selectedArm}
                 onChange={(e) => setSelectedArm(e.target.value)}
               >
                 <option value="">Select Arm</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
+                {availableRankingArms.map((arm) => (
+                  <option key={arm} value={arm}>
+                    {arm}
+                  </option>
+                ))}
               </select>
             )}
 

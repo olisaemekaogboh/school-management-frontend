@@ -86,10 +86,25 @@ function AttendanceManager() {
   }, []);
 
   useEffect(() => {
-    if (session) {
+    if (isTeacher && session) {
       loadTeacherAssignments();
     }
-  }, [session]);
+  }, [isTeacher, session]);
+
+  useEffect(() => {
+    if (!selectedClass) return;
+
+    const allowedArms =
+      allowedClassOptions.find((c) => c.name === selectedClass)?.arms || [];
+
+    if (!allowedArms.includes(selectedArm)) {
+      if (allowedArms.length === 1) {
+        setSelectedArm(allowedArms[0]);
+      } else if (selectedArm) {
+        setSelectedArm("");
+      }
+    }
+  }, [selectedClass]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!selectedClass || !selectedArm || !session || !term) return;
@@ -159,13 +174,13 @@ function AttendanceManager() {
     if (!isTeacher) return;
 
     try {
-      const response = await teacherAPI.getMyTeacherProfile();
-      const teacher = response.data;
-      const assignments = teacher?.assignedClasses || teacher?.classes || [];
+      const response = await teacherAPI.getMyClasses();
+      const classList = Array.isArray(response.data) ? response.data : [];
 
-      const normalized = assignments
-        .filter((c) => c?.className && c?.arm)
+      const normalized = classList
+        .filter((c) => c?.id && c?.className && c?.arm)
         .map((c) => ({
+          id: c.id,
           className: c.className,
           arm: c.arm,
         }));
@@ -176,8 +191,22 @@ function AttendanceManager() {
         setSelectedClass(normalized[0].className);
         setSelectedArm(normalized[0].arm);
       }
+
+      if (
+        classNameFromQuery &&
+        armFromQuery &&
+        !normalized.some(
+          (c) => c.className === classNameFromQuery && c.arm === armFromQuery,
+        )
+      ) {
+        setSelectedClass("");
+        setSelectedArm("");
+        toast.error("You can only access your assigned class arm");
+      }
     } catch (error) {
       console.error("Error loading teacher assignments:", error);
+      toast.error("Failed to load teacher class assignments");
+      setTeacherAssignments([]);
     }
   };
 
@@ -202,6 +231,16 @@ function AttendanceManager() {
     return [];
   }, [isAdmin, isTeacher, teacherAssignments]);
 
+  const selectedTeacherAssignment = useMemo(() => {
+    if (!isTeacher) return null;
+
+    return (
+      teacherAssignments.find(
+        (a) => a.className === selectedClass && a.arm === selectedArm,
+      ) || null
+    );
+  }, [isTeacher, teacherAssignments, selectedClass, selectedArm]);
+
   const isAllowedTeacherClass = (className, arm) => {
     if (isAdmin) return true;
     return teacherAssignments.some(
@@ -212,19 +251,27 @@ function AttendanceManager() {
   const fetchStudents = async () => {
     if (!selectedClass || !selectedArm || !session || !term) return;
 
-    if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
-      toast.error("You can only manage attendance for your assigned class");
+    if (isTeacher && !selectedTeacherAssignment) {
+      toast.error("You can only manage attendance for your assigned class arm");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await studentAPI.getStudentsByClassAndArm(
-        selectedClass,
-        selectedArm,
-      );
+      let response;
 
-      const studentList = response.data || [];
+      if (isTeacher) {
+        response = await teacherAPI.getMyClassStudents(
+          selectedTeacherAssignment.id,
+        );
+      } else {
+        response = await studentAPI.getStudentsByClassAndArm(
+          selectedClass,
+          selectedArm,
+        );
+      }
+
+      const studentList = Array.isArray(response.data) ? response.data : [];
       setStudents(studentList);
 
       const attendanceMap = {};
@@ -237,6 +284,8 @@ function AttendanceManager() {
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
+      setStudents([]);
+      setAttendanceData({});
     } finally {
       setLoading(false);
     }
@@ -279,7 +328,7 @@ function AttendanceManager() {
 
     if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
       toast.error(
-        "You can only view attendance statistics for your assigned class",
+        "You can only view attendance statistics for your assigned class arm",
       );
       return;
     }
@@ -295,7 +344,10 @@ function AttendanceManager() {
       setClassStats(response.data);
     } catch (error) {
       console.error("Error fetching class statistics:", error);
-      toast.error("Failed to load class statistics");
+      toast.error(
+        error?.response?.data?.message || "Failed to load class statistics",
+      );
+      setClassStats(null);
     } finally {
       setLoading(false);
     }
@@ -319,7 +371,11 @@ function AttendanceManager() {
       setStudentSummary(summaryRes.data || null);
     } catch (error) {
       console.error("Error fetching student attendance:", error);
-      toast.error("Failed to load student attendance");
+      toast.error(
+        error?.response?.data?.message || "Failed to load student attendance",
+      );
+      setStudentAttendance([]);
+      setStudentSummary(null);
     } finally {
       setLoading(false);
     }
@@ -336,8 +392,8 @@ function AttendanceManager() {
       return;
     }
 
-    if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
-      toast.error("You can only mark attendance for your assigned class");
+    if (isTeacher && !selectedTeacherAssignment) {
+      toast.error("You can only mark attendance for your assigned class arm");
       return;
     }
 
@@ -345,13 +401,23 @@ function AttendanceManager() {
 
     setLoading(true);
     try {
-      await attendanceAPI.markBulkAttendance(
-        studentIds,
-        selectedDate,
-        session,
-        term,
-        status,
-      );
+      if (isTeacher) {
+        await teacherAPI.markMyClassAttendance(selectedTeacherAssignment.id, {
+          studentIds,
+          date: selectedDate,
+          session,
+          term,
+          status,
+        });
+      } else {
+        await attendanceAPI.markBulkAttendance(
+          studentIds,
+          selectedDate,
+          session,
+          term,
+          status,
+        );
+      }
 
       toast.success(`All students marked as ${status}`);
 
@@ -376,8 +442,8 @@ function AttendanceManager() {
       return;
     }
 
-    if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
-      toast.error("You can only mark attendance for your assigned class");
+    if (isTeacher && !selectedTeacherAssignment) {
+      toast.error("You can only mark attendance for your assigned class arm");
       return;
     }
 

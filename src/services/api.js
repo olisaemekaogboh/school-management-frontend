@@ -167,45 +167,77 @@ export const authAPI = {
 ================================ */
 export const studentAPI = {
   getAllStudents: () => api.get("/students"),
+
   getPaginatedStudents: (page = 0, size = 10, sortBy = "id", sortDir = "asc") =>
     api.get("/students/paginated", {
       params: { page, size, sortBy, sortDir },
     }),
+
   getStudentById: (id) => api.get(`/students/${id}`),
+
   getStudentByAdmissionNumber: (admissionNumber) =>
-    api.get(`/students/admission/${admissionNumber}`),
+    api.get(`/students/admission/${encodeURIComponent(admissionNumber)}`),
+
   createStudent: (data) => sendData("post", "/students", data),
+
   updateStudent: (id, data) => sendData("put", `/students/${id}`, data),
+
   deleteStudent: (id) => api.delete(`/students/${id}`),
+
   deleteStudentByAdmissionNumber: (admissionNumber) =>
-    api.delete(`/students/admission/${admissionNumber}`),
+    api.delete(`/students/admission/${encodeURIComponent(admissionNumber)}`),
+
   searchStudents: (term) => api.get("/students/search", { params: { term } }),
-  getStudentsByClass: (className) => api.get(`/students/class/${className}`),
+
+  getStudentsByClass: (className) =>
+    api.get(`/students/class/${encodeURIComponent(className)}`),
+
   getStudentsByClassAndArm: (className, arm) =>
-    api.get(`/students/class/${className}/arm/${arm}`),
+    api.get(
+      `/students/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
+    ),
+
   getStudentsByState: (state) =>
-    api.get("/students/state", { params: { state } }),
-  getStudentsByLGA: (lga) => api.get("/students/lga", { params: { lga } }),
+    api.get(`/students/state/${encodeURIComponent(state)}`),
+
+  getStudentsByLGA: (lga) =>
+    api.get(`/students/lga/${encodeURIComponent(lga)}`),
+
   getActiveStudents: () => api.get("/students/active"),
+
   getStudentsByStatus: (status) =>
-    api.get("/students/status", { params: { status } }),
+    api.get(`/students/status/${encodeURIComponent(status)}`),
+
   getStatistics: () => api.get("/students/statistics"),
+
   bulkRegisterStudents: (students) => api.post("/students/bulk", students),
+
   bulkUpdateClass: (studentIds, newClass) =>
     api.patch("/students/bulk/class", studentIds, {
       params: { newClass },
     }),
+
   generateAdmissionNumber: () => api.get("/students/generate-admission"),
+
   checkAdmissionNumber: (admissionNumber) =>
-    api.get(`/students/check-admission/${admissionNumber}`),
+    api.get(`/students/check-admission/${encodeURIComponent(admissionNumber)}`),
+
   getPromotionPreview: () => api.get("/students/promote/preview"),
+
   promoteAllStudents: () => api.post("/students/promote/all"),
-  promoteClass: (className) => api.post(`/students/promote/class/${className}`),
+
+  promoteClass: (className, arm = null) =>
+    api.post(`/students/promote/class/${encodeURIComponent(className)}`, null, {
+      params: arm ? { arm } : {},
+    }),
+
   togglePromotionExclusion: (id, exclude, reason) =>
     api.post(`/students/${id}/toggle-exclusion`, null, {
       params: { exclude, reason },
     }),
+
   getExcludedStudents: () => api.get("/students/excluded"),
+
   promoteSelectedStudents: (studentIds) =>
     api.post("/students/promote/selected", studentIds),
 };
@@ -267,6 +299,25 @@ export const teacherAPI = {
     api.get("/teachers/export/excel", { responseType: "blob" }),
 
   getMyTeacherProfile: () => api.get("/teachers/me"),
+
+  // teacher-scoped access
+  getMyClasses: () => api.get("/teachers/me/classes"),
+
+  getMyClassStudents: (classId) =>
+    api.get(`/teachers/me/classes/${classId}/students`),
+
+  getMyClassResults: (classId, session, term) =>
+    api.get(`/teachers/me/classes/${classId}/results`, {
+      params: { session, term },
+    }),
+
+  getMyClassAttendance: (classId, date, session, term) =>
+    api.get(`/teachers/me/classes/${classId}/attendance`, {
+      params: { date, session, term },
+    }),
+
+  markMyClassAttendance: (classId, payload) =>
+    api.post(`/teachers/me/classes/${classId}/attendance`, payload),
 };
 
 /* ================================
