@@ -39,7 +39,6 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
-    // 401 = token expired / unauthenticated
     if (status === 401 && !originalRequest?._retry) {
       originalRequest._retry = true;
 
@@ -75,7 +74,6 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // 403 = authenticated but forbidden
     if (status === 403) {
       toast.error("You don't have permission to access this resource");
       return Promise.reject(error);
@@ -268,8 +266,42 @@ export const teacherAPI = {
   exportToExcel: () =>
     api.get("/teachers/export/excel", { responseType: "blob" }),
 
-  // Requires backend endpoint
   getMyTeacherProfile: () => api.get("/teachers/me"),
+};
+
+/* ================================
+   SUBJECT API
+================================ */
+export const subjectAPI = {
+  getAllSubjects: () => api.get("/subjects"),
+  getActiveSubjects: () => api.get("/subjects/active"),
+  getSubjectById: (id) => api.get(`/subjects/${id}`),
+  createSubject: (data) => api.post("/subjects", data),
+  updateSubject: (id, data) => api.put(`/subjects/${id}`, data),
+  deleteSubject: (id) => api.delete(`/subjects/${id}`),
+  toggleStatus: (id, active) =>
+    api.patch(`/subjects/${id}/status`, null, {
+      params: { active },
+    }),
+
+  assignSubjectToClass: (data) => api.post("/subjects/class-assignments", data),
+
+  getSubjectsForClass: (className, classArm) =>
+    api.get("/subjects/class-assignments", {
+      params: { className, classArm },
+    }),
+
+  removeSubjectFromClass: (className, classArm, subjectId) =>
+    api.delete("/subjects/class-assignments", {
+      params: { className, classArm, subjectId },
+    }),
+
+  assignSubjectToTeacher: (data) =>
+    api.post("/subjects/teacher-assignments", data),
+  getTeacherSubjects: (teacherId) =>
+    api.get(`/subjects/teacher-assignments/${teacherId}`),
+  removeTeacherSubject: (id) =>
+    api.delete(`/subjects/teacher-assignments/${id}`),
 };
 
 /* ================================
@@ -309,8 +341,17 @@ export const resultAPI = {
     api.post(`/results/student/${resultData.studentId}`, resultData),
 
   addOrUpdateResult: (studentId, subject, session, term, scores) =>
-    api.post(`/results/student/${studentId}`, scores, {
-      params: { subject, session, term },
+    api.post(`/results/student/${studentId}`, {
+      studentId,
+      subject,
+      session,
+      term,
+      resumptionTest: scores?.resumptionTest ?? 0,
+      assignments: scores?.assignments ?? 0,
+      project: scores?.project ?? 0,
+      midtermTest: scores?.midtermTest ?? 0,
+      secondTest: scores?.secondTest ?? 0,
+      examination: scores?.examination ?? 0,
     }),
 
   getStudentResults: (studentId, session, term) =>
@@ -328,9 +369,13 @@ export const resultAPI = {
       params: { session },
     }),
 
-  getClassRankings: (className, session, term) =>
+  getClassRankings: (className, session, term, arm) =>
     api.get(`/results/rankings/class/${className}`, {
-      params: { session, term },
+      params: {
+        session,
+        term,
+        ...(arm ? { arm } : {}),
+      },
     }),
 
   getArmRankings: (className, arm, session, term) =>
@@ -353,18 +398,21 @@ export const resultAPI = {
       params: { session },
     }),
 
-  // student self-service
   getMyTermResult: (session, term) =>
-    api.get("/results/my-results/term", {
+    api.get("/results/me/term", {
       params: { session, term },
+    }),
+
+  getMyAnnualResult: (session) =>
+    api.get("/results/me/annual", {
+      params: { session },
     }),
 };
 
 /* ================================
-   ATTENDANCE API - UPDATED TO MATCH YOUR BACKEND
+   ATTENDANCE API
 ================================ */
 export const attendanceAPI = {
-  // Mark attendance for a single student
   markAttendance: (studentId, date, session, term, status, remarks) =>
     api.post(`/attendance/student/${studentId}`, null, {
       params: {
@@ -376,85 +424,71 @@ export const attendanceAPI = {
       },
     }),
 
-  // Mark bulk attendance for multiple students
   markBulkAttendance: (studentIds, date, session, term, status) =>
     api.post("/attendance/bulk", studentIds, {
       params: { date, session, term, status },
     }),
 
-  // Get attendance for a specific student on a specific date
   getStudentAttendance: (studentId, date, session, term) =>
     api.get(`/attendance/student/${studentId}`, {
       params: { date, session, term },
     }),
 
-  // Get student's attendance for an entire term
   getStudentTermAttendance: (studentId, session, term) =>
     api.get(`/attendance/student/${studentId}/term`, {
       params: { session, term },
     }),
 
-  // Get student's attendance summary for a term
   getStudentTermSummary: (studentId, session, term) =>
     api.get(`/attendance/student/${studentId}/summary`, {
       params: { session, term },
     }),
 
-  // Get student's attendance summary for entire session (all terms)
   getStudentSessionSummary: (studentId, session) =>
     api.get(`/attendance/student/${studentId}/session`, {
       params: { session },
     }),
 
-  // Get current user's attendance for a term (for students)
   getMyAttendance: (session, term) =>
     api.get("/attendance/me/term", {
       params: { session, term },
     }),
 
-  // Get current user's attendance summary (for students)
   getMyAttendanceSummary: (session, term) =>
     api.get("/attendance/me/summary", {
       params: { session, term },
     }),
 
-  // Get attendance for a whole class with arm
   getClassAttendanceWithArm: (className, arm, date, session, term) =>
     api.get(`/attendance/class/${className}/arm/${arm}`, {
       params: { date, session, term },
     }),
 
-  // Get class term statistics
   getClassTermStatistics: (className, arm, session, term) =>
     api.get(`/attendance/statistics/class/${className}/arm/${arm}`, {
       params: { session, term },
     }),
 
-  // Get school-wide attendance statistics
   getSchoolAttendanceStatistics: (session, term) =>
     api.get("/attendance/statistics/school", {
       params: { session, term },
     }),
 
-  // Initialize school days for a term
   initializeSchoolDays: (dates, session, term) =>
     api.post("/attendance/initialize-days", dates, {
       params: { session, term },
     }),
 
-  // Calculate all term summaries (admin only)
   calculateAllTermSummaries: (session, term) =>
     api.post("/attendance/calculate-all", null, {
       params: { session, term },
     }),
 
-  // Test endpoint (admin only)
   testSingleAttendance: (studentId, date, session, term, status) =>
     api.post("/attendance/test-single", null, {
       params: { studentId, date, session, term, status },
     }),
 
-  // Debug endpoint (admin only)
   debugAttendance: (className, date, session, term, arm = null) => {
     const params = { className, date, session, term };
     if (arm) params.arm = arm;
@@ -481,9 +515,12 @@ export const sessionResultAPI = {
       params: { session },
     }),
 
-  getClassSessionResults: (className, session) =>
+  getClassSessionResults: (className, session, arm) =>
     api.get(`/session-results/class/${className}`, {
-      params: { session },
+      params: {
+        session,
+        ...(arm ? { arm } : {}),
+      },
     }),
 
   getArmSessionResults: (className, arm, session) =>
@@ -496,9 +533,12 @@ export const sessionResultAPI = {
       params: { session },
     }),
 
-  getClassRankings: (className, session) =>
+  getClassRankings: (className, session, arm) =>
     api.get(`/session-results/rankings/class/${className}`, {
-      params: { session },
+      params: {
+        session,
+        ...(arm ? { arm } : {}),
+      },
     }),
 
   getArmRankings: (className, arm, session) =>
@@ -662,6 +702,7 @@ export const feeAPI = {
       params: { session, term },
     }),
 };
+
 /* ================================
    TIMETABLE API
 ================================ */
@@ -704,13 +745,13 @@ export const parentAPI = {
   deleteParent: (id) => api.delete(`/parents/${id}`),
   getAllParents: () => api.get("/parents"),
 
-  // admin use
   getWards: (parentId) => api.get(`/parents/${parentId}/wards`),
   linkStudent: (parentId, studentId) =>
     api.post(`/parents/${parentId}/wards/${studentId}`),
   unlinkStudent: (parentId, studentId) =>
     api.delete(`/parents/${parentId}/wards/${studentId}`),
 };
+
 /* ================================
    LIBRARY API
 ================================ */

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { studentAPI, sessionResultAPI, sessionAPI } from "../services/api";
 import { toast } from "react-toastify";
 import {
@@ -29,7 +29,8 @@ function SessionResult() {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
 
-  const { session, setSession, loadingSession } = useActiveSession();
+  const { session, setSession, loadingSession, refreshActiveSession } =
+    useActiveSession();
 
   const classes = [
     "Nursery",
@@ -60,8 +61,7 @@ function SessionResult() {
   }, [availableSessions]);
 
   useEffect(() => {
-    fetchStudents();
-    fetchSessions();
+    loadInitialData();
   }, []);
 
   useEffect(() => {
@@ -87,6 +87,10 @@ function SessionResult() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStudent, session]);
+
+  const loadInitialData = async () => {
+    await Promise.all([fetchStudents(), fetchSessions()]);
+  };
 
   const fetchSessions = async () => {
     setSessionsLoading(true);
@@ -129,11 +133,14 @@ function SessionResult() {
         selectedStudent.id,
         session,
       );
-      setSessionResult(response.data);
+      setSessionResult(response.data || null);
     } catch (error) {
       console.error("Error fetching session result:", error);
       setSessionResult(null);
-      toast.error("No session result found for this student");
+      toast.error(
+        error?.response?.data?.message ||
+          "No session result found for this student",
+      );
     } finally {
       setLoading(false);
     }
@@ -165,12 +172,12 @@ function SessionResult() {
         return;
       }
 
-      setRankings(response.data);
+      setRankings(response.data || null);
       toast.success("Rankings loaded successfully");
     } catch (error) {
       console.error("Error fetching rankings:", error);
       setRankings(null);
-      toast.error("Failed to load rankings");
+      toast.error(error?.response?.data?.message || "Failed to load rankings");
     } finally {
       setLoading(false);
     }
@@ -185,12 +192,14 @@ function SessionResult() {
     setLoading(true);
     try {
       const response = await sessionResultAPI.getSessionStatistics(session);
-      setStatistics(response.data);
+      setStatistics(response.data || null);
       toast.success("Statistics loaded successfully");
     } catch (error) {
       console.error("Error fetching statistics:", error);
       setStatistics(null);
-      toast.error("Failed to load statistics");
+      toast.error(
+        error?.response?.data?.message || "Failed to load statistics",
+      );
     } finally {
       setLoading(false);
     }
@@ -210,7 +219,9 @@ function SessionResult() {
     } catch (error) {
       console.error("Error fetching graduates:", error);
       setGraduates([]);
-      toast.error("Failed to load graduation list");
+      toast.error(
+        error?.response?.data?.message || "Failed to load graduation list",
+      );
     } finally {
       setLoading(false);
     }
@@ -234,16 +245,27 @@ function SessionResult() {
     try {
       const response =
         await sessionResultAPI.calculateAllSessionResults(session);
-      const count = Array.isArray(response.data) ? response.data.length : 0;
 
+      const count = Array.isArray(response.data) ? response.data.length : 0;
       toast.success(`Session results calculated for ${count} students`);
 
       if (selectedStudent) {
         await fetchSessionResult();
       }
+      if (activeTab === "rankings") {
+        setRankings(null);
+      }
+      if (activeTab === "statistics") {
+        setStatistics(null);
+      }
+      if (activeTab === "graduates") {
+        setGraduates([]);
+      }
     } catch (error) {
       console.error("Error calculating results:", error);
-      toast.error("Failed to calculate session results");
+      toast.error(
+        error?.response?.data?.message || "Failed to calculate session results",
+      );
     } finally {
       setLoading(false);
     }
@@ -267,18 +289,31 @@ function SessionResult() {
     try {
       const response = await sessionResultAPI.promoteStudents(session);
       toast.success(
-        `Promotion complete: ${response.data.promoted} promoted, ${response.data.graduated} graduated, ${response.data.retained} retained`,
+        `Promotion complete: ${response.data?.promoted || 0} promoted, ${
+          response.data?.graduated || 0
+        } graduated, ${response.data?.retained || 0} retained`,
       );
 
       if (selectedStudent) {
         await fetchSessionResult();
       }
+      await fetchStudents();
     } catch (error) {
       console.error("Error promoting students:", error);
-      toast.error("Failed to promote students");
+      toast.error(
+        error?.response?.data?.message || "Failed to promote students",
+      );
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefreshAll = async () => {
+    await Promise.all([
+      fetchSessions(),
+      fetchStudents(),
+      refreshActiveSession(),
+    ]);
   };
 
   const formatNumber = (num) => {
@@ -332,9 +367,9 @@ function SessionResult() {
           </div>
         </div>
 
-        <button className="btn btn-outline-primary" onClick={fetchSessions}>
+        <button className="btn btn-outline-primary" onClick={handleRefreshAll}>
           <FaSyncAlt className="me-2" />
-          Refresh Sessions
+          Refresh
         </button>
       </div>
 
@@ -669,15 +704,15 @@ function SessionResult() {
                 </div>
 
                 <div className="row mt-3">
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <div className="border p-3 rounded bg-light">
                       <h6>Annual Total</h6>
                       <h3 className="text-primary">
-                        {sessionResult.annualTotal || 0}
+                        {formatNumber(sessionResult.annualTotal)}
                       </h3>
                     </div>
                   </div>
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <div className="border p-3 rounded bg-light">
                       <h6>Annual Average</h6>
                       <h3 className="text-success">
@@ -685,11 +720,19 @@ function SessionResult() {
                       </h3>
                     </div>
                   </div>
-                  <div className="col-md-4">
+                  <div className="col-md-3">
                     <div className="border p-3 rounded bg-light">
                       <h6>Class Position</h6>
                       <h3 className="text-warning">
                         {sessionResult.annualPositionInClass || "N/A"}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="border p-3 rounded bg-light">
+                      <h6>Attendance</h6>
+                      <h3 className="text-info">
+                        {formatOneDecimal(sessionResult.attendancePercentage)}%
                       </h3>
                     </div>
                   </div>
@@ -788,8 +831,10 @@ function SessionResult() {
                           </td>
                           <td>{rank.studentName}</td>
                           <td>{rank.admissionNumber}</td>
-                          <td>{rank.studentClass}</td>
-                          <td>{rank.classArm}</td>
+                          <td>
+                            {rank.studentClass || rankings.className || "-"}
+                          </td>
+                          <td>{rank.classArm || rankings.arm || "-"}</td>
                           <td>
                             <strong className="text-success">
                               {formatNumber(rank.annualAverage)}%
@@ -901,6 +946,44 @@ function SessionResult() {
                   </div>
                 </div>
               </div>
+
+              {statistics.topPerformers?.length > 0 && (
+                <div className="card">
+                  <div className="card-header bg-light">
+                    <h5 className="mb-0">Top Performers</h5>
+                  </div>
+                  <div className="card-body">
+                    <div className="table-responsive">
+                      <table className="table table-striped">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Student</th>
+                            <th>Admission No</th>
+                            <th>Class</th>
+                            <th>Average</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {statistics.topPerformers.map((item, index) => (
+                            <tr key={index}>
+                              <td>{index + 1}</td>
+                              <td>{item.studentName}</td>
+                              <td>{item.admissionNumber}</td>
+                              <td>
+                                {item.studentClass} {item.classArm}
+                              </td>
+                              <td className="fw-bold text-success">
+                                {formatNumber(item.annualAverage)}%
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="alert alert-info">

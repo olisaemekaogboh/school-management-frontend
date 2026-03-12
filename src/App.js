@@ -89,7 +89,6 @@ function App() {
             <main className="main-content">
               <div className="content-wrapper">
                 <Routes>
-                  {/* PUBLIC */}
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -108,7 +107,6 @@ function App() {
                   />
                   <Route path="/verify-student" element={<VerifyStudent />} />
 
-                  {/* ROOT */}
                   <Route
                     path="/"
                     element={
@@ -118,7 +116,6 @@ function App() {
                     }
                   />
 
-                  {/* ADMIN */}
                   <Route
                     path="/users"
                     element={
@@ -427,7 +424,6 @@ function App() {
                     }
                   />
 
-                  {/* TEACHER */}
                   <Route
                     path="/teacher-dashboard"
                     element={
@@ -465,6 +461,7 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+
                   <Route
                     path="/results/:studentId"
                     element={
@@ -487,7 +484,6 @@ function App() {
                     }
                   />
 
-                  {/* STUDENT */}
                   <Route
                     path="/student-dashboard"
                     element={
@@ -497,7 +493,6 @@ function App() {
                     }
                   />
 
-                  {/* PARENT */}
                   <Route
                     path="/parent-dashboard"
                     element={
@@ -523,7 +518,6 @@ function App() {
                     }
                   />
 
-                  {/* SHARED */}
                   <Route
                     path="/profile"
                     element={
@@ -545,7 +539,6 @@ function App() {
                     }
                   />
 
-                  {/* ERRORS */}
                   <Route path="/401" element={<Unauthorized />} />
                   <Route path="/404" element={<PageNotFound />} />
                   <Route path="*" element={<Navigate to="/404" replace />} />

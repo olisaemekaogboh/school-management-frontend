@@ -6,6 +6,7 @@ import {
   studentAPI,
   teacherAPI,
   parentPortalAPI,
+  subjectAPI,
 } from "../services/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
@@ -40,6 +41,7 @@ function ResultManagement() {
   const [session, setSession] = useState("");
   const [term, setTerm] = useState("FIRST");
 
+  const [availableSubjects, setAvailableSubjects] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [resultSheet, setResultSheet] = useState(null);
   const [rankings, setRankings] = useState(null);
@@ -51,41 +53,12 @@ function ResultManagement() {
 
   const [loading, setLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [rankingsType, setRankingsType] = useState("school");
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
   const [teacherClasses, setTeacherClasses] = useState([]);
-
-  const subjectList = [
-    "Mathematics",
-    "English Language",
-    "Biology",
-    "Chemistry",
-    "Physics",
-    "Economics",
-    "Government",
-    "Literature in English",
-    "History",
-    "Geography",
-    "Agricultural Science",
-    "Further Mathematics",
-    "Computer Science",
-    "Civic Education",
-    "Christian Religious Studies",
-    "Islamic Studies",
-    "Yoruba Language",
-    "Hausa Language",
-    "Igbo Language",
-    "French",
-    "Physical Education",
-    "Basic Science",
-    "Basic Technology",
-    "Business Studies",
-    "Home Economics",
-    "Music",
-    "Fine Arts",
-  ];
 
   const terms = ["FIRST", "SECOND", "THIRD"];
 
@@ -158,6 +131,12 @@ function ResultManagement() {
     return [];
   }, [isAdmin, isTeacher, teacherClasses]);
 
+  const sortedSubjects = useMemo(() => {
+    return [...availableSubjects].sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || "")),
+    );
+  }, [availableSubjects]);
+
   useEffect(() => {
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,11 +193,25 @@ function ResultManagement() {
     }
   };
 
+  const loadSubjects = async () => {
+    setSubjectsLoading(true);
+    try {
+      const response = await subjectAPI.getAllSubjects();
+      setAvailableSubjects(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Error loading subjects:", error);
+      setAvailableSubjects([]);
+      toast.error("Failed to load subjects");
+    } finally {
+      setSubjectsLoading(false);
+    }
+  };
+
   const loadInitialData = async () => {
     setLoading(true);
 
     try {
-      await loadSessionData();
+      await Promise.all([loadSessionData(), loadSubjects()]);
 
       if (isParent) {
         await loadParentWards();
@@ -367,7 +360,8 @@ function ResultManagement() {
       ...prev,
       {
         id: Date.now() + Math.random(),
-        name: "",
+        subjectId: "",
+        subjectName: "",
         resumptionTest: 0,
         assignments: 0,
         project: 0,
@@ -380,14 +374,26 @@ function ResultManagement() {
 
   const handleSubjectChange = (id, field, value) => {
     setSubjects((prev) =>
-      prev.map((subject) =>
-        subject.id === id
-          ? {
-              ...subject,
-              [field]: field === "name" ? value : parseFloat(value) || 0,
-            }
-          : subject,
-      ),
+      prev.map((subject) => {
+        if (subject.id !== id) return subject;
+
+        if (field === "subjectId") {
+          const selected = sortedSubjects.find(
+            (s) => String(s.id) === String(value),
+          );
+
+          return {
+            ...subject,
+            subjectId: value,
+            subjectName: selected?.name || "",
+          };
+        }
+
+        return {
+          ...subject,
+          [field]: parseFloat(value) || 0,
+        };
+      }),
     );
   };
 
@@ -447,12 +453,15 @@ function ResultManagement() {
     }
 
     for (const subject of subjects) {
-      if (!subject.name) {
+      if (!subject.subjectId) {
         toast.error("Please select a subject for all entries");
         return;
       }
+
       if (!validateScores(subject)) {
-        toast.error(`Scores exceed maximum for ${subject.name}`);
+        toast.error(
+          `Scores exceed maximum for ${subject.subjectName || "a subject"}`,
+        );
         return;
       }
     }
@@ -465,7 +474,7 @@ function ResultManagement() {
       for (const subject of subjects) {
         const resultData = {
           studentId: selectedStudent.id,
-          subject: subject.name,
+          subjectId: Number(subject.subjectId),
           session,
           term,
           resumptionTest: safeNumber(subject.resumptionTest),
@@ -653,12 +662,12 @@ function ResultManagement() {
 
   const currentStudentList = isParent ? parentWards : students;
 
-  if (sessionsLoading && currentStudentList.length === 0) {
+  if ((sessionsLoading || subjectsLoading) && currentStudentList.length === 0) {
     return (
       <div className="result-management">
         <div className="text-center py-5">
           <FaSpinner className="spin" size={36} />
-          <div className="mt-3">Loading sessions...</div>
+          <div className="mt-3">Loading result management...</div>
         </div>
       </div>
     );
@@ -674,9 +683,15 @@ function ResultManagement() {
           <p className="text-muted mb-0">{renderPageTitle()}</p>
         </div>
 
-        <button className="btn btn-outline-primary" onClick={loadSessionData}>
+        <button
+          className="btn btn-outline-primary"
+          onClick={() => {
+            loadSessionData();
+            loadSubjects();
+          }}
+        >
           <FaSyncAlt className="me-2" />
-          Refresh Sessions
+          Refresh
         </button>
       </div>
 
@@ -823,7 +838,11 @@ function ResultManagement() {
               <button className="btn-secondary" onClick={clearForm}>
                 Clear
               </button>
-              <button className="btn-primary" onClick={handleAddSubject}>
+              <button
+                className="btn-primary"
+                onClick={handleAddSubject}
+                disabled={subjectsLoading}
+              >
                 <FaPlus /> Add Subject
               </button>
             </div>
@@ -860,15 +879,19 @@ function ResultManagement() {
                   <div className="form-group">
                     <label>Subject</label>
                     <select
-                      value={subject.name}
+                      value={subject.subjectId}
                       onChange={(e) =>
-                        handleSubjectChange(subject.id, "name", e.target.value)
+                        handleSubjectChange(
+                          subject.id,
+                          "subjectId",
+                          e.target.value,
+                        )
                       }
                     >
                       <option value="">Select Subject</option>
-                      {subjectList.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
+                      {sortedSubjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
                         </option>
                       ))}
                     </select>
@@ -1111,7 +1134,9 @@ function ResultManagement() {
                     <tbody>
                       {resultSheet.subjects?.map((subject, index) => (
                         <tr key={index}>
-                          <td className="fw-bold">{subject.subject}</td>
+                          <td className="fw-bold">
+                            {subject.subjectName || subject.subject}
+                          </td>
                           <td>{subject.continuousAssessment}</td>
                           <td>{subject.examination}</td>
                           <td className="fw-bold">{subject.total}</td>
