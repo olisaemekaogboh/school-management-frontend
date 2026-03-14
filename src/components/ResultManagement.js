@@ -360,7 +360,7 @@ function ResultManagement() {
         return;
       }
 
-      if (isStudent && user?.studentId) {
+      if (isStudent) {
         await loadStudentSelf();
         return;
       }
@@ -382,7 +382,7 @@ function ResultManagement() {
   const loadParentWards = async () => {
     try {
       const response = await parentPortalAPI.getMyWards();
-      const wards = response.data || [];
+      const wards = Array.isArray(response.data) ? response.data : [];
       setParentWards(wards);
 
       if (wards.length === 1) {
@@ -399,15 +399,24 @@ function ResultManagement() {
 
   const loadStudentSelf = async () => {
     try {
-      const response = await studentAPI.getStudentById(user.studentId);
-      const me = response.data;
-      const oneStudent = me ? [me] : [];
+      let me = null;
 
+      if (studentAPI.getMyProfile) {
+        const response = await studentAPI.getMyProfile();
+        me = response?.data || null;
+      } else if (user?.studentId) {
+        const response = await studentAPI.getStudentById(user.studentId);
+        me = response?.data || null;
+      }
+
+      const oneStudent = me ? [me] : [];
       setStudents(oneStudent);
       setSelectedStudent(me || null);
       setActiveTab("view");
     } catch (error) {
       console.error("Error loading student profile:", error);
+      setStudents([]);
+      setSelectedStudent(null);
       toast.error("Failed to load your profile");
     }
   };
@@ -540,7 +549,7 @@ function ResultManagement() {
   const loadAdminStudents = async () => {
     try {
       const response = await studentAPI.getAllStudents();
-      setStudents(response.data || []);
+      setStudents(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
@@ -884,12 +893,29 @@ function ResultManagement() {
     }
   };
 
-  const viewResultSheet = () => {
-    const targetStudent = isStudent
-      ? selectedStudent || students[0]
-      : selectedStudent;
+  const handlePrintResult = () => {
+    if (!resultSheet) {
+      toast.error("Load a result first");
+      return;
+    }
 
-    if (!targetStudent) {
+    window.print();
+  };
+  const viewResultSheet = () => {
+    if (!resultSheet) {
+      toast.error("Load a result first");
+      return;
+    }
+
+    let targetStudent = null;
+
+    if (isStudent) {
+      targetStudent = selectedStudent || students[0] || user?.student || null;
+    } else if (isParent || isTeacher || isAdmin) {
+      targetStudent = selectedStudent;
+    }
+
+    if (!targetStudent?.id) {
       toast.error("Please select a student");
       return;
     }
@@ -953,7 +979,7 @@ function ResultManagement() {
 
   return (
     <div className="result-management">
-      <div className="content-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div className="content-header d-flex justify-content-between align-items-start flex-wrap gap-3 no-print">
         <div>
           <h2>
             <FaChartLine className="me-2" /> Result Management System
@@ -967,6 +993,7 @@ function ResultManagement() {
             loadSessionData();
             loadSubjects();
             if (isTeacher) loadTeacherSetup();
+            if (isStudent) loadStudentSelf();
           }}
         >
           <FaSyncAlt className="me-2" />
@@ -974,7 +1001,7 @@ function ResultManagement() {
         </button>
       </div>
 
-      <div className="mt-3 mb-3 text-muted small">
+      <div className="mt-3 mb-3 text-muted small no-print">
         <FaBookOpen className="me-1" />
         Active backend session:{" "}
         <strong>
@@ -985,7 +1012,7 @@ function ResultManagement() {
         <strong>{activeSessionObj?.currentTerm || "-"}</strong>
       </div>
 
-      <div className="tabs-container">
+      <div className="tabs-container no-print">
         {(isAdmin || isTeacher) && (
           <button
             className={`tab-btn ${activeTab === "input" ? "active" : ""}`}
@@ -1013,7 +1040,7 @@ function ResultManagement() {
       </div>
 
       {activeTab !== "rankings" && (
-        <div className="filters-section">
+        <div className="filters-section no-print">
           <div className="filters-grid">
             {!isStudent && (
               <>
@@ -1379,7 +1406,7 @@ function ResultManagement() {
 
       {activeTab === "view" && (
         <div className="view-results">
-          <div className="section-header">
+          <div className="section-header no-print">
             <h3>
               {isStudent
                 ? "My Results"
@@ -1414,7 +1441,7 @@ function ResultManagement() {
                     padding: "6px 12px",
                     fontSize: "14px",
                   }}
-                  title="View printable result sheet"
+                  title="Print result sheet"
                 >
                   <FaPrint size={14} />
                   <span>Printable Result</span>
@@ -1424,7 +1451,7 @@ function ResultManagement() {
           </div>
 
           {resultSheet ? (
-            <div className="result-card">
+            <div className="result-card print-area">
               <div className="result-header">
                 <h4 className="mb-0">Term Result Summary</h4>
               </div>
@@ -1635,7 +1662,7 @@ function ResultManagement() {
               </div>
             </div>
           ) : (
-            <div className="alert alert-info mt-3">
+            <div className="alert alert-info mt-3 no-print">
               <FaInfoCircle className="me-2" />
               {isStudent
                 ? 'Click "Load Result" to view your result.'
@@ -1650,6 +1677,7 @@ function ResultManagement() {
           )}
         </div>
       )}
+
       {activeTab === "rankings" && (isAdmin || isTeacher) && (
         <div className="rankings-tab">
           <div className="filters-row">
@@ -1812,7 +1840,7 @@ function ResultManagement() {
       )}
 
       {currentStudentList.length === 0 && !loading && !sessionsLoading && (
-        <div className="alert alert-info mt-3">
+        <div className="alert alert-info mt-3 no-print">
           <FaUsers className="me-2" />
           {isParent
             ? "No ward linked to this parent account."
@@ -1825,11 +1853,72 @@ function ResultManagement() {
       )}
 
       {isParent && parentWards.length > 0 && !selectedStudent && (
-        <div className="alert alert-info mt-3">
+        <div className="alert alert-info mt-3 no-print">
           <FaUserGraduate className="me-2" />
           Select a ward to view results.
         </div>
       )}
+
+      <style>{`
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+
+          .print-area,
+          .print-area * {
+            visibility: visible;
+          }
+
+          .print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: #fff;
+            padding: 0;
+            margin: 0;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          .table,
+          .table th,
+          .table td {
+            border: 1px solid #000 !important;
+            border-collapse: collapse !important;
+          }
+
+          .badge {
+            border: 1px solid #000 !important;
+            color: #000 !important;
+            background: transparent !important;
+          }
+
+          .card,
+          .result-card,
+          .card-header,
+          .card-body {
+            box-shadow: none !important;
+          }
+
+          .result-management {
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { studentAPI, resultAPI } from "../services/api";
+import { studentAPI, resultAPI, parentPortalAPI } from "../services/api";
 import { toast } from "react-toastify";
 import {
   FaPrint,
@@ -8,20 +8,19 @@ import {
   FaArrowLeft,
   FaUserCircle,
   FaSpinner,
-  FaCheckCircle,
-  FaTimesCircle,
-  FaClock,
 } from "react-icons/fa";
 import moment from "moment";
 import { useReactToPrint } from "react-to-print";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useAuth } from "../contexts/AuthContext";
 import "./ResultSheet.css";
 
 function ResultSheet() {
   const { studentId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, isStudent, isParent } = useAuth();
 
   const query = new URLSearchParams(location.search);
   const session = query.get("session") || "";
@@ -30,8 +29,11 @@ function ResultSheet() {
   const [resultData, setResultData] = useState(null);
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [studentLoading, setStudentLoading] = useState(false);
+  const [resultLoading, setResultLoading] = useState(false);
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const componentRef = useRef(null);
 
@@ -44,36 +46,293 @@ function ResultSheet() {
     return safeNumber(value, 0).toFixed(digits);
   };
 
+  const getFirstDefined = (...values) => {
+    for (const value of values) {
+      if (value !== undefined && value !== null && value !== "") {
+        return value;
+      }
+    }
+    return null;
+  };
+
+  const buildName = (...parts) =>
+    parts
+      .filter(
+        (part) =>
+          part !== undefined && part !== null && `${part}`.trim() !== "",
+      )
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const normalizeStudent = (rawStudent, rawResultData) => {
+    const studentInfo = rawResultData?.studentInfo || {};
+    const source = rawStudent || {};
+
+    const firstName = getFirstDefined(
+      source.firstName,
+      studentInfo.firstName,
+      user?.firstName,
+    );
+
+    const middleName = getFirstDefined(
+      source.middleName,
+      studentInfo.middleName,
+      user?.middleName,
+    );
+
+    const lastName = getFirstDefined(
+      source.lastName,
+      studentInfo.lastName,
+      user?.lastName,
+    );
+
+    const fullName =
+      getFirstDefined(source.fullName, source.name, studentInfo.name) ||
+      buildName(firstName, middleName, lastName);
+
+    return {
+      id: getFirstDefined(source.id, studentId),
+      firstName,
+      middleName,
+      lastName,
+      fullName,
+      admissionNumber: getFirstDefined(
+        source.admissionNumber,
+        source.admissionNo,
+        studentInfo.admissionNumber,
+        user?.admissionNumber,
+      ),
+      studentClass: getFirstDefined(
+        source.studentClass,
+        source.className,
+        studentInfo.class,
+        user?.studentClass,
+      ),
+      classArm: getFirstDefined(
+        source.classArm,
+        source.arm,
+        studentInfo.arm,
+        user?.classArm,
+      ),
+      parentName: getFirstDefined(source.parentName, source.guardianName),
+      parentPhone: getFirstDefined(
+        source.parentPhone,
+        source.guardianPhone,
+        source.parentContact,
+      ),
+      address: getFirstDefined(source.address, source.homeAddress),
+      dateOfBirth: getFirstDefined(source.dateOfBirth, source.dob),
+      profilePictureUrl: getFirstDefined(
+        source.profilePictureUrl,
+        studentInfo.profilePictureUrl,
+        source.profileImageUrl,
+      ),
+    };
+  };
+
+  const normalizeSubjects = (rawResultData) => {
+    const rawSubjects =
+      rawResultData?.subjects ||
+      rawResultData?.results ||
+      rawResultData?.resultItems ||
+      [];
+
+    if (!Array.isArray(rawSubjects)) return [];
+
+    return rawSubjects.map((subject, index) => ({
+      id: getFirstDefined(subject.id, index),
+      subject: getFirstDefined(
+        subject.subject,
+        subject.subjectName,
+        subject.name,
+        "-",
+      ),
+      resumptionTest: safeNumber(
+        getFirstDefined(
+          subject.resumptionTest,
+          subject.resumption,
+          subject.resitTest,
+        ),
+      ),
+      assignments: safeNumber(
+        getFirstDefined(
+          subject.assignments,
+          subject.assignment,
+          subject.assgn,
+          subject.assg,
+        ),
+      ),
+      secondTest: safeNumber(
+        getFirstDefined(subject.secondTest, subject.second, subject.test2),
+      ),
+      midtermTest: safeNumber(
+        getFirstDefined(subject.midtermTest, subject.midterm, subject.mid),
+      ),
+      project: safeNumber(
+        getFirstDefined(subject.project, subject.proj, subject.projects),
+      ),
+      continuousAssessment: safeNumber(
+        getFirstDefined(
+          subject.continuousAssessment,
+          subject.ca,
+          subject.caTotal,
+        ),
+      ),
+      examination: safeNumber(
+        getFirstDefined(subject.examination, subject.exam, subject.examScore),
+      ),
+      total: safeNumber(
+        getFirstDefined(subject.total, subject.totalScore, subject.score),
+      ),
+      grade: getFirstDefined(subject.grade, "-"),
+      remarks: getFirstDefined(subject.remarks, subject.remark, "-"),
+      raw: subject,
+    }));
+  };
+
+  const normalizeSummary = (rawResultData) => {
+    const summary = rawResultData?.summary || {};
+    return {
+      totalScore: safeNumber(summary.totalScore),
+      average: safeNumber(summary.average),
+      positionInClass: getFirstDefined(
+        summary.positionInClass,
+        summary.classPosition,
+        "N/A",
+      ),
+      positionInArm: getFirstDefined(
+        summary.positionInArm,
+        summary.armPosition,
+        "N/A",
+      ),
+      totalSchoolDays: safeNumber(summary.totalSchoolDays),
+      daysPresent: safeNumber(summary.daysPresent),
+      daysAbsent: safeNumber(summary.daysAbsent),
+      attendancePercentage: safeNumber(summary.attendancePercentage),
+    };
+  };
+
+  const normalizedSubjects = useMemo(
+    () => normalizeSubjects(resultData),
+    [resultData],
+  );
+
+  const normalizedSummary = useMemo(
+    () => normalizeSummary(resultData),
+    [resultData],
+  );
+
   const getStudentName = () => {
     return (
       resultData?.studentInfo?.name ||
       student?.fullName ||
-      `${student?.firstName || ""} ${student?.lastName || ""}`.trim() ||
+      buildName(student?.firstName, student?.middleName, student?.lastName) ||
+      buildName(user?.firstName, user?.middleName, user?.lastName) ||
       "Student"
     );
   };
 
   useEffect(() => {
-    if (studentId && session && term) {
+    if (session && term) {
       fetchResultData();
     } else {
       setError("Missing required parameters");
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, session, term]);
+
+  const fetchStudentRecord = async (rawResult) => {
+    const resultStudentInfo = rawResult?.studentInfo || {};
+    let fetchedStudent = null;
+
+    if (isStudent && studentAPI.getMyProfile) {
+      try {
+        const response = await studentAPI.getMyProfile();
+        fetchedStudent = response?.data || null;
+      } catch (error) {
+        console.warn("Failed to fetch current student profile:", error);
+      }
+    }
+
+    if (!fetchedStudent && studentId) {
+      try {
+        const response = await studentAPI.getStudentById(studentId);
+        fetchedStudent = response?.data || null;
+      } catch (error) {
+        console.warn("Failed to fetch student by id:", error);
+      }
+    }
+
+    if (!fetchedStudent && isStudent) {
+      fetchedStudent = {
+        id: user?.studentId || user?.id,
+        firstName: user?.firstName,
+        middleName: user?.middleName,
+        lastName: user?.lastName,
+        fullName: buildName(user?.firstName, user?.middleName, user?.lastName),
+        admissionNumber: user?.admissionNumber,
+        studentClass: user?.studentClass,
+        classArm: user?.classArm,
+      };
+    }
+
+    if (!fetchedStudent && Object.keys(resultStudentInfo).length > 0) {
+      fetchedStudent = {
+        id: studentId,
+        fullName: resultStudentInfo.name,
+        admissionNumber: resultStudentInfo.admissionNumber,
+        studentClass: resultStudentInfo.class,
+        classArm: resultStudentInfo.arm,
+        profilePictureUrl: resultStudentInfo.profilePictureUrl,
+      };
+    }
+
+    return normalizeStudent(fetchedStudent, rawResult);
+  };
+
+  const fetchResultRecord = async () => {
+    if (isStudent) {
+      const response = await resultAPI.getMyTermResult(session, term);
+      return response?.data || null;
+    }
+
+    if (isParent) {
+      if (!studentId) {
+        throw new Error("Missing ward id");
+      }
+      const response = await parentPortalAPI.getWardTermResult(
+        studentId,
+        session,
+        term,
+      );
+      return response?.data || null;
+    }
+
+    if (!studentId) {
+      throw new Error("Missing student id");
+    }
+
+    const response = await resultAPI.getTermResult(studentId, session, term);
+    return response?.data || null;
+  };
 
   const fetchResultData = async () => {
     setLoading(true);
+    setStudentLoading(true);
+    setResultLoading(true);
     setError(null);
+    setImageError(false);
 
     try {
-      const [studentResponse, resultResponse] = await Promise.all([
-        studentAPI.getStudentById(studentId),
-        resultAPI.getTermResult(studentId, session, term),
-      ]);
+      const rawResult = await fetchResultRecord();
+      setResultData(rawResult);
+      setResultLoading(false);
 
-      setStudent(studentResponse.data || null);
-      setResultData(resultResponse.data || null);
+      const fetchedStudent = await fetchStudentRecord(rawResult);
+      setStudent(fetchedStudent);
+      setStudentLoading(false);
     } catch (error) {
       console.error("Error fetching result sheet:", error);
 
@@ -89,6 +348,8 @@ function ResultSheet() {
         );
       }
     } finally {
+      setResultLoading(false);
+      setStudentLoading(false);
       setLoading(false);
     }
   };
@@ -111,7 +372,7 @@ function ResultSheet() {
 
   const buildFileName = () => {
     const cleanName = getStudentName().replace(/\s+/g, "_");
-    const cleanSession = session.replace(/[\/\\]/g, "_");
+    const cleanSession = String(session || "").replace(/[\/\\]/g, "_");
     return `${cleanName}_${term}_${cleanSession}`;
   };
 
@@ -136,25 +397,36 @@ function ResultSheet() {
         logging: false,
         allowTaint: true,
         useCORS: true,
+        scrollY: -window.scrollY,
       });
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "px",
-        format: [canvas.width * 0.75, canvas.height * 0.75],
+        format: "a4",
       });
 
-      pdf.addImage(
-        imgData,
-        "PNG",
-        0,
-        0,
-        canvas.width * 0.75,
-        canvas.height * 0.75,
-      );
-      pdf.save(`${buildFileName()}.pdf`);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
 
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`${buildFileName()}.pdf`);
       toast.success("PDF downloaded successfully");
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -164,46 +436,23 @@ function ResultSheet() {
     }
   };
 
-  const studentPhotoUrl = resultData?.studentInfo?.profilePictureUrl
-    ? `http://localhost:8080${resultData.studentInfo.profilePictureUrl}`
-    : student?.profilePictureUrl
-      ? `http://localhost:8080${student.profilePictureUrl}`
-      : null;
+  const studentPhotoUrl = useMemo(() => {
+    const rawUrl =
+      resultData?.studentInfo?.profilePictureUrl || student?.profilePictureUrl;
 
-  const attendanceSummary = resultData?.summary || {};
-  const totalSchoolDays = safeNumber(attendanceSummary.totalSchoolDays);
-  const daysPresent = safeNumber(attendanceSummary.daysPresent);
-  const daysAbsent = safeNumber(attendanceSummary.daysAbsent);
-  const attendancePercentage = safeNumber(
-    attendanceSummary.attendancePercentage,
-  );
-
-  // Define possible keys for assignments (handle different naming conventions)
-  const getAssignmentKey = () => {
-    if (!resultData?.subjects?.length) return null;
-    const firstSubject = resultData.subjects[0];
-
-    // Check for various possible assignment key names
-    const possibleKeys = [
-      "assignment",
-      "assignments",
-      "assgn",
-      "assg",
-      "homework",
-      "hw",
-    ];
-    for (const key of possibleKeys) {
-      if (firstSubject.hasOwnProperty(key)) {
-        return key;
-      }
+    if (!rawUrl) return null;
+    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+      return rawUrl;
     }
-    return null;
-  };
+    return `http://localhost:8080${rawUrl}`;
+  }, [resultData, student]);
 
-  // Define the exact order of CA columns with their possible keys
+  const totalSchoolDays = normalizedSummary.totalSchoolDays;
+  const daysPresent = normalizedSummary.daysPresent;
+  const daysAbsent = normalizedSummary.daysAbsent;
+  const attendancePercentage = normalizedSummary.attendancePercentage;
+
   const getCaColumnOrder = () => {
-    const assignmentKey = getAssignmentKey();
-
     return [
       {
         key: "resumptionTest",
@@ -211,11 +460,11 @@ function ResultSheet() {
         possibleKeys: ["resumptionTest", "resumption", "resit", "resitTest"],
       },
       {
-        key: assignmentKey || "assignment",
+        key: "assignments",
         label: "ASSGN",
         possibleKeys: [
-          "assignment",
           "assignments",
+          "assignment",
           "assgn",
           "assg",
           "homework",
@@ -240,28 +489,17 @@ function ResultSheet() {
     ];
   };
 
-  // Filter only columns that exist in the data
   const getExistingCaColumns = () => {
-    if (!resultData?.subjects?.length) return [];
-    const firstSubject = resultData.subjects[0];
-    const caColumnOrder = getCaColumnOrder();
+    if (!normalizedSubjects.length) return [];
+    const firstSubject = normalizedSubjects[0];
 
-    return caColumnOrder
-      .filter((col) => {
-        // Check if any of the possible keys exist in the subject
-        return col.possibleKeys.some(
-          (key) =>
-            firstSubject.hasOwnProperty(key) &&
-            typeof firstSubject[key] === "number",
-        );
-      })
+    return getCaColumnOrder()
+      .filter((col) =>
+        col.possibleKeys.some((key) => typeof firstSubject[key] === "number"),
+      )
       .map((col) => {
-        // Find the actual key that exists in the data
-        const firstSubject = resultData.subjects[0];
         const actualKey = col.possibleKeys.find(
-          (key) =>
-            firstSubject.hasOwnProperty(key) &&
-            typeof firstSubject[key] === "number",
+          (key) => typeof firstSubject[key] === "number",
         );
         return {
           ...col,
@@ -272,14 +510,17 @@ function ResultSheet() {
 
   const existingCaColumns = getExistingCaColumns();
 
-  // Calculate CA total for a subject
   const calculateCATotal = (subject) => {
+    if (safeNumber(subject.continuousAssessment) > 0) {
+      return safeNumber(subject.continuousAssessment);
+    }
+
     return existingCaColumns.reduce((total, col) => {
       return total + safeNumber(subject[col.actualKey]);
     }, 0);
   };
 
-  if (loading) {
+  if (loading || resultLoading || studentLoading) {
     return (
       <div
         className="d-flex justify-content-center align-items-center"
@@ -310,7 +551,7 @@ function ResultSheet() {
     );
   }
 
-  if (!resultData || !student) {
+  if (!resultData) {
     return (
       <div className="container mt-5">
         <div className="alert alert-warning">
@@ -368,7 +609,6 @@ function ResultSheet() {
 
       <div className="result-sheet-container" ref={componentRef}>
         <div className="result-sheet-content">
-          {/* School Header */}
           <div className="school-header">
             <div className="school-name">
               FAITH FOUNDATION INTERNATIONAL SCHOOL
@@ -381,12 +621,10 @@ function ResultSheet() {
             </div>
           </div>
 
-          {/* Title */}
           <div className="result-title">
             {term} TERM RESULT SHEET - {session} SESSION
           </div>
 
-          {/* Student Information */}
           <div className="student-info-section">
             <table className="student-info-table">
               <tbody>
@@ -425,16 +663,13 @@ function ResultSheet() {
                 </tr>
               </tbody>
             </table>
+
             <div className="student-photo">
-              {studentPhotoUrl ? (
+              {studentPhotoUrl && !imageError ? (
                 <img
                   src={studentPhotoUrl}
                   alt={getStudentName()}
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                    e.currentTarget.parentNode.innerHTML =
-                      '<div class="photo-placeholder"><FaUserCircle /></div>';
-                  }}
+                  onError={() => setImageError(true)}
                 />
               ) : (
                 <div className="photo-placeholder">
@@ -444,7 +679,6 @@ function ResultSheet() {
             </div>
           </div>
 
-          {/* Results Table with Individual Assessments */}
           <div className="results-table-wrapper">
             <table className="results-table">
               <thead>
@@ -489,10 +723,11 @@ function ResultSheet() {
                 </tr>
               </thead>
               <tbody>
-                {resultData?.subjects?.map((subject, index) => {
+                {normalizedSubjects.map((subject, index) => {
                   const caTotal = calculateCATotal(subject);
+
                   return (
-                    <tr key={index}>
+                    <tr key={subject.id}>
                       <td className="sn">{index + 1}</td>
                       <td className="subject">{subject.subject}</td>
                       {existingCaColumns.map((col) => (
@@ -518,39 +753,48 @@ function ResultSheet() {
                     </tr>
                   );
                 })}
+
+                {normalizedSubjects.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={8 + existingCaColumns.length}
+                      className="text-center"
+                    >
+                      No subjects found for this result.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
-          {/* Summary Row */}
           <div className="summary-row">
             <div className="summary-item">
               <span className="summary-label">Total Score:</span>
               <span className="summary-value">
-                {safeNumber(resultData?.summary?.totalScore)}
+                {normalizedSummary.totalScore}
               </span>
             </div>
             <div className="summary-item">
               <span className="summary-label">Average:</span>
               <span className="summary-value">
-                {safeFixed(resultData?.summary?.average)}%
+                {safeFixed(normalizedSummary.average)}%
               </span>
             </div>
             <div className="summary-item">
               <span className="summary-label">Class Position:</span>
               <span className="summary-value">
-                {resultData?.summary?.positionInClass || "N/A"}
+                {normalizedSummary.positionInClass}
               </span>
             </div>
             <div className="summary-item">
               <span className="summary-label">Arm Position:</span>
               <span className="summary-value">
-                {resultData?.summary?.positionInArm || "N/A"}
+                {normalizedSummary.positionInArm}
               </span>
             </div>
           </div>
 
-          {/* Attendance Summary */}
           <div className="attendance-section">
             <div className="attendance-header">ATTENDANCE SUMMARY</div>
             <div className="attendance-grid">
@@ -575,7 +819,6 @@ function ResultSheet() {
             </div>
           </div>
 
-          {/* Signatures */}
           <div className="signatures-section">
             <div className="signature-item">
               <div className="signature-line"></div>
@@ -591,7 +834,6 @@ function ResultSheet() {
             </div>
           </div>
 
-          {/* Footer */}
           <div className="result-footer">
             <div className="footer-note">
               This is a computer-generated result. Valid without signature.

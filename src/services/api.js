@@ -167,6 +167,7 @@ export const authAPI = {
 ================================ */
 export const studentAPI = {
   getAllStudents: () => api.get("/students"),
+  getMyProfile: () => api.get("/students/me"),
 
   getPaginatedStudents: (page = 0, size = 10, sortBy = "id", sortDir = "asc") =>
     api.get("/students/paginated", {

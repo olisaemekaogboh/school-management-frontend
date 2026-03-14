@@ -70,7 +70,7 @@ function Navbar() {
 
       try {
         const response = await teacherAPI.getMyClasses();
-        setTeacherClasses(response.data || []);
+        setTeacherClasses(Array.isArray(response.data) ? response.data : []);
       } catch (error) {
         console.error("Error loading teacher classes for navbar:", error);
         setTeacherClasses([]);
@@ -152,7 +152,11 @@ function Navbar() {
       name: "teachers",
       items: [
         { path: "/teachers", label: "All Teachers", icon: <FaUsers /> },
-        { path: "/teachers/new", label: "Add Teacher", icon: <FaPlusCircle /> },
+        {
+          path: "/teachers/new",
+          label: "Add Teacher",
+          icon: <FaPlusCircle />,
+        },
       ],
     },
     {
@@ -307,12 +311,6 @@ function Navbar() {
       icon: <FaCalendarAlt />,
       label: "Timetable",
     },
-    {
-      type: "link",
-      path: "/announcements",
-      icon: <FaBullhorn />,
-      label: "Announcements",
-    },
   ];
 
   const parentNavItems = [
@@ -322,7 +320,12 @@ function Navbar() {
       icon: <FaHome />,
       label: "Dashboard",
     },
-    { type: "link", path: "/fees", icon: <FaMoneyBill />, label: "Ward Fees" },
+    {
+      type: "link",
+      path: "/fees",
+      icon: <FaMoneyBill />,
+      label: "Ward Fees",
+    },
     {
       type: "link",
       path: "/results",
@@ -331,9 +334,9 @@ function Navbar() {
     },
     {
       type: "link",
-      path: "/announcements",
-      icon: <FaBullhorn />,
-      label: "Announcements",
+      path: "/session-results",
+      icon: <FaGraduationCap />,
+      label: "Session Results",
     },
     {
       type: "link",
@@ -356,18 +359,23 @@ function Navbar() {
       icon: <FaChartBar />,
       label: "My Results",
     },
-    { type: "link", path: "/fees", icon: <FaMoneyBill />, label: "My Fees" },
+    {
+      type: "link",
+      path: "/session-results",
+      icon: <FaGraduationCap />,
+      label: "Session Results",
+    },
+    {
+      type: "link",
+      path: "/fees",
+      icon: <FaMoneyBill />,
+      label: "My Fees",
+    },
     {
       type: "link",
       path: "/timetable",
       icon: <FaCalendarAlt />,
       label: "Timetable",
-    },
-    {
-      type: "link",
-      path: "/announcements",
-      icon: <FaBullhorn />,
-      label: "Announcements",
     },
     {
       type: "link",

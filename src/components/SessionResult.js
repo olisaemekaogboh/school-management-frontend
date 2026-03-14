@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   studentAPI,
   sessionResultAPI,
   sessionAPI,
   teacherAPI,
+  parentPortalAPI,
 } from "../services/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
@@ -29,8 +30,11 @@ function SessionResult() {
 
   const isAdmin = user?.role === "ADMIN";
   const isTeacher = user?.role === "TEACHER";
+  const isParent = user?.role === "PARENT";
+  const isStudent = user?.role === "STUDENT";
 
   const [students, setStudents] = useState([]);
+  const [parentWards, setParentWards] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [sessionResult, setSessionResult] = useState(null);
   const [rankings, setRankings] = useState(null);
@@ -40,13 +44,19 @@ function SessionResult() {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [availableSessions, setAvailableSessions] = useState([]);
   const [activeTab, setActiveTab] = useState("view");
-  const [rankingsType, setRankingsType] = useState("school");
+  const [rankingsType, setRankingsType] = useState(
+    isTeacher ? "arm" : "school",
+  );
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
   const [teacherAssignments, setTeacherAssignments] = useState([]);
 
   const { session, setSession, loadingSession, refreshActiveSession } =
     useActiveSession();
+
+  const query = new URLSearchParams(location.search);
+  const classIdFromQuery = query.get("classId") || "";
+  const mineFromQuery = query.get("mine") === "true";
 
   const classes = [
     "Nursery",
@@ -74,6 +84,85 @@ function SessionResult() {
     String(value || "")
       .trim()
       .toLowerCase();
+
+  const buildName = (...parts) =>
+    parts
+      .filter(
+        (part) =>
+          part !== undefined && part !== null && `${part}`.trim() !== "",
+      )
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const normalizeStudentLike = (...candidates) => {
+    const sources = candidates.filter(Boolean);
+
+    const pick = (...selectors) => {
+      for (const selector of selectors) {
+        for (const source of sources) {
+          const value = selector(source);
+          if (value !== undefined && value !== null && value !== "") {
+            return value;
+          }
+        }
+      }
+      return null;
+    };
+
+    const firstName = pick(
+      (s) => s.firstName,
+      (s) => s.firstname,
+      (s) => s.givenName,
+    );
+
+    const middleName = pick(
+      (s) => s.middleName,
+      (s) => s.middlename,
+      (s) => s.otherName,
+      (s) => s.otherNames,
+    );
+
+    const lastName = pick(
+      (s) => s.lastName,
+      (s) => s.lastname,
+      (s) => s.surname,
+    );
+
+    const fullName =
+      pick(
+        (s) => s.fullName,
+        (s) => s.name,
+        (s) => s.studentName,
+      ) || buildName(firstName, middleName, lastName);
+
+    return {
+      id: pick(
+        (s) => s.studentId,
+        (s) => s.student_id,
+        (s) => s.id,
+      ),
+      firstName,
+      middleName,
+      lastName,
+      fullName,
+      admissionNumber: pick(
+        (s) => s.admissionNumber,
+        (s) => s.admissionNo,
+        (s) => s.registrationNumber,
+        (s) => s.regNo,
+      ),
+      studentClass: pick(
+        (s) => s.studentClass,
+        (s) => s.className,
+        (s) => s.class,
+      ),
+      classArm: pick(
+        (s) => s.classArm,
+        (s) => s.arm,
+      ),
+    };
+  };
 
   const normalizedSessions = useMemo(() => {
     return (availableSessions || []).map((item) => ({
@@ -117,6 +206,24 @@ function SessionResult() {
     return [];
   }, [isAdmin, isTeacher, teacherAssignments]);
 
+  const currentStudentList = isParent ? parentWards : students;
+
+  const teacherCanAccessStudent = useCallback(
+    (student) => {
+      if (!isTeacher) return true;
+
+      const studentClass = normalizeClassName(student?.studentClass);
+      const studentArm = normalizeArm(student?.classArm);
+
+      return teacherAssignments.some(
+        (a) =>
+          normalizeClassName(a.className) === studentClass &&
+          normalizeArm(a.arm) === studentArm,
+      );
+    },
+    [isTeacher, teacherAssignments],
+  );
+
   useEffect(() => {
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,7 +266,9 @@ function SessionResult() {
   }, [session, activeTab, rankingsType, selectedClass, selectedArm]);
 
   useEffect(() => {
-    if (selectedStudent && session) {
+    if (!session) return;
+
+    if (selectedStudent) {
       fetchSessionResult();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,7 +289,13 @@ function SessionResult() {
   const loadInitialData = async () => {
     await Promise.all([
       fetchSessions(),
-      isTeacher ? loadTeacherAssignments() : fetchStudents(),
+      isTeacher
+        ? loadTeacherAssignments()
+        : isParent
+          ? loadParentWards()
+          : isStudent
+            ? loadStudentSelf()
+            : fetchStudents(),
     ]);
   };
 
@@ -198,6 +313,25 @@ function SessionResult() {
         }));
 
       setTeacherAssignments(normalized);
+
+      if (classIdFromQuery && mineFromQuery) {
+        const matched = normalized.find(
+          (c) => String(c.id) === String(classIdFromQuery),
+        );
+
+        if (!matched) {
+          setSelectedClass("");
+          setSelectedArm("");
+          setStudents([]);
+          setSelectedStudent(null);
+          toast.error("You can only access your assigned class arm");
+          return;
+        }
+
+        setSelectedClass(matched.className);
+        setSelectedArm(matched.arm);
+        return;
+      }
 
       if (normalized.length === 1) {
         setSelectedClass(normalized[0].className);
@@ -229,6 +363,48 @@ function SessionResult() {
       toast.error("Failed to load academic sessions");
     } finally {
       setSessionsLoading(false);
+    }
+  };
+
+  const loadParentWards = async () => {
+    try {
+      const response = await parentPortalAPI.getMyWards();
+      const wards = Array.isArray(response.data) ? response.data : [];
+      setParentWards(wards);
+
+      if (wards.length === 1) {
+        setSelectedStudent(wards[0]);
+      }
+    } catch (error) {
+      console.error("Error loading parent wards:", error);
+      setParentWards([]);
+      toast.error("Failed to load your wards");
+    }
+  };
+
+  const loadStudentSelf = async () => {
+    try {
+      let me = null;
+
+      if (studentAPI.getMyProfile) {
+        const response = await studentAPI.getMyProfile();
+        me = response?.data || null;
+      } else if (user?.studentId) {
+        const response = await studentAPI.getStudentById(user.studentId);
+        me = response?.data || null;
+      }
+
+      const normalizedStudent = normalizeStudentLike(me, user);
+      const oneStudent = normalizedStudent?.id ? [normalizedStudent] : [];
+
+      setStudents(oneStudent);
+      setSelectedStudent(normalizedStudent?.id ? normalizedStudent : null);
+      setActiveTab("view");
+    } catch (error) {
+      console.error("Error loading student profile:", error);
+      setStudents([]);
+      setSelectedStudent(null);
+      toast.error("Failed to load your profile");
     }
   };
 
@@ -272,61 +448,35 @@ function SessionResult() {
   };
 
   const fetchSessionResult = async () => {
-    console.log("fetchSessionResult called");
-    console.log("selectedStudent:", selectedStudent);
-    console.log("session:", session);
-    console.log("teacherAssignments:", teacherAssignments);
-
     if (!selectedStudent || !session) {
-      console.log("Stopped: selectedStudent or session missing");
       return;
     }
 
-    if (isTeacher) {
-      const allowed = teacherAssignments.some(
-        (a) =>
-          normalizeClassName(a.className) ===
-            normalizeClassName(selectedStudent.studentClass) &&
-          normalizeArm(a.arm) === normalizeArm(selectedStudent.classArm),
-      );
-
-      if (!allowed) {
-        console.log("Blocked by frontend teacher scope check");
-        console.log(
-          "assignment normalized:",
-          teacherAssignments.map((a) => ({
-            className: normalizeClassName(a.className),
-            arm: normalizeArm(a.arm),
-          })),
-        );
-        console.log("student normalized:", {
-          className: normalizeClassName(selectedStudent.studentClass),
-          arm: normalizeArm(selectedStudent.classArm),
-        });
-
-        toast.error(
-          "You can only access results of students in your class arm",
-        );
-        setSessionResult(null);
-        return;
-      }
+    if (isTeacher && !teacherCanAccessStudent(selectedStudent)) {
+      toast.error("You can only access results of students in your class arm");
+      setSessionResult(null);
+      return;
     }
 
     setLoading(true);
     try {
-      console.log(
-        "Making session result request for student:",
-        selectedStudent.id,
-      );
-      const response = await sessionResultAPI.getSessionResult(
-        selectedStudent.id,
-        session,
-      );
-      console.log("Session result response:", response.data);
-      setSessionResult(response.data || null);
+      let response;
+
+      if (isParent) {
+        response = await parentPortalAPI.getWardSessionResult(
+          selectedStudent.id,
+          session,
+        );
+      } else {
+        response = await sessionResultAPI.getSessionResult(
+          selectedStudent.id,
+          session,
+        );
+      }
+
+      setSessionResult(response?.data || null);
     } catch (error) {
       console.error("Error fetching session result:", error);
-      console.log("Backend response:", error?.response?.data);
       setSessionResult(null);
       toast.error(
         error?.response?.data?.message ||
@@ -340,6 +490,11 @@ function SessionResult() {
   const fetchRankings = async (type, className, arm) => {
     if (!session) {
       toast.error("No session selected");
+      return;
+    }
+
+    if (!(isAdmin || isTeacher)) {
+      toast.error("You are not allowed to view rankings");
       return;
     }
 
@@ -400,10 +555,8 @@ function SessionResult() {
       return;
     }
 
-    if (isTeacher) {
-      toast.error(
-        "Teachers can only access results for students in their class arm",
-      );
+    if (!isAdmin) {
+      toast.error("Only admin can access statistics");
       return;
     }
 
@@ -429,15 +582,15 @@ function SessionResult() {
       return;
     }
 
-    if (isTeacher) {
-      toast.error("Teachers cannot access the full graduation list");
+    if (!isAdmin) {
+      toast.error("Only admin can access the graduation list");
       return;
     }
 
     setLoading(true);
     try {
       const response = await sessionResultAPI.getGraduationList(session);
-      setGraduates(response.data || []);
+      setGraduates(Array.isArray(response.data) ? response.data : []);
       toast.success("Graduation list loaded successfully");
     } catch (error) {
       console.error("Error fetching graduates:", error);
@@ -456,8 +609,8 @@ function SessionResult() {
       return;
     }
 
-    if (isTeacher) {
-      toast.error("Teachers cannot calculate all session results");
+    if (!isAdmin) {
+      toast.error("Only admin can calculate all session results");
       return;
     }
 
@@ -566,8 +719,8 @@ function SessionResult() {
       return;
     }
 
-    if (isTeacher) {
-      toast.error("Teachers cannot promote students globally");
+    if (!isAdmin) {
+      toast.error("Only admin can promote students globally");
       return;
     }
 
@@ -591,7 +744,10 @@ function SessionResult() {
       if (selectedStudent) {
         await fetchSessionResult();
       }
-      await fetchStudents();
+
+      if (isAdmin) {
+        await fetchStudents();
+      }
     } catch (error) {
       console.error("Error promoting students:", error);
       toast.error(
@@ -605,7 +761,13 @@ function SessionResult() {
   const handleRefreshAll = async () => {
     await Promise.all([
       fetchSessions(),
-      isTeacher ? loadTeacherAssignments() : fetchStudents(),
+      isTeacher
+        ? loadTeacherAssignments()
+        : isParent
+          ? loadParentWards()
+          : isStudent
+            ? loadStudentSelf()
+            : fetchStudents(),
       refreshActiveSession(),
     ]);
   };
@@ -639,6 +801,31 @@ function SessionResult() {
       <span className="badge bg-danger">
         <FaTimesCircle className="me-1" /> Retained
       </span>
+    );
+  };
+
+  const viewPrintableSessionResult = () => {
+    const targetStudent = isStudent
+      ? selectedStudent || students[0] || normalizeStudentLike(user)
+      : selectedStudent;
+
+    if (!sessionResult) {
+      toast.error("Load a session result first");
+      return;
+    }
+
+    if (!targetStudent?.id) {
+      toast.error("Please select a student");
+      return;
+    }
+
+    if (!session) {
+      toast.error("No session selected");
+      return;
+    }
+
+    navigate(
+      `/session-results/${targetStudent.id}?session=${encodeURIComponent(session)}`,
     );
   };
 
@@ -680,19 +867,21 @@ function SessionResult() {
           <FaEye className="me-2" /> View Results
         </button>
 
-        <button
-          className={`btn ${activeTab === "rankings" ? "active" : ""}`}
-          onClick={() => setActiveTab("rankings")}
-          style={{
-            backgroundColor: activeTab === "rankings" ? "#FF9800" : "#f8f9fa",
-            color: activeTab === "rankings" ? "white" : "#495057",
-            border: activeTab === "rankings" ? "none" : "1px solid #dee2e6",
-          }}
-        >
-          <FaTrophy className="me-2" /> Rankings
-        </button>
+        {(isAdmin || isTeacher) && (
+          <button
+            className={`btn ${activeTab === "rankings" ? "active" : ""}`}
+            onClick={() => setActiveTab("rankings")}
+            style={{
+              backgroundColor: activeTab === "rankings" ? "#FF9800" : "#f8f9fa",
+              color: activeTab === "rankings" ? "white" : "#495057",
+              border: activeTab === "rankings" ? "none" : "1px solid #dee2e6",
+            }}
+          >
+            <FaTrophy className="me-2" /> Rankings
+          </button>
+        )}
 
-        {!isTeacher && (
+        {isAdmin && (
           <>
             <button
               className={`btn ${activeTab === "statistics" ? "active" : ""}`}
@@ -762,6 +951,7 @@ function SessionResult() {
                   setSessionResult(null);
                   setRankings(null);
                 }}
+                disabled={mineFromQuery}
               >
                 <option value="">Select Class</option>
                 {allowedClassOptions.map((c) => (
@@ -783,7 +973,7 @@ function SessionResult() {
                   setSessionResult(null);
                   setRankings(null);
                 }}
-                disabled={!selectedClass}
+                disabled={!selectedClass || mineFromQuery}
               >
                 <option value="">Select Arm</option>
                 {selectedClass &&
@@ -805,7 +995,7 @@ function SessionResult() {
 
         <div className={isTeacher ? "col-md-4" : "col-md-9"}>
           <div className="d-flex gap-2 justify-content-end flex-wrap">
-            {!isTeacher ? (
+            {isAdmin ? (
               <>
                 <button
                   className="btn btn-danger"
@@ -835,7 +1025,7 @@ function SessionResult() {
                   📈 Refresh Stats
                 </button>
               </>
-            ) : (
+            ) : isTeacher ? (
               <button
                 className="btn btn-primary"
                 onClick={calculateTeacherClassResults}
@@ -847,7 +1037,7 @@ function SessionResult() {
                   "📊 Calculate My Class"
                 )}
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -858,35 +1048,57 @@ function SessionResult() {
             <div className="card">
               <div className="card-body">
                 <div className="row align-items-end">
-                  <div className={isTeacher ? "col-md-10" : "col-md-8"}>
-                    <label className="form-label fw-bold">Select Student</label>
-                    <select
-                      className="form-select"
-                      value={selectedStudent?.id || ""}
-                      onChange={(e) => {
-                        const student = students.find(
-                          (s) => s.id === parseInt(e.target.value, 10),
-                        );
-                        setSelectedStudent(student || null);
-                      }}
-                    >
-                      <option value="">-- Choose a student --</option>
-                      {students.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {(
-                            s.fullName ||
-                            `${s.firstName || ""} ${s.lastName || ""}`
-                          ).trim()}{" "}
-                          - {s.admissionNumber} ({s.studentClass} {s.classArm})
+                  {!isStudent && (
+                    <div className={isTeacher ? "col-md-10" : "col-md-8"}>
+                      <label className="form-label fw-bold">
+                        {isParent ? "Select Ward" : "Select Student"}
+                      </label>
+                      <select
+                        className="form-select"
+                        value={selectedStudent?.id || ""}
+                        onChange={(e) => {
+                          const source = isParent ? parentWards : students;
+                          const student = source.find(
+                            (s) => s.id === parseInt(e.target.value, 10),
+                          );
+                          setSelectedStudent(student || null);
+                        }}
+                      >
+                        <option value="">
+                          {isParent
+                            ? "-- Choose a ward --"
+                            : "-- Choose a student --"}
                         </option>
-                      ))}
-                    </select>
-                  </div>
+                        {currentStudentList.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {(
+                              s.fullName ||
+                              `${s.firstName || ""} ${s.lastName || ""}`
+                            ).trim()}{" "}
+                            - {s.admissionNumber} ({s.studentClass} {s.classArm}
+                            )
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                  <div className={isTeacher ? "col-md-2" : "col-md-4"}>
+                  <div
+                    className={
+                      isStudent
+                        ? "col-md-12"
+                        : isTeacher
+                          ? "col-md-2"
+                          : "col-md-4"
+                    }
+                  >
                     <button
                       className="btn btn-success w-100"
-                      onClick={() => selectedStudent && fetchSessionResult()}
+                      onClick={() => {
+                        if (selectedStudent) {
+                          fetchSessionResult();
+                        }
+                      }}
                       disabled={!selectedStudent || loading}
                     >
                       Load Result
@@ -900,13 +1112,26 @@ function SessionResult() {
                     students in their assigned class arm.
                   </div>
                 )}
+
+                {isParent && (
+                  <div className="mt-3 text-muted small">
+                    Parents can only access session results for their linked
+                    wards.
+                  </div>
+                )}
+
+                {isStudent && (
+                  <div className="mt-3 text-muted small">
+                    Students can view only their own session result.
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {activeTab === "rankings" && (
+      {activeTab === "rankings" && (isAdmin || isTeacher) && (
         <div className="row mb-4">
           <div className="col-md-12">
             <div className="card">
@@ -947,26 +1172,22 @@ function SessionResult() {
                     </div>
                   )}
 
-                  {(rankingsType === "arm" || isTeacher) && (
-                    <>
-                      {!isTeacher && (
-                        <div className="col-md-2">
-                          <label className="form-label fw-bold">Arm</label>
-                          <select
-                            className="form-select"
-                            value={selectedArm}
-                            onChange={(e) => setSelectedArm(e.target.value)}
-                          >
-                            <option value="">Select Arm</option>
-                            {["A", "B", "C"].map((arm) => (
-                              <option key={arm} value={arm}>
-                                {arm}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                    </>
+                  {(rankingsType === "arm" || isTeacher) && !isTeacher && (
+                    <div className="col-md-2">
+                      <label className="form-label fw-bold">Arm</label>
+                      <select
+                        className="form-select"
+                        value={selectedArm}
+                        onChange={(e) => setSelectedArm(e.target.value)}
+                      >
+                        <option value="">Select Arm</option>
+                        {["A", "B", "C"].map((arm) => (
+                          <option key={arm} value={arm}>
+                            {arm}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   )}
 
                   <div
@@ -1004,7 +1225,7 @@ function SessionResult() {
         </div>
       )}
 
-      {!isTeacher && activeTab === "graduates" && (
+      {isAdmin && activeTab === "graduates" && (
         <div className="row mb-4">
           <div className="col-md-12">
             <div className="card">
@@ -1034,16 +1255,9 @@ function SessionResult() {
               <div className="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 className="mb-0">Annual Session Result: {session}</h5>
 
-                {/* Printable Session Result Button */}
                 <button
                   className="btn btn-light btn-sm"
-                  onClick={() => {
-                    if (selectedStudent && session) {
-                      navigate(
-                        `/session-results/${selectedStudent.id}?session=${encodeURIComponent(session)}`,
-                      );
-                    }
-                  }}
+                  onClick={viewPrintableSessionResult}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -1062,6 +1276,7 @@ function SessionResult() {
                   <span>Printable Session Result</span>
                 </button>
               </div>
+
               <div className="card-body">
                 <div className="row mb-4">
                   <div className="col-md-6">
@@ -1082,6 +1297,7 @@ function SessionResult() {
                       {selectedStudent?.classArm || ""}
                     </p>
                   </div>
+
                   <div className="col-md-6">
                     <h6>Promotion Status</h6>
                     <p>
@@ -1215,17 +1431,23 @@ function SessionResult() {
             </div>
           ) : (
             <div className="alert alert-info">
-              {selectedStudent
-                ? sessionResult === null
-                  ? "No session result found for this student. Click 'Calculate My Class' first if you are a teacher."
-                  : "Loading..."
-                : "Please select a student to view results"}
+              {isStudent
+                ? "Click 'Load Result' to view your session result."
+                : isParent
+                  ? selectedStudent
+                    ? "Click 'Load Result' to view this ward's session result."
+                    : "Please select a ward to view session result."
+                  : selectedStudent
+                    ? sessionResult === null
+                      ? "No session result found for this student. Click 'Calculate My Class' first if you are a teacher."
+                      : "Loading..."
+                    : "Please select a student to view results"}
             </div>
           )}
         </div>
       )}
 
-      {activeTab === "rankings" && (
+      {activeTab === "rankings" && (isAdmin || isTeacher) && (
         <div className="rankings">
           {rankings ? (
             <div className="card">
@@ -1316,7 +1538,7 @@ function SessionResult() {
         </div>
       )}
 
-      {!isTeacher && activeTab === "statistics" && (
+      {isAdmin && activeTab === "statistics" && (
         <div className="statistics">
           {loading ? (
             <div className="text-center py-5">
@@ -1425,7 +1647,7 @@ function SessionResult() {
         </div>
       )}
 
-      {!isTeacher && activeTab === "graduates" && (
+      {isAdmin && activeTab === "graduates" && (
         <div className="graduates">
           {graduates.length > 0 ? (
             <div className="card">

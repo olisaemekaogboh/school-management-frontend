@@ -458,7 +458,9 @@ function App() {
                   <Route
                     path="/session-results"
                     element={
-                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
+                      <ProtectedRoute
+                        allowedRoles={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
+                      >
                         <SessionResult />
                       </ProtectedRoute>
                     }
