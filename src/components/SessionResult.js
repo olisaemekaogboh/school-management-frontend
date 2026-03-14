@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { studentAPI, sessionResultAPI, sessionAPI } from "../services/api";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  studentAPI,
+  sessionResultAPI,
+  sessionAPI,
+  teacherAPI,
+} from "../services/api";
 import { toast } from "react-toastify";
+import { useAuth } from "../contexts/AuthContext";
 import {
   FaChartBar,
   FaEye,
@@ -11,10 +18,18 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaSyncAlt,
+  FaPrint,
 } from "react-icons/fa";
 import useActiveSession from "../hooks/useActiveSession";
 
 function SessionResult() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+
+  const isAdmin = user?.role === "ADMIN";
+  const isTeacher = user?.role === "TEACHER";
+
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [sessionResult, setSessionResult] = useState(null);
@@ -28,6 +43,7 @@ function SessionResult() {
   const [rankingsType, setRankingsType] = useState("school");
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
+  const [teacherAssignments, setTeacherAssignments] = useState([]);
 
   const { session, setSession, loadingSession, refreshActiveSession } =
     useActiveSession();
@@ -48,6 +64,17 @@ function SessionResult() {
     "SSS 3",
   ];
 
+  const normalizeClassName = (value) =>
+    String(value || "")
+      .trim()
+      .replace(/\s+/g, "")
+      .toLowerCase();
+
+  const normalizeArm = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
   const normalizedSessions = useMemo(() => {
     return (availableSessions || []).map((item) => ({
       id: item.id,
@@ -60,8 +87,39 @@ function SessionResult() {
     }));
   }, [availableSessions]);
 
+  const allowedClassOptions = useMemo(() => {
+    if (isAdmin) {
+      return classes.map((name) => ({ name, arms: ["A", "B", "C"] }));
+    }
+
+    if (isTeacher) {
+      const grouped = {};
+
+      teacherAssignments.forEach((a) => {
+        const classKey = a.className;
+        if (!grouped[classKey]) grouped[classKey] = [];
+
+        const armExists = grouped[classKey].some(
+          (existingArm) => normalizeArm(existingArm) === normalizeArm(a.arm),
+        );
+
+        if (!armExists) {
+          grouped[classKey].push(a.arm);
+        }
+      });
+
+      return Object.entries(grouped).map(([name, arms]) => ({
+        name,
+        arms,
+      }));
+    }
+
+    return [];
+  }, [isAdmin, isTeacher, teacherAssignments]);
+
   useEffect(() => {
     loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -73,6 +131,25 @@ function SessionResult() {
       }
     }
   }, [normalizedSessions, session, setSession]);
+
+  useEffect(() => {
+    if (isTeacher && session) {
+      loadTeacherAssignments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacher, session]);
+
+  useEffect(() => {
+    if (isTeacher && teacherAssignments.length === 1) {
+      const only = teacherAssignments[0];
+      setSelectedClass(only.className);
+      setSelectedArm(only.arm);
+
+      if (rankingsType === "school") {
+        setRankingsType("arm");
+      }
+    }
+  }, [isTeacher, teacherAssignments, rankingsType]);
 
   useEffect(() => {
     setSessionResult(null);
@@ -88,8 +165,49 @@ function SessionResult() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStudent, session]);
 
+  useEffect(() => {
+    if (
+      isTeacher &&
+      selectedClass &&
+      selectedArm &&
+      teacherAssignments.length
+    ) {
+      fetchStudents();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacher, selectedClass, selectedArm, teacherAssignments]);
+
   const loadInitialData = async () => {
-    await Promise.all([fetchStudents(), fetchSessions()]);
+    await Promise.all([
+      fetchSessions(),
+      isTeacher ? loadTeacherAssignments() : fetchStudents(),
+    ]);
+  };
+
+  const loadTeacherAssignments = async () => {
+    try {
+      const response = await teacherAPI.getMyClasses();
+      const classList = Array.isArray(response.data) ? response.data : [];
+
+      const normalized = classList
+        .filter((c) => c?.id && c?.className && c?.arm)
+        .map((c) => ({
+          id: c.id,
+          className: c.className,
+          arm: c.arm,
+        }));
+
+      setTeacherAssignments(normalized);
+
+      if (normalized.length === 1) {
+        setSelectedClass(normalized[0].className);
+        setSelectedArm(normalized[0].arm);
+      }
+    } catch (error) {
+      console.error("Error loading teacher assignments:", error);
+      setTeacherAssignments([]);
+      toast.error("Failed to load teacher class assignments");
+    }
   };
 
   const fetchSessions = async () => {
@@ -116,26 +234,99 @@ function SessionResult() {
 
   const fetchStudents = async () => {
     try {
-      const response = await studentAPI.getAllStudents();
-      setStudents(response.data || []);
+      let response;
+
+      if (isTeacher) {
+        const assignment = teacherAssignments.find(
+          (a) =>
+            normalizeClassName(a.className) ===
+              normalizeClassName(selectedClass) &&
+            normalizeArm(a.arm) === normalizeArm(selectedArm),
+        );
+
+        if (!assignment) {
+          setStudents([]);
+          return;
+        }
+
+        response = await teacherAPI.getMyClassStudents(assignment.id);
+      } else {
+        response = await studentAPI.getAllStudents();
+      }
+
+      const data = Array.isArray(response.data) ? response.data : [];
+      setStudents(data);
+
+      if (
+        selectedStudent &&
+        !data.some((student) => student.id === selectedStudent.id)
+      ) {
+        setSelectedStudent(null);
+        setSessionResult(null);
+      }
     } catch (error) {
       console.error("Error fetching students:", error);
       toast.error("Failed to load students");
+      setStudents([]);
     }
   };
 
   const fetchSessionResult = async () => {
-    if (!selectedStudent || !session) return;
+    console.log("fetchSessionResult called");
+    console.log("selectedStudent:", selectedStudent);
+    console.log("session:", session);
+    console.log("teacherAssignments:", teacherAssignments);
+
+    if (!selectedStudent || !session) {
+      console.log("Stopped: selectedStudent or session missing");
+      return;
+    }
+
+    if (isTeacher) {
+      const allowed = teacherAssignments.some(
+        (a) =>
+          normalizeClassName(a.className) ===
+            normalizeClassName(selectedStudent.studentClass) &&
+          normalizeArm(a.arm) === normalizeArm(selectedStudent.classArm),
+      );
+
+      if (!allowed) {
+        console.log("Blocked by frontend teacher scope check");
+        console.log(
+          "assignment normalized:",
+          teacherAssignments.map((a) => ({
+            className: normalizeClassName(a.className),
+            arm: normalizeArm(a.arm),
+          })),
+        );
+        console.log("student normalized:", {
+          className: normalizeClassName(selectedStudent.studentClass),
+          arm: normalizeArm(selectedStudent.classArm),
+        });
+
+        toast.error(
+          "You can only access results of students in your class arm",
+        );
+        setSessionResult(null);
+        return;
+      }
+    }
 
     setLoading(true);
     try {
+      console.log(
+        "Making session result request for student:",
+        selectedStudent.id,
+      );
       const response = await sessionResultAPI.getSessionResult(
         selectedStudent.id,
         session,
       );
+      console.log("Session result response:", response.data);
       setSessionResult(response.data || null);
     } catch (error) {
       console.error("Error fetching session result:", error);
+      console.log("Backend response:", error?.response?.data);
       setSessionResult(null);
       toast.error(
         error?.response?.data?.message ||
@@ -150,6 +341,26 @@ function SessionResult() {
     if (!session) {
       toast.error("No session selected");
       return;
+    }
+
+    if (isTeacher) {
+      if (type === "school") {
+        toast.error(
+          "Teachers can only view rankings for their assigned class arm",
+        );
+        return;
+      }
+
+      const allowed = teacherAssignments.some(
+        (a) =>
+          normalizeClassName(a.className) === normalizeClassName(className) &&
+          normalizeArm(a.arm) === normalizeArm(arm),
+      );
+
+      if (!allowed) {
+        toast.error("You can only view rankings for your assigned class arm");
+        return;
+      }
     }
 
     setLoading(true);
@@ -189,6 +400,13 @@ function SessionResult() {
       return;
     }
 
+    if (isTeacher) {
+      toast.error(
+        "Teachers can only access results for students in their class arm",
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await sessionResultAPI.getSessionStatistics(session);
@@ -211,6 +429,11 @@ function SessionResult() {
       return;
     }
 
+    if (isTeacher) {
+      toast.error("Teachers cannot access the full graduation list");
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await sessionResultAPI.getGraduationList(session);
@@ -230,6 +453,11 @@ function SessionResult() {
   const calculateAllResults = async () => {
     if (!session) {
       toast.error("No session selected");
+      return;
+    }
+
+    if (isTeacher) {
+      toast.error("Teachers cannot calculate all session results");
       return;
     }
 
@@ -271,9 +499,75 @@ function SessionResult() {
     }
   };
 
+  const calculateTeacherClassResults = async () => {
+    if (!session) {
+      toast.error("No session selected");
+      return;
+    }
+
+    if (!selectedClass || !selectedArm) {
+      toast.error("Please select your class and arm");
+      return;
+    }
+
+    const allowed = teacherAssignments.some(
+      (a) =>
+        normalizeClassName(a.className) === normalizeClassName(selectedClass) &&
+        normalizeArm(a.arm) === normalizeArm(selectedArm),
+    );
+
+    if (!allowed) {
+      toast.error("You can only calculate results for your assigned class arm");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Calculate session results for ${selectedClass} ${selectedArm} in ${session}?`,
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await sessionResultAPI.calculateClassArmSessionResults(
+        selectedClass,
+        selectedArm,
+        session,
+      );
+
+      const count = Array.isArray(response.data) ? response.data.length : 0;
+      toast.success(`Session results calculated for ${count} students`);
+
+      await fetchStudents();
+
+      if (selectedStudent) {
+        await fetchSessionResult();
+      }
+
+      if (activeTab === "rankings") {
+        await fetchRankings("arm", selectedClass, selectedArm);
+      }
+    } catch (error) {
+      console.error("Error calculating teacher class session results:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          "Failed to calculate class arm session results",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const promoteStudents = async () => {
     if (!session) {
       toast.error("No session selected");
+      return;
+    }
+
+    if (isTeacher) {
+      toast.error("Teachers cannot promote students globally");
       return;
     }
 
@@ -311,7 +605,7 @@ function SessionResult() {
   const handleRefreshAll = async () => {
     await Promise.all([
       fetchSessions(),
-      fetchStudents(),
+      isTeacher ? loadTeacherAssignments() : fetchStudents(),
       refreshActiveSession(),
     ]);
   };
@@ -398,32 +692,40 @@ function SessionResult() {
           <FaTrophy className="me-2" /> Rankings
         </button>
 
-        <button
-          className={`btn ${activeTab === "statistics" ? "active" : ""}`}
-          onClick={() => setActiveTab("statistics")}
-          style={{
-            backgroundColor: activeTab === "statistics" ? "#2196F3" : "#f8f9fa",
-            color: activeTab === "statistics" ? "white" : "#495057",
-            border: activeTab === "statistics" ? "none" : "1px solid #dee2e6",
-          }}
-        >
-          <FaChartBar className="me-2" /> Statistics
-        </button>
+        {!isTeacher && (
+          <>
+            <button
+              className={`btn ${activeTab === "statistics" ? "active" : ""}`}
+              onClick={() => setActiveTab("statistics")}
+              style={{
+                backgroundColor:
+                  activeTab === "statistics" ? "#2196F3" : "#f8f9fa",
+                color: activeTab === "statistics" ? "white" : "#495057",
+                border:
+                  activeTab === "statistics" ? "none" : "1px solid #dee2e6",
+              }}
+            >
+              <FaChartBar className="me-2" /> Statistics
+            </button>
 
-        <button
-          className={`btn ${activeTab === "graduates" ? "active" : ""}`}
-          onClick={() => {
-            setActiveTab("graduates");
-            fetchGraduates();
-          }}
-          style={{
-            backgroundColor: activeTab === "graduates" ? "#9C27B0" : "#f8f9fa",
-            color: activeTab === "graduates" ? "white" : "#495057",
-            border: activeTab === "graduates" ? "none" : "1px solid #dee2e6",
-          }}
-        >
-          <FaGraduationCap className="me-2" /> Graduates
-        </button>
+            <button
+              className={`btn ${activeTab === "graduates" ? "active" : ""}`}
+              onClick={() => {
+                setActiveTab("graduates");
+                fetchGraduates();
+              }}
+              style={{
+                backgroundColor:
+                  activeTab === "graduates" ? "#9C27B0" : "#f8f9fa",
+                color: activeTab === "graduates" ? "white" : "#495057",
+                border:
+                  activeTab === "graduates" ? "none" : "1px solid #dee2e6",
+              }}
+            >
+              <FaGraduationCap className="me-2" /> Graduates
+            </button>
+          </>
+        )}
       </div>
 
       <div className="row mb-4 align-items-end">
@@ -446,31 +748,106 @@ function SessionResult() {
           </select>
         </div>
 
-        <div className="col-md-9">
+        {isTeacher && (
+          <>
+            <div className="col-md-3">
+              <label className="form-label fw-bold">Class</label>
+              <select
+                className="form-select"
+                value={selectedClass}
+                onChange={(e) => {
+                  setSelectedClass(e.target.value);
+                  setSelectedArm("");
+                  setSelectedStudent(null);
+                  setSessionResult(null);
+                  setRankings(null);
+                }}
+              >
+                <option value="">Select Class</option>
+                {allowedClassOptions.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-md-2">
+              <label className="form-label fw-bold">Arm</label>
+              <select
+                className="form-select"
+                value={selectedArm}
+                onChange={(e) => {
+                  setSelectedArm(e.target.value);
+                  setSelectedStudent(null);
+                  setSessionResult(null);
+                  setRankings(null);
+                }}
+                disabled={!selectedClass}
+              >
+                <option value="">Select Arm</option>
+                {selectedClass &&
+                  allowedClassOptions
+                    .find(
+                      (c) =>
+                        normalizeClassName(c.name) ===
+                        normalizeClassName(selectedClass),
+                    )
+                    ?.arms.map((arm) => (
+                      <option key={arm} value={arm}>
+                        {arm}
+                      </option>
+                    ))}
+              </select>
+            </div>
+          </>
+        )}
+
+        <div className={isTeacher ? "col-md-4" : "col-md-9"}>
           <div className="d-flex gap-2 justify-content-end flex-wrap">
-            <button
-              className="btn btn-danger"
-              onClick={calculateAllResults}
-              disabled={loading || !session}
-            >
-              {loading ? <FaSpinner className="spinner" /> : "📊 Calculate All"}
-            </button>
+            {!isTeacher ? (
+              <>
+                <button
+                  className="btn btn-danger"
+                  onClick={calculateAllResults}
+                  disabled={loading || !session}
+                >
+                  {loading ? (
+                    <FaSpinner className="spinner" />
+                  ) : (
+                    "📊 Calculate All"
+                  )}
+                </button>
 
-            <button
-              className="btn btn-success"
-              onClick={promoteStudents}
-              disabled={loading || !session}
-            >
-              🎓 Promote Students
-            </button>
+                <button
+                  className="btn btn-success"
+                  onClick={promoteStudents}
+                  disabled={loading || !session}
+                >
+                  🎓 Promote Students
+                </button>
 
-            <button
-              className="btn btn-info text-white"
-              onClick={fetchStatistics}
-              disabled={loading || !session}
-            >
-              📈 Refresh Stats
-            </button>
+                <button
+                  className="btn btn-info text-white"
+                  onClick={fetchStatistics}
+                  disabled={loading || !session}
+                >
+                  📈 Refresh Stats
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn btn-primary"
+                onClick={calculateTeacherClassResults}
+                disabled={loading || !session || !selectedClass || !selectedArm}
+              >
+                {loading ? (
+                  <FaSpinner className="spinner" />
+                ) : (
+                  "📊 Calculate My Class"
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -481,7 +858,7 @@ function SessionResult() {
             <div className="card">
               <div className="card-body">
                 <div className="row align-items-end">
-                  <div className="col-md-8">
+                  <div className={isTeacher ? "col-md-10" : "col-md-8"}>
                     <label className="form-label fw-bold">Select Student</label>
                     <select
                       className="form-select"
@@ -505,7 +882,8 @@ function SessionResult() {
                       ))}
                     </select>
                   </div>
-                  <div className="col-md-4">
+
+                  <div className={isTeacher ? "col-md-2" : "col-md-4"}>
                     <button
                       className="btn btn-success w-100"
                       onClick={() => selectedStudent && fetchSessionResult()}
@@ -515,6 +893,13 @@ function SessionResult() {
                     </button>
                   </div>
                 </div>
+
+                {isTeacher && (
+                  <div className="mt-3 text-muted small">
+                    Teachers can only access and calculate session results for
+                    students in their assigned class arm.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -534,13 +919,17 @@ function SessionResult() {
                       value={rankingsType}
                       onChange={(e) => setRankingsType(e.target.value)}
                     >
-                      <option value="school">🏫 School Rankings</option>
-                      <option value="class">📚 Class Rankings</option>
+                      {!isTeacher && (
+                        <option value="school">🏫 School Rankings</option>
+                      )}
+                      {!isTeacher && (
+                        <option value="class">📚 Class Rankings</option>
+                      )}
                       <option value="arm">👥 Class Arm Rankings</option>
                     </select>
                   </div>
 
-                  {rankingsType !== "school" && (
+                  {rankingsType !== "school" && !isTeacher && (
                     <div className="col-md-3">
                       <label className="form-label fw-bold">Class</label>
                       <select
@@ -558,29 +947,37 @@ function SessionResult() {
                     </div>
                   )}
 
-                  {rankingsType === "arm" && (
-                    <div className="col-md-2">
-                      <label className="form-label fw-bold">Arm</label>
-                      <select
-                        className="form-select"
-                        value={selectedArm}
-                        onChange={(e) => setSelectedArm(e.target.value)}
-                      >
-                        <option value="">Select Arm</option>
-                        <option value="A">A</option>
-                        <option value="B">B</option>
-                        <option value="C">C</option>
-                      </select>
-                    </div>
+                  {(rankingsType === "arm" || isTeacher) && (
+                    <>
+                      {!isTeacher && (
+                        <div className="col-md-2">
+                          <label className="form-label fw-bold">Arm</label>
+                          <select
+                            className="form-select"
+                            value={selectedArm}
+                            onChange={(e) => setSelectedArm(e.target.value)}
+                          >
+                            <option value="">Select Arm</option>
+                            {["A", "B", "C"].map((arm) => (
+                              <option key={arm} value={arm}>
+                                {arm}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   <div
                     className={`col-md-${
-                      rankingsType === "school"
+                      isTeacher
                         ? "3"
-                        : rankingsType === "arm"
-                          ? "2"
-                          : "4"
+                        : rankingsType === "school"
+                          ? "3"
+                          : rankingsType === "arm"
+                            ? "2"
+                            : "4"
                     }`}
                   >
                     <button
@@ -594,13 +991,20 @@ function SessionResult() {
                     </button>
                   </div>
                 </div>
+
+                {isTeacher && (
+                  <div className="mt-3 text-muted small">
+                    Teachers can only view rankings for their assigned class
+                    arm.
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {activeTab === "graduates" && (
+      {!isTeacher && activeTab === "graduates" && (
         <div className="row mb-4">
           <div className="col-md-12">
             <div className="card">
@@ -627,8 +1031,36 @@ function SessionResult() {
         <div className="view-results">
           {selectedStudent && sessionResult ? (
             <div className="card">
-              <div className="card-header bg-success text-white">
+              <div className="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 className="mb-0">Annual Session Result: {session}</h5>
+
+                {/* Printable Session Result Button */}
+                <button
+                  className="btn btn-light btn-sm"
+                  onClick={() => {
+                    if (selectedStudent && session) {
+                      navigate(
+                        `/session-results/${selectedStudent.id}?session=${encodeURIComponent(session)}`,
+                      );
+                    }
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "6px 12px",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    borderRadius: "4px",
+                    border: "none",
+                    cursor: "pointer",
+                    backgroundColor: "#fff",
+                    color: "#28a745",
+                  }}
+                >
+                  <FaPrint size={14} />
+                  <span>Printable Session Result</span>
+                </button>
               </div>
               <div className="card-body">
                 <div className="row mb-4">
@@ -785,7 +1217,7 @@ function SessionResult() {
             <div className="alert alert-info">
               {selectedStudent
                 ? sessionResult === null
-                  ? "No session result found for this student"
+                  ? "No session result found for this student. Click 'Calculate My Class' first if you are a teacher."
                   : "Loading..."
                 : "Please select a student to view results"}
             </div>
@@ -884,7 +1316,7 @@ function SessionResult() {
         </div>
       )}
 
-      {activeTab === "statistics" && (
+      {!isTeacher && activeTab === "statistics" && (
         <div className="statistics">
           {loading ? (
             <div className="text-center py-5">
@@ -993,7 +1425,7 @@ function SessionResult() {
         </div>
       )}
 
-      {activeTab === "graduates" && (
+      {!isTeacher && activeTab === "graduates" && (
         <div className="graduates">
           {graduates.length > 0 ? (
             <div className="card">

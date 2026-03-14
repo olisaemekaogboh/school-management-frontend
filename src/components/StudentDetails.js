@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, resultAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -37,6 +37,7 @@ import "./StudentDetails.css";
 function StudentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const isAdmin = user?.role === "ADMIN";
@@ -49,6 +50,9 @@ function StudentDetails() {
   const [annualResult, setAnnualResult] = useState(null);
   const [resultHistory, setResultHistory] = useState({});
   const [imageError, setImageError] = useState(false);
+
+  const backPath =
+    location.state?.from || (isTeacher ? "/teacher-dashboard" : "/students");
 
   const {
     session,
@@ -88,7 +92,7 @@ function StudentDetails() {
     } catch (error) {
       console.error("Error fetching student details:", error);
       toast.error("Failed to load student details");
-      navigate("/students");
+      navigate(backPath);
     } finally {
       setLoading(false);
     }
@@ -149,7 +153,7 @@ function StudentDetails() {
       try {
         await studentAPI.deleteStudent(id);
         toast.success("Student deleted successfully");
-        navigate("/students");
+        navigate(backPath);
       } catch (error) {
         console.error("Error deleting student:", error);
         toast.error("Failed to delete student");
@@ -169,6 +173,7 @@ function StudentDetails() {
       SUSPENDED: { class: "bg-warning", icon: <FaExclamationTriangle /> },
       WITHDRAWN: { class: "bg-danger", icon: <FaTimesCircle /> },
     };
+
     const badge = badges[status] || { class: "bg-secondary", icon: null };
 
     return (
@@ -237,7 +242,7 @@ function StudentDetails() {
       <div className="d-flex justify-content-between align-items-center mb-4 no-print flex-wrap gap-2">
         <h2 className="mb-0">Student Profile</h2>
         <div>
-          <Link to="/students" className="btn btn-secondary me-2">
+          <Link to={backPath} className="btn btn-secondary me-2">
             <FaArrowLeft className="me-2" /> Back
           </Link>
 
@@ -245,6 +250,7 @@ function StudentDetails() {
             <>
               <Link
                 to={`/students/edit/${id}`}
+                state={{ from: backPath }}
                 className="btn btn-warning me-2"
               >
                 <FaEdit className="me-2" /> Edit
@@ -300,6 +306,7 @@ function StudentDetails() {
                   {isAdmin && (
                     <Link
                       to={`/students/edit/${id}`}
+                      state={{ from: backPath }}
                       className="btn btn-primary btn-sm profile-image-edit-btn"
                       title={
                         student.profilePictureUrl ? "Change Photo" : "Add Photo"

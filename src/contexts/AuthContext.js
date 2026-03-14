@@ -18,15 +18,133 @@ export const useAuth = () => {
   return context;
 };
 
+const pickFirst = (...values) => {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return null;
+};
+
 const normalizeUser = (rawUser) => {
   if (!rawUser) return null;
 
+  const studentProfile =
+    rawUser.student ||
+    rawUser.studentProfile ||
+    (rawUser.role === "STUDENT" ? rawUser : null);
+
+  const teacherProfile =
+    rawUser.teacher ||
+    rawUser.teacherProfile ||
+    (rawUser.role === "TEACHER" ? rawUser : null);
+
+  const parentProfile =
+    rawUser.parent ||
+    rawUser.parentProfile ||
+    (rawUser.role === "PARENT" ? rawUser : null);
+
   return {
     ...rawUser,
+
     role: rawUser.role || null,
-    studentId: rawUser.studentId || rawUser.student?.id || null,
-    parentId: rawUser.parentId || rawUser.parent?.id || null,
-    teacherId: rawUser.teacherId || rawUser.teacher?.id || null,
+
+    student: rawUser.student || rawUser.studentProfile || null,
+    teacher: rawUser.teacher || rawUser.teacherProfile || null,
+    parent: rawUser.parent || rawUser.parentProfile || null,
+
+    studentId: pickFirst(
+      rawUser.studentId,
+      rawUser.student?.id,
+      rawUser.studentProfile?.id,
+    ),
+    parentId: pickFirst(
+      rawUser.parentId,
+      rawUser.parent?.id,
+      rawUser.parentProfile?.id,
+    ),
+    teacherId: pickFirst(
+      rawUser.teacherId,
+      rawUser.teacher?.id,
+      rawUser.teacherProfile?.id,
+    ),
+
+    firstName: pickFirst(
+      rawUser.firstName,
+      studentProfile?.firstName,
+      teacherProfile?.firstName,
+      parentProfile?.firstName,
+    ),
+    lastName: pickFirst(
+      rawUser.lastName,
+      studentProfile?.lastName,
+      teacherProfile?.lastName,
+      parentProfile?.lastName,
+    ),
+    middleName: pickFirst(
+      rawUser.middleName,
+      studentProfile?.middleName,
+      teacherProfile?.middleName,
+      parentProfile?.middleName,
+    ),
+    fullName: pickFirst(
+      rawUser.fullName,
+      studentProfile?.fullName,
+      teacherProfile?.fullName,
+      parentProfile?.fullName,
+      [
+        pickFirst(
+          rawUser.firstName,
+          studentProfile?.firstName,
+          teacherProfile?.firstName,
+          parentProfile?.firstName,
+        ),
+        pickFirst(
+          rawUser.middleName,
+          studentProfile?.middleName,
+          teacherProfile?.middleName,
+          parentProfile?.middleName,
+        ),
+        pickFirst(
+          rawUser.lastName,
+          studentProfile?.lastName,
+          teacherProfile?.lastName,
+          parentProfile?.lastName,
+        ),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    ),
+
+    admissionNumber: pickFirst(
+      rawUser.admissionNumber,
+      studentProfile?.admissionNumber,
+      studentProfile?.admissionNo,
+    ),
+    studentClass: pickFirst(
+      rawUser.studentClass,
+      studentProfile?.studentClass,
+      studentProfile?.className,
+    ),
+    classArm: pickFirst(
+      rawUser.classArm,
+      studentProfile?.classArm,
+      studentProfile?.arm,
+    ),
+    status: pickFirst(
+      rawUser.status,
+      studentProfile?.status,
+      teacherProfile?.status,
+      parentProfile?.status,
+      "ACTIVE",
+    ),
+    profilePictureUrl: pickFirst(
+      rawUser.profilePictureUrl,
+      studentProfile?.profilePictureUrl,
+      teacherProfile?.profilePictureUrl,
+      parentProfile?.profilePictureUrl,
+    ),
   };
 };
 

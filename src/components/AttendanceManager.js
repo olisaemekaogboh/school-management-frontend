@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
   attendanceAPI,
@@ -22,8 +22,12 @@ import {
   FaFilter,
   FaInfoCircle,
   FaSyncAlt,
+  FaDownload,
+  FaFilePdf,
 } from "react-icons/fa";
 import moment from "moment";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 function AttendanceManager() {
   const { user } = useAuth();
@@ -33,20 +37,22 @@ function AttendanceManager() {
   const isTeacher = user?.role === "TEACHER";
 
   const query = new URLSearchParams(location.search);
-  const classNameFromQuery = query.get("className") || "";
-  const armFromQuery = query.get("arm") || "";
+  const classIdFromQuery = query.get("classId") || "";
+  const mineFromQuery = query.get("mine") === "true";
 
   const [loading, setLoading] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
 
   const [students, setStudents] = useState([]);
-  const [selectedClass, setSelectedClass] = useState(classNameFromQuery);
-  const [selectedArm, setSelectedArm] = useState(armFromQuery);
+  const [selectedClass, setSelectedClass] = useState("");
+  const [selectedArm, setSelectedArm] = useState("");
   const [selectedDate, setSelectedDate] = useState(
     moment().format("YYYY-MM-DD"),
   );
   const [attendanceData, setAttendanceData] = useState({});
   const [classStats, setClassStats] = useState(null);
+  const [showInlineStats, setShowInlineStats] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [viewMode, setViewMode] = useState("mark");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -58,6 +64,8 @@ function AttendanceManager() {
   const [activeSessionObj, setActiveSessionObj] = useState(null);
   const [session, setSession] = useState("");
   const [term, setTerm] = useState("FIRST");
+
+  const statsExportRef = useRef(null);
 
   const classes = [
     { name: "Nursery", arms: ["A", "B"] },
@@ -89,6 +97,7 @@ function AttendanceManager() {
     if (isTeacher && session) {
       loadTeacherAssignments();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher, session]);
 
   useEffect(() => {
@@ -114,12 +123,14 @@ function AttendanceManager() {
     } else if (viewMode === "stats") {
       fetchClassStatistics();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClass, selectedArm, selectedDate, session, term, viewMode]);
 
   useEffect(() => {
     if (selectedStudent && session && term) {
       fetchStudentAttendance();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStudent, session, term]);
 
   const getSessionName = (sessionItem) => {
@@ -187,21 +198,26 @@ function AttendanceManager() {
 
       setTeacherAssignments(normalized);
 
-      if (!classNameFromQuery && normalized.length === 1) {
-        setSelectedClass(normalized[0].className);
-        setSelectedArm(normalized[0].arm);
+      if (classIdFromQuery && mineFromQuery) {
+        const matched = normalized.find(
+          (c) => String(c.id) === String(classIdFromQuery),
+        );
+
+        if (!matched) {
+          setSelectedClass("");
+          setSelectedArm("");
+          toast.error("You can only access your assigned class arm");
+          return;
+        }
+
+        setSelectedClass(matched.className);
+        setSelectedArm(matched.arm);
+        return;
       }
 
-      if (
-        classNameFromQuery &&
-        armFromQuery &&
-        !normalized.some(
-          (c) => c.className === classNameFromQuery && c.arm === armFromQuery,
-        )
-      ) {
-        setSelectedClass("");
-        setSelectedArm("");
-        toast.error("You can only access your assigned class arm");
+      if (normalized.length === 1) {
+        setSelectedClass(normalized[0].className);
+        setSelectedArm(normalized[0].arm);
       }
     } catch (error) {
       console.error("Error loading teacher assignments:", error);
@@ -293,6 +309,8 @@ function AttendanceManager() {
 
   const fetchExistingAttendance = async (studentList) => {
     try {
+      const updates = {};
+
       for (const student of studentList) {
         try {
           const response = await attendanceAPI.getStudentAttendance(
@@ -302,22 +320,29 @@ function AttendanceManager() {
             term,
           );
 
-          if (response.data) {
-            setAttendanceData((prev) => ({
-              ...prev,
-              [student.id]: response.data.status,
-            }));
+          const data = response?.data;
+
+          if (data?.exists === false) {
+            updates[student.id] = null;
+          } else if (data?.status) {
+            updates[student.id] = data.status;
+          } else {
+            updates[student.id] = null;
           }
         } catch (error) {
-          if (error.response?.status !== 404) {
-            console.error(
-              "Error fetching attendance for student:",
-              student.id,
-              error,
-            );
-          }
+          console.error(
+            "Error fetching attendance for student:",
+            student.id,
+            error,
+          );
+          updates[student.id] = null;
         }
       }
+
+      setAttendanceData((prev) => ({
+        ...prev,
+        ...updates,
+      }));
     } catch (error) {
       console.error("Error fetching existing attendance:", error);
     }
@@ -353,6 +378,131 @@ function AttendanceManager() {
     }
   };
 
+  const handleShowInlineStats = async () => {
+    if (!selectedClass || !selectedArm || !session || !term) {
+      toast.warning("Please select class, arm, session and term first");
+      return;
+    }
+
+    await fetchClassStatistics();
+    setShowInlineStats(true);
+  };
+
+  const handleHideInlineStats = () => {
+    setShowInlineStats(false);
+  };
+
+  const exportStatisticsToCsv = () => {
+    if (!classStats?.studentAttendance?.length) {
+      toast.warning("No attendance statistics to export");
+      return;
+    }
+
+    const header = [
+      "S/N",
+      "Student Name",
+      "Admission No.",
+      "Class",
+      "Arm",
+      "Present",
+      "Absent",
+      "Late",
+      "Excused",
+      "Percentage",
+      "Session",
+      "Term",
+    ];
+
+    const rows = classStats.studentAttendance.map((student, index) => [
+      index + 1,
+      `"${student.studentName || ""}"`,
+      `"${student.admissionNumber || ""}"`,
+      `"${student.class || selectedClass}"`,
+      `"${student.arm || selectedArm}"`,
+      student.present ?? 0,
+      student.absent ?? 0,
+      student.late ?? 0,
+      student.excused ?? 0,
+      Number(student.percentage || 0).toFixed(1),
+      `"${session}"`,
+      `"${term}"`,
+    ]);
+
+    const csvContent = [header.join(","), ...rows.map((r) => r.join(","))].join(
+      "\n",
+    );
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeSession = session.replace(/[\/\\]/g, "_");
+    link.href = url;
+    link.setAttribute(
+      "download",
+      `attendance_statistics_${selectedClass}_${selectedArm}_${term}_${safeSession}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    toast.success("Attendance statistics exported to CSV");
+  };
+
+  const exportStatisticsToPdf = async () => {
+    if (!statsExportRef.current || !classStats?.studentAttendance?.length) {
+      toast.warning("No attendance statistics to export");
+      return;
+    }
+
+    setExportingPdf(true);
+    try {
+      const canvas = await html2canvas(statsExportRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        logging: false,
+        useCORS: true,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("landscape", "px", "a4");
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const imgWidth = pageWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 10;
+
+      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const safeSession = session.replace(/[\/\\]/g, "_");
+      pdf.save(
+        `attendance_statistics_${selectedClass}_${selectedArm}_${term}_${safeSession}.pdf`,
+      );
+
+      toast.success("Attendance statistics exported to PDF");
+    } catch (error) {
+      console.error("Error exporting statistics PDF:", error);
+      toast.error("Failed to export PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const fetchStudentAttendance = async () => {
     if (!selectedStudent || !session || !term) return;
 
@@ -367,7 +517,10 @@ function AttendanceManager() {
         attendanceAPI.getStudentTermSummary(selectedStudent.id, session, term),
       ]);
 
-      setStudentAttendance(attendanceRes.data || []);
+      const records = Array.isArray(attendanceRes.data)
+        ? attendanceRes.data
+        : [];
+      setStudentAttendance(records);
       setStudentSummary(summaryRes.data || null);
     } catch (error) {
       console.error("Error fetching student attendance:", error);
@@ -426,6 +579,10 @@ function AttendanceManager() {
         newAttendanceData[id] = status;
       });
       setAttendanceData(newAttendanceData);
+
+      if (showInlineStats) {
+        fetchClassStatistics();
+      }
     } catch (error) {
       console.error("Error marking bulk attendance:", error);
       toast.error(
@@ -449,13 +606,23 @@ function AttendanceManager() {
 
     setLoading(true);
     try {
-      await attendanceAPI.markAttendance(
-        studentId,
-        selectedDate,
-        session,
-        term,
-        status,
-      );
+      if (isTeacher) {
+        await teacherAPI.markMyClassAttendance(selectedTeacherAssignment.id, {
+          studentIds: [studentId],
+          date: selectedDate,
+          session,
+          term,
+          status,
+        });
+      } else {
+        await attendanceAPI.markAttendance(
+          studentId,
+          selectedDate,
+          session,
+          term,
+          status,
+        );
+      }
 
       toast.success(`Student marked as ${status}`);
 
@@ -463,6 +630,14 @@ function AttendanceManager() {
         ...prev,
         [studentId]: status,
       }));
+
+      if (selectedStudent?.id === studentId) {
+        fetchStudentAttendance();
+      }
+
+      if (showInlineStats) {
+        fetchClassStatistics();
+      }
     } catch (error) {
       console.error("Error marking attendance:", error);
       toast.error(
@@ -525,6 +700,21 @@ function AttendanceManager() {
     const q = searchTerm.toLowerCase();
     return fullName.includes(q) || admission.includes(q);
   });
+
+  const reportStats = useMemo(() => {
+    const present = studentAttendance.filter(
+      (r) => r.status === "PRESENT",
+    ).length;
+    const absent = studentAttendance.filter(
+      (r) => r.status === "ABSENT",
+    ).length;
+    const late = studentAttendance.filter((r) => r.status === "LATE").length;
+    const excused = studentAttendance.filter(
+      (r) => r.status === "EXCUSED",
+    ).length;
+
+    return { present, absent, late, excused };
+  }, [studentAttendance]);
 
   if (loadingSession) {
     return (
@@ -597,7 +787,9 @@ function AttendanceManager() {
                   setSelectedClass(e.target.value);
                   setSelectedArm("");
                   setSelectedStudent(null);
+                  setShowInlineStats(false);
                 }}
+                disabled={isTeacher && mineFromQuery}
               >
                 <option value="">Select Class</option>
                 {allowedClassOptions.map((c) => (
@@ -616,8 +808,9 @@ function AttendanceManager() {
                 onChange={(e) => {
                   setSelectedArm(e.target.value);
                   setSelectedStudent(null);
+                  setShowInlineStats(false);
                 }}
-                disabled={!selectedClass}
+                disabled={!selectedClass || (isTeacher && mineFromQuery)}
               >
                 <option value="">Select Arm</option>
                 {selectedClass &&
@@ -648,7 +841,10 @@ function AttendanceManager() {
               <select
                 className="form-select"
                 value={session}
-                onChange={(e) => setSession(e.target.value)}
+                onChange={(e) => {
+                  setSession(e.target.value);
+                  setShowInlineStats(false);
+                }}
                 disabled={availableSessions.length === 0}
               >
                 <option value="">
@@ -669,7 +865,10 @@ function AttendanceManager() {
               <select
                 className="form-select"
                 value={term}
-                onChange={(e) => setTerm(e.target.value)}
+                onChange={(e) => {
+                  setTerm(e.target.value);
+                  setShowInlineStats(false);
+                }}
               >
                 {terms.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -682,39 +881,234 @@ function AttendanceManager() {
 
           {viewMode === "mark" && selectedClass && selectedArm && (
             <div className="mt-3">
-              <label className="form-label me-3">Quick Actions:</label>
+              <label className="form-label me-3 fw-bold">Quick Actions:</label>
 
-              <button
-                className="btn btn-success me-2 mb-2"
-                onClick={() => handleMarkAll("PRESENT")}
-                disabled={loading}
-              >
-                <FaCheckCircle className="me-1" /> Mark All Present
-              </button>
+              <div className="d-flex flex-wrap gap-2">
+                <button
+                  className="btn btn-success"
+                  onClick={() => handleMarkAll("PRESENT")}
+                  disabled={loading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    minWidth: "170px",
+                    height: "42px",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    backgroundColor: "#28a745",
+                    color: "white",
+                  }}
+                >
+                  <FaCheckCircle size={16} />
+                  <span>Mark All Present </span>
+                </button>
 
-              <button
-                className="btn btn-danger me-2 mb-2"
-                onClick={() => handleMarkAll("ABSENT")}
-                disabled={loading}
-              >
-                <FaTimesCircle className="me-1" /> Mark All Absent
-              </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => handleMarkAll("ABSENT")}
+                  disabled={loading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    minWidth: "150px",
+                    height: "42px",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    backgroundColor: "#dc3545",
+                    color: "white",
+                  }}
+                >
+                  <FaTimesCircle size={16} />
+                  <span>Mark All Absent</span>
+                </button>
 
-              <button
-                className="btn btn-warning me-2 mb-2"
-                onClick={() => handleMarkAll("LATE")}
-                disabled={loading}
-              >
-                <FaClock className="me-1" /> Mark All Late
-              </button>
+                <button
+                  className="btn btn-warning"
+                  onClick={() => handleMarkAll("LATE")}
+                  disabled={loading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    minWidth: "150px",
+                    height: "42px",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    backgroundColor: "#ffc107",
+                    color: "#212529",
+                  }}
+                >
+                  <FaClock size={16} />
+                  <span>Mark All Late</span>
+                </button>
 
-              <button
-                className="btn btn-info me-2 mb-2"
-                onClick={() => handleMarkAll("EXCUSED")}
-                disabled={loading}
-              >
-                <FaExclamationTriangle className="me-1" /> Mark All Excused
-              </button>
+                <button
+                  className="btn btn-info"
+                  onClick={() => handleMarkAll("EXCUSED")}
+                  disabled={loading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    minWidth: "150px",
+                    height: "42px",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    backgroundColor: "#17a2b8",
+                    color: "white",
+                  }}
+                >
+                  <FaExclamationTriangle size={16} />
+                  <span>Mark All Excused</span>
+                </button>
+
+                <button
+                  className="btn btn-outline-dark"
+                  onClick={handleShowInlineStats}
+                  disabled={loading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    minWidth: "150px",
+                    height: "42px",
+                    border: "1px solid #343a40",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    backgroundColor: "transparent",
+                    color: "#343a40",
+                  }}
+                >
+                  <FaChartBar size={16} />
+                  <span>Show Statistics</span>
+                </button>
+              </div>
+
+              {showInlineStats && (
+                <div className="d-flex flex-wrap gap-2 mt-3">
+                  <button
+                    className="btn btn-outline-success"
+                    onClick={exportStatisticsToCsv}
+                    disabled={loading || !classStats?.studentAttendance?.length}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      minWidth: "160px",
+                      height: "42px",
+                      border: "1px solid #28a745",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      backgroundColor: "transparent",
+                      color: "#28a745",
+                    }}
+                  >
+                    <FaDownload size={16} />
+                    <span>Export Excel (CSV)</span>
+                  </button>
+
+                  <button
+                    className="btn btn-outline-danger"
+                    onClick={exportStatisticsToPdf}
+                    disabled={
+                      loading ||
+                      exportingPdf ||
+                      !classStats?.studentAttendance?.length
+                    }
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      minWidth: "160px",
+                      height: "42px",
+                      border: "1px solid #dc3545",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      backgroundColor: "transparent",
+                      color: "#dc3545",
+                    }}
+                  >
+                    {exportingPdf ? (
+                      <>
+                        <FaSpinner className="spin" size={16} />
+                        <span>Exporting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FaFilePdf size={16} />
+                        <span>Export PDF</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    className="btn btn-outline-secondary"
+                    onClick={handleHideInlineStats}
+                    disabled={loading}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      minWidth: "160px",
+                      height: "42px",
+                      border: "1px solid #6c757d",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      backgroundColor: "transparent",
+                      color: "#6c757d",
+                    }}
+                  >
+                    <FaTimesCircle size={16} />
+                    <span>Hide Statistics</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -910,65 +1304,120 @@ function AttendanceManager() {
                 </div>
                 <div className="card-body">
                   {studentSummary && (
-                    <div className="row mb-4">
-                      <div className="col-md-3 mb-3">
-                        <div className="card bg-primary text-white">
-                          <div className="card-body text-center">
-                            <h5>{studentSummary.totalSchoolDays}</h5>
-                            <small>School Days</small>
+                    <>
+                      <div className="row mb-4">
+                        <div className="col-md-3 mb-3">
+                          <div className="card bg-primary text-white">
+                            <div className="card-body text-center">
+                              <h5>{studentSummary.totalSchoolDays}</h5>
+                              <small>School Days</small>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-md-3 mb-3">
+                          <div className="card bg-success text-white">
+                            <div className="card-body text-center">
+                              <h5>{studentSummary.daysPresent}</h5>
+                              <small>Present</small>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-md-3 mb-3">
+                          <div className="card bg-danger text-white">
+                            <div className="card-body text-center">
+                              <h5>{studentSummary.daysAbsent}</h5>
+                              <small>Absent</small>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-md-3 mb-3">
+                          <div className="card bg-warning text-white">
+                            <div className="card-body text-center">
+                              <h5>
+                                {studentSummary.attendancePercentage?.toFixed(
+                                  1,
+                                )}
+                                %
+                              </h5>
+                              <small>Percentage</small>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="col-md-3 mb-3">
-                        <div className="card bg-success text-white">
-                          <div className="card-body text-center">
-                            <h5>{studentSummary.daysPresent}</h5>
-                            <small>Present</small>
+                      <div className="row mb-4">
+                        <div className="col-md-3 mb-3">
+                          <div className="card border-success">
+                            <div className="card-body text-center">
+                              <h6 className="text-success">
+                                {reportStats.present}
+                              </h6>
+                              <small>Present Records</small>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="col-md-3 mb-3">
-                        <div className="card bg-danger text-white">
-                          <div className="card-body text-center">
-                            <h5>{studentSummary.daysAbsent}</h5>
-                            <small>Absent</small>
+                        <div className="col-md-3 mb-3">
+                          <div className="card border-danger">
+                            <div className="card-body text-center">
+                              <h6 className="text-danger">
+                                {reportStats.absent}
+                              </h6>
+                              <small>Absent Records</small>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="col-md-3 mb-3">
-                        <div className="card bg-warning text-white">
-                          <div className="card-body text-center">
-                            <h5>
-                              {studentSummary.attendancePercentage?.toFixed(1)}%
-                            </h5>
-                            <small>Percentage</small>
+                        <div className="col-md-3 mb-3">
+                          <div className="card border-warning">
+                            <div className="card-body text-center">
+                              <h6 className="text-warning">
+                                {reportStats.late}
+                              </h6>
+                              <small>Late Records</small>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-md-3 mb-3">
+                          <div className="card border-info">
+                            <div className="card-body text-center">
+                              <h6 className="text-info">
+                                {reportStats.excused}
+                              </h6>
+                              <small>Excused Records</small>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </>
                   )}
 
                   <h6 className="mb-3">
-                    Attendance Records for{" "}
+                    Attendance History for{" "}
                     {terms.find((t) => t.value === term)?.label}
                   </h6>
 
                   <div className="table-responsive">
-                    <table className="table table-striped">
-                      <thead>
+                    <table className="table table-striped table-bordered align-middle">
+                      <thead className="table-light">
                         <tr>
+                          <th>#</th>
                           <th>Date</th>
+                          <th>Day</th>
                           <th>Status</th>
                           <th>Remarks</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {studentAttendance.map((record) => (
+                        {studentAttendance.map((record, index) => (
                           <tr key={record.id}>
+                            <td>{index + 1}</td>
                             <td>{moment(record.date).format("DD/MM/YYYY")}</td>
+                            <td>{moment(record.date).format("dddd")}</td>
                             <td>
                               <span
                                 className={`badge bg-${getStatusColor(record.status)}`}
@@ -982,8 +1431,8 @@ function AttendanceManager() {
 
                         {studentAttendance.length === 0 && (
                           <tr>
-                            <td colSpan="3" className="text-center text-muted">
-                              No attendance records found
+                            <td colSpan="5" className="text-center text-muted">
+                              No attendance records found for this term
                             </td>
                           </tr>
                         )}
@@ -1003,113 +1452,229 @@ function AttendanceManager() {
       )}
 
       {!loading && viewMode === "mark" && students.length > 0 && (
-        <div className="card">
-          <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <h5 className="mb-0">
-              <FaUsers className="me-2" />
-              {selectedClass} - Arm {selectedArm} -{" "}
-              {moment(selectedDate).format("DD/MM/YYYY")}
-            </h5>
-            <span className="badge bg-light text-dark">
-              {
-                Object.values(attendanceData).filter((s) => s === "PRESENT")
-                  .length
-              }{" "}
-              Present / {students.length} Total
-            </span>
-          </div>
+        <>
+          <div className="card">
+            <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <h5 className="mb-0">
+                <FaUsers className="me-2" />
+                {selectedClass} - Arm {selectedArm} -{" "}
+                {moment(selectedDate).format("DD/MM/YYYY")}
+              </h5>
+              <span className="badge bg-light text-dark">
+                {
+                  Object.values(attendanceData).filter((s) => s === "PRESENT")
+                    .length
+                }{" "}
+                Present / {students.length} Total
+              </span>
+            </div>
 
-          <div className="card-body">
-            <div className="table-responsive">
-              <table className="table table-striped table-hover">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Student Name</th>
-                    <th>Admission No.</th>
-                    <th className="text-center">Current Status</th>
-                    <th className="text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((student, index) => {
-                    const status = attendanceData[student.id];
-                    const badge = getStatusBadge(status);
+            <div className="card-body">
+              <div className="table-responsive">
+                <table className="table table-striped table-hover">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Student Name</th>
+                      <th>Admission No.</th>
+                      <th className="text-center">Current Status</th>
+                      <th className="text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.map((student, index) => {
+                      const status = attendanceData[student.id];
+                      const badge = getStatusBadge(status);
 
-                    return (
-                      <tr key={student.id}>
-                        <td>{index + 1}</td>
-                        <td>
-                          {student.firstName} {student.lastName}
-                        </td>
-                        <td>{student.admissionNumber}</td>
-                        <td className="text-center">
-                          {status ? (
-                            <span className={`badge ${badge?.class}`}>
-                              {badge?.icon} {badge?.text}
-                            </span>
-                          ) : (
-                            <span className="badge bg-secondary">
-                              <FaClock className="me-1" />
-                              Not Marked
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-center">
-                          <div className="btn-group btn-group-sm">
-                            <button
-                              className={`btn btn-outline-success ${status === "PRESENT" ? "active" : ""}`}
-                              onClick={() =>
-                                handleMarkStudent(student.id, "PRESENT")
-                              }
-                              disabled={loading}
-                              title="Mark Present"
-                            >
-                              <FaCheckCircle />
-                            </button>
+                      return (
+                        <tr key={student.id}>
+                          <td>{index + 1}</td>
+                          <td>
+                            {student.firstName} {student.lastName}
+                          </td>
+                          <td>{student.admissionNumber}</td>
+                          <td className="text-center">
+                            {status ? (
+                              <span className={`badge ${badge?.class}`}>
+                                {badge?.icon} {badge?.text}
+                              </span>
+                            ) : (
+                              <span className="badge bg-secondary">
+                                <FaClock className="me-1" />
+                                Not Marked
+                              </span>
+                            )}
+                          </td>
+                          <td className="text-center">
+                            <div className="btn-group btn-group-sm">
+                              <button
+                                className={`btn btn-outline-success ${status === "PRESENT" ? "active" : ""}`}
+                                onClick={() =>
+                                  handleMarkStudent(student.id, "PRESENT")
+                                }
+                                disabled={loading}
+                                title="Mark Present"
+                              >
+                                <FaCheckCircle />
+                              </button>
 
-                            <button
-                              className={`btn btn-outline-danger ${status === "ABSENT" ? "active" : ""}`}
-                              onClick={() =>
-                                handleMarkStudent(student.id, "ABSENT")
-                              }
-                              disabled={loading}
-                              title="Mark Absent"
-                            >
-                              <FaTimesCircle />
-                            </button>
+                              <button
+                                className={`btn btn-outline-danger ${status === "ABSENT" ? "active" : ""}`}
+                                onClick={() =>
+                                  handleMarkStudent(student.id, "ABSENT")
+                                }
+                                disabled={loading}
+                                title="Mark Absent"
+                              >
+                                <FaTimesCircle />
+                              </button>
 
-                            <button
-                              className={`btn btn-outline-warning ${status === "LATE" ? "active" : ""}`}
-                              onClick={() =>
-                                handleMarkStudent(student.id, "LATE")
-                              }
-                              disabled={loading}
-                              title="Mark Late"
-                            >
-                              <FaClock />
-                            </button>
+                              <button
+                                className={`btn btn-outline-warning ${status === "LATE" ? "active" : ""}`}
+                                onClick={() =>
+                                  handleMarkStudent(student.id, "LATE")
+                                }
+                                disabled={loading}
+                                title="Mark Late"
+                              >
+                                <FaClock />
+                              </button>
 
-                            <button
-                              className={`btn btn-outline-info ${status === "EXCUSED" ? "active" : ""}`}
-                              onClick={() =>
-                                handleMarkStudent(student.id, "EXCUSED")
-                              }
-                              disabled={loading}
-                              title="Mark Excused"
-                            >
-                              <FaExclamationTriangle />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                              <button
+                                className={`btn btn-outline-info ${status === "EXCUSED" ? "active" : ""}`}
+                                onClick={() =>
+                                  handleMarkStudent(student.id, "EXCUSED")
+                                }
+                                disabled={loading}
+                                title="Mark Excused"
+                              >
+                                <FaExclamationTriangle />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+
+          {showInlineStats && classStats && (
+            <div className="card mt-4" ref={statsExportRef}>
+              <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 className="mb-0">
+                  <FaChartBar className="me-2" />
+                  All Students Attendance Statistics - {selectedClass} Arm{" "}
+                  {selectedArm}
+                </h5>
+                <span className="badge bg-light text-dark">
+                  {terms.find((t) => t.value === term)?.label} | {session}
+                </span>
+              </div>
+
+              <div className="card-body">
+                <div className="row mb-4">
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-primary text-white">
+                      <div className="card-body text-center">
+                        <h3>{classStats.totalStudents}</h3>
+                        <small>Total Students</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-success text-white">
+                      <div className="card-body text-center">
+                        <h3>{classStats.totalPresent}</h3>
+                        <small>Total Present</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-danger text-white">
+                      <div className="card-body text-center">
+                        <h3>{classStats.totalAbsent}</h3>
+                        <small>Total Absent</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-warning text-white">
+                      <div className="card-body text-center">
+                        <h3>{classStats.averageAttendance?.toFixed(1)}%</h3>
+                        <small>Average Attendance</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="table-responsive">
+                  <table className="table table-bordered table-striped table-hover">
+                    <thead className="table-light">
+                      <tr>
+                        <th>#</th>
+                        <th>Student Name</th>
+                        <th>Admission No.</th>
+                        <th className="text-center">Present</th>
+                        <th className="text-center">Absent</th>
+                        <th className="text-center">Late</th>
+                        <th className="text-center">Excused</th>
+                        <th className="text-center">Percentage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {classStats.studentAttendance?.map((student, index) => (
+                        <tr key={student.studentId}>
+                          <td>{index + 1}</td>
+                          <td>{student.studentName}</td>
+                          <td>{student.admissionNumber}</td>
+                          <td className="text-center text-success fw-bold">
+                            {student.present}
+                          </td>
+                          <td className="text-center text-danger fw-bold">
+                            {student.absent}
+                          </td>
+                          <td className="text-center text-warning fw-bold">
+                            {student.late}
+                          </td>
+                          <td className="text-center text-info fw-bold">
+                            {student.excused}
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`badge ${
+                                student.percentage >= 75
+                                  ? "bg-success"
+                                  : student.percentage >= 50
+                                    ? "bg-warning text-dark"
+                                    : "bg-danger"
+                              }`}
+                            >
+                              {student.percentage?.toFixed(1)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {!classStats.studentAttendance?.length && (
+                        <tr>
+                          <td colSpan="8" className="text-center text-muted">
+                            No attendance statistics found
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {!loading && !selectedClass && (

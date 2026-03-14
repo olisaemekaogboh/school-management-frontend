@@ -1,6 +1,7 @@
+// SessionResultSheet.js
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { studentAPI, resultAPI } from "../services/api";
+import { studentAPI, sessionResultAPI } from "../services/api";
 import { toast } from "react-toastify";
 import {
   FaPrint,
@@ -11,6 +12,8 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaClock,
+  FaGraduationCap,
+  FaCalendarAlt,
 } from "react-icons/fa";
 import moment from "moment";
 import { useReactToPrint } from "react-to-print";
@@ -18,14 +21,13 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import "./ResultSheet.css";
 
-function ResultSheet() {
+function SessionResultSheet() {
   const { studentId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
   const query = new URLSearchParams(location.search);
   const session = query.get("session") || "";
-  const term = query.get("term") || "";
 
   const [resultData, setResultData] = useState(null);
   const [student, setStudent] = useState(null);
@@ -54,13 +56,13 @@ function ResultSheet() {
   };
 
   useEffect(() => {
-    if (studentId && session && term) {
+    if (studentId && session) {
       fetchResultData();
     } else {
       setError("Missing required parameters");
       setLoading(false);
     }
-  }, [studentId, session, term]);
+  }, [studentId, session]);
 
   const fetchResultData = async () => {
     setLoading(true);
@@ -69,23 +71,23 @@ function ResultSheet() {
     try {
       const [studentResponse, resultResponse] = await Promise.all([
         studentAPI.getStudentById(studentId),
-        resultAPI.getTermResult(studentId, session, term),
+        sessionResultAPI.getSessionResult(studentId, session),
       ]);
 
       setStudent(studentResponse.data || null);
       setResultData(resultResponse.data || null);
     } catch (error) {
-      console.error("Error fetching result sheet:", error);
+      console.error("Error fetching session result sheet:", error);
 
       if (error.response?.status === 404) {
-        setError("No result found for this student in the selected term");
+        setError("No session result found for this student");
       } else if (error.response?.status === 403) {
         setError("You are not allowed to view this result");
       } else {
         setError(
           error.response?.data?.message ||
             error.message ||
-            "Failed to load result sheet",
+            "Failed to load session result sheet",
         );
       }
     } finally {
@@ -109,16 +111,27 @@ function ResultSheet() {
     return gradeMap[grade] || "bg-secondary";
   };
 
+  const getGradeFromAverage = (avg) => {
+    const value = Number(avg) || 0;
+    if (value >= 70) return { grade: "A", class: "success" };
+    if (value >= 60) return { grade: "B", class: "primary" };
+    if (value >= 50) return { grade: "C", class: "info" };
+    if (value >= 45) return { grade: "D", class: "warning" };
+    if (value >= 40) return { grade: "E", class: "secondary" };
+    return { grade: "F", class: "danger" };
+  };
+
   const buildFileName = () => {
     const cleanName = getStudentName().replace(/\s+/g, "_");
     const cleanSession = session.replace(/[\/\\]/g, "_");
-    return `${cleanName}_${term}_${cleanSession}`;
+    return `${cleanName}_SESSION_${cleanSession}`;
   };
 
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
     documentTitle: buildFileName(),
-    onAfterPrint: () => toast.success("Result sheet printed successfully"),
+    onAfterPrint: () =>
+      toast.success("Session result sheet printed successfully"),
   });
 
   const handleDownloadPDF = async () => {
@@ -170,115 +183,6 @@ function ResultSheet() {
       ? `http://localhost:8080${student.profilePictureUrl}`
       : null;
 
-  const attendanceSummary = resultData?.summary || {};
-  const totalSchoolDays = safeNumber(attendanceSummary.totalSchoolDays);
-  const daysPresent = safeNumber(attendanceSummary.daysPresent);
-  const daysAbsent = safeNumber(attendanceSummary.daysAbsent);
-  const attendancePercentage = safeNumber(
-    attendanceSummary.attendancePercentage,
-  );
-
-  // Define possible keys for assignments (handle different naming conventions)
-  const getAssignmentKey = () => {
-    if (!resultData?.subjects?.length) return null;
-    const firstSubject = resultData.subjects[0];
-
-    // Check for various possible assignment key names
-    const possibleKeys = [
-      "assignment",
-      "assignments",
-      "assgn",
-      "assg",
-      "homework",
-      "hw",
-    ];
-    for (const key of possibleKeys) {
-      if (firstSubject.hasOwnProperty(key)) {
-        return key;
-      }
-    }
-    return null;
-  };
-
-  // Define the exact order of CA columns with their possible keys
-  const getCaColumnOrder = () => {
-    const assignmentKey = getAssignmentKey();
-
-    return [
-      {
-        key: "resumptionTest",
-        label: "RES",
-        possibleKeys: ["resumptionTest", "resumption", "resit", "resitTest"],
-      },
-      {
-        key: assignmentKey || "assignment",
-        label: "ASSGN",
-        possibleKeys: [
-          "assignment",
-          "assignments",
-          "assgn",
-          "assg",
-          "homework",
-          "hw",
-        ],
-      },
-      {
-        key: "secondTest",
-        label: "2ND",
-        possibleKeys: ["secondTest", "second", "test2", "2ndTest"],
-      },
-      {
-        key: "midtermTest",
-        label: "MID",
-        possibleKeys: ["midtermTest", "midterm", "mid", "midTest"],
-      },
-      {
-        key: "project",
-        label: "PROJ",
-        possibleKeys: ["project", "proj", "projects"],
-      },
-    ];
-  };
-
-  // Filter only columns that exist in the data
-  const getExistingCaColumns = () => {
-    if (!resultData?.subjects?.length) return [];
-    const firstSubject = resultData.subjects[0];
-    const caColumnOrder = getCaColumnOrder();
-
-    return caColumnOrder
-      .filter((col) => {
-        // Check if any of the possible keys exist in the subject
-        return col.possibleKeys.some(
-          (key) =>
-            firstSubject.hasOwnProperty(key) &&
-            typeof firstSubject[key] === "number",
-        );
-      })
-      .map((col) => {
-        // Find the actual key that exists in the data
-        const firstSubject = resultData.subjects[0];
-        const actualKey = col.possibleKeys.find(
-          (key) =>
-            firstSubject.hasOwnProperty(key) &&
-            typeof firstSubject[key] === "number",
-        );
-        return {
-          ...col,
-          actualKey: actualKey || col.key,
-        };
-      });
-  };
-
-  const existingCaColumns = getExistingCaColumns();
-
-  // Calculate CA total for a subject
-  const calculateCATotal = (subject) => {
-    return existingCaColumns.reduce((total, col) => {
-      return total + safeNumber(subject[col.actualKey]);
-    }, 0);
-  };
-
   if (loading) {
     return (
       <div
@@ -287,7 +191,7 @@ function ResultSheet() {
       >
         <div className="text-center">
           <FaSpinner className="spinner mb-3" size={40} />
-          <h5>Loading result sheet...</h5>
+          <h5>Loading session result sheet...</h5>
         </div>
       </div>
     );
@@ -301,9 +205,9 @@ function ResultSheet() {
           <p>{error}</p>
           <button
             className="btn btn-primary mt-3"
-            onClick={() => navigate("/results")}
+            onClick={() => navigate("/session-results")}
           >
-            <FaArrowLeft className="me-2" /> Back to Results
+            <FaArrowLeft className="me-2" /> Back to Session Results
           </button>
         </div>
       </div>
@@ -314,15 +218,13 @@ function ResultSheet() {
     return (
       <div className="container mt-5">
         <div className="alert alert-warning">
-          <h4>No Result Found</h4>
-          <p>
-            No result found for this student in {term} term, {session} session.
-          </p>
+          <h4>No Session Result Found</h4>
+          <p>No session result found for this student in {session} session.</p>
           <button
             className="btn btn-primary mt-3"
-            onClick={() => navigate("/results")}
+            onClick={() => navigate("/session-results")}
           >
-            <FaArrowLeft className="me-2" /> Back to Results
+            <FaArrowLeft className="me-2" /> Back to Session Results
           </button>
         </div>
       </div>
@@ -382,8 +284,12 @@ function ResultSheet() {
           </div>
 
           {/* Title */}
-          <div className="result-title">
-            {term} TERM RESULT SHEET - {session} SESSION
+          <div
+            className="result-title"
+            style={{ background: "#9C27B0", color: "white" }}
+          >
+            <FaGraduationCap className="me-2" /> ANNUAL SESSION RESULT SHEET -{" "}
+            {session} SESSION
           </div>
 
           {/* Student Information */}
@@ -444,136 +350,145 @@ function ResultSheet() {
             </div>
           </div>
 
-          {/* Results Table with Individual Assessments */}
-          <div className="results-table-wrapper">
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th rowSpan="2" className="sn">
-                    S/N
-                  </th>
-                  <th rowSpan="2" className="subject">
-                    SUBJECT
-                  </th>
-                  <th colSpan={existingCaColumns.length} className="ca-section">
-                    CONTINUOUS ASSESSMENT (CA)
-                  </th>
-                  <th rowSpan="2" className="ca-total">
-                    CA
-                    <br />
-                    TOTAL
-                  </th>
-                  <th rowSpan="2" className="exam">
-                    EXAM
-                    <br />
-                    (60)
-                  </th>
-                  <th rowSpan="2" className="total">
-                    TOTAL
-                    <br />
-                    (100)
-                  </th>
-                  <th rowSpan="2" className="grade">
-                    GRADE
-                  </th>
-                  <th rowSpan="2" className="remark">
-                    REMARK
-                  </th>
-                </tr>
-                <tr className="ca-headers">
-                  {existingCaColumns.map((col) => (
-                    <th key={col.key} className="ca-header">
-                      {col.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {resultData?.subjects?.map((subject, index) => {
-                  const caTotal = calculateCATotal(subject);
-                  return (
-                    <tr key={index}>
-                      <td className="sn">{index + 1}</td>
-                      <td className="subject">{subject.subject}</td>
-                      {existingCaColumns.map((col) => (
-                        <td key={col.key} className="ca-score">
-                          {safeNumber(subject[col.actualKey])}
-                        </td>
-                      ))}
-                      <td className="ca-total-score">{caTotal}</td>
-                      <td className="exam-score">
-                        {safeNumber(subject.examination)}
-                      </td>
-                      <td className="total-score">
-                        {safeNumber(subject.total)}
-                      </td>
-                      <td className="grade">
-                        <span
-                          className={`grade-badge ${getGradeBadgeClass(subject.grade)}`}
-                        >
-                          {subject.grade || "-"}
-                        </span>
-                      </td>
-                      <td className="remark">{subject.remarks || "-"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Summary Row */}
-          <div className="summary-row">
-            <div className="summary-item">
-              <span className="summary-label">Total Score:</span>
-              <span className="summary-value">
-                {safeNumber(resultData?.summary?.totalScore)}
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Average:</span>
-              <span className="summary-value">
-                {safeFixed(resultData?.summary?.average)}%
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Class Position:</span>
-              <span className="summary-value">
-                {resultData?.summary?.positionInClass || "N/A"}
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Arm Position:</span>
-              <span className="summary-value">
-                {resultData?.summary?.positionInArm || "N/A"}
-              </span>
+          {/* Promotion Status */}
+          <div className="promotion-status mb-4">
+            <div
+              className={`alert ${resultData.promoted ? "alert-success" : "alert-danger"}`}
+            >
+              <div className="d-flex align-items-center">
+                {resultData.promoted ? (
+                  <FaCheckCircle size={24} className="me-3" />
+                ) : (
+                  <FaTimesCircle size={24} className="me-3" />
+                )}
+                <div>
+                  <h5 className="mb-1">
+                    Promotion Status:{" "}
+                    {resultData.promoted ? "PROMOTED" : "RETAINED"}
+                  </h5>
+                  <p className="mb-0">{resultData.promotionRemark || "N/A"}</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Attendance Summary */}
-          <div className="attendance-section">
-            <div className="attendance-header">ATTENDANCE SUMMARY</div>
-            <div className="attendance-grid">
-              <div className="attendance-item">
-                <span className="attendance-label">Total Days:</span>
-                <span className="attendance-value">{totalSchoolDays}</span>
+          {/* Term Averages */}
+          <div className="term-averages mb-4">
+            <h5 className="section-subtitle">Term Performance</h5>
+            <div className="row">
+              <div className="col-md-4 mb-3">
+                <div className="term-card first-term">
+                  <h6>First Term</h6>
+                  <h3>{safeFixed(resultData.firstTermAverage)}%</h3>
+                  <p>Position: {resultData.firstTermPosition || "N/A"}</p>
+                </div>
               </div>
-              <div className="attendance-item present">
-                <span className="attendance-label">Present:</span>
-                <span className="attendance-value">{daysPresent}</span>
+              <div className="col-md-4 mb-3">
+                <div className="term-card second-term">
+                  <h6>Second Term</h6>
+                  <h3>{safeFixed(resultData.secondTermAverage)}%</h3>
+                  <p>Position: {resultData.secondTermPosition || "N/A"}</p>
+                </div>
               </div>
-              <div className="attendance-item absent">
-                <span className="attendance-label">Absent:</span>
-                <span className="attendance-value">{daysAbsent}</span>
+              <div className="col-md-4 mb-3">
+                <div className="term-card third-term">
+                  <h6>Third Term</h6>
+                  <h3>{safeFixed(resultData.thirdTermAverage)}%</h3>
+                  <p>Position: {resultData.thirdTermPosition || "N/A"}</p>
+                </div>
               </div>
-              <div className="attendance-item">
-                <span className="attendance-label">Percentage:</span>
-                <span className="attendance-value">
-                  {attendancePercentage.toFixed(1)}%
+            </div>
+          </div>
+
+          {/* Annual Summary */}
+          <div className="annual-summary mb-4">
+            <h5 className="section-subtitle">Annual Summary</h5>
+            <div className="summary-row">
+              <div className="summary-item">
+                <span className="summary-label">Annual Total:</span>
+                <span className="summary-value">
+                  {safeNumber(resultData.annualTotal)}
+                </span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Annual Average:</span>
+                <span className="summary-value text-success">
+                  {safeFixed(resultData.annualAverage)}%
+                </span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Class Position:</span>
+                <span className="summary-value text-warning">
+                  {resultData.annualPositionInClass || "N/A"}
+                </span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Attendance:</span>
+                <span className="summary-value text-info">
+                  {safeFixed(resultData.attendancePercentage)}%
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Subject Averages */}
+          {resultData.subjectAverages &&
+            Object.keys(resultData.subjectAverages).length > 0 && (
+              <div className="subject-averages mb-4">
+                <h5 className="section-subtitle">
+                  Subject Performance (Annual Averages)
+                </h5>
+                <div className="table-responsive">
+                  <table className="results-table">
+                    <thead>
+                      <tr>
+                        <th>S/N</th>
+                        <th>SUBJECT</th>
+                        <th>ANNUAL AVERAGE</th>
+                        <th>GRADE</th>
+                        <th>REMARK</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(resultData.subjectAverages).map(
+                        ([subject, average], index) => {
+                          const grade = getGradeFromAverage(average);
+                          return (
+                            <tr key={index}>
+                              <td className="text-center">{index + 1}</td>
+                              <td>{subject}</td>
+                              <td className="text-center fw-bold">
+                                {safeFixed(average)}%
+                              </td>
+                              <td className="text-center">
+                                <span
+                                  className={`grade-badge bg-${grade.class}`}
+                                >
+                                  {grade.grade}
+                                </span>
+                              </td>
+                              <td className="text-center">
+                                {grade.grade === "A"
+                                  ? "Excellent"
+                                  : grade.grade === "B"
+                                    ? "Very Good"
+                                    : grade.grade === "C"
+                                      ? "Good"
+                                      : grade.grade === "D"
+                                        ? "Fair"
+                                        : grade.grade === "E"
+                                          ? "Pass"
+                                          : "Fail"}
+                              </td>
+                            </tr>
+                          );
+                        },
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
           {/* Signatures */}
           <div className="signatures-section">
@@ -594,7 +509,8 @@ function ResultSheet() {
           {/* Footer */}
           <div className="result-footer">
             <div className="footer-note">
-              This is a computer-generated result. Valid without signature.
+              This is a computer-generated annual session result. Valid without
+              signature.
             </div>
             <div className="footer-date">
               Generated on: {moment().format("DD/MM/YYYY h:mm A")}
@@ -606,4 +522,4 @@ function ResultSheet() {
   );
 }
 
-export default ResultSheet;
+export default SessionResultSheet;

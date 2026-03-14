@@ -79,6 +79,7 @@ import ParentPortal from "./components/ParentPortal";
 import ParentProfile from "./components/ParentProfile";
 
 import "./App.css";
+import SessionResultSheet from "./components/SessionResultSheet";
 
 function App() {
   return (
@@ -459,6 +460,16 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
                         <SessionResult />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/session-results/:studentId"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <SessionResultSheet />
                       </ProtectedRoute>
                     }
                   />

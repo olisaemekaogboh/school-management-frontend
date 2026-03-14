@@ -1,4 +1,3 @@
-// src/components/Navbar.js
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -36,16 +35,20 @@ import {
   FaUserGraduate,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
+import { teacherAPI } from "../services/api";
 import "./Navbar.css";
 
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [teacherClasses, setTeacherClasses] = useState([]);
 
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+
+  const role = user?.role;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -56,7 +59,26 @@ function Navbar() {
   useEffect(() => {
     setIsOpen(false);
     setOpenDropdown(null);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    const loadTeacherClasses = async () => {
+      if (!isAuthenticated || role !== "TEACHER") {
+        setTeacherClasses([]);
+        return;
+      }
+
+      try {
+        const response = await teacherAPI.getMyClasses();
+        setTeacherClasses(response.data || []);
+      } catch (error) {
+        console.error("Error loading teacher classes for navbar:", error);
+        setTeacherClasses([]);
+      }
+    };
+
+    loadTeacherClasses();
+  }, [isAuthenticated, role]);
 
   const toggleMenu = () => {
     setIsOpen((prev) => !prev);
@@ -80,6 +102,16 @@ function Navbar() {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const getTeacherScopedPath = (basePath) => {
+    const firstClass = teacherClasses[0];
+
+    if (!firstClass?.id) {
+      return basePath;
+    }
+
+    return `${basePath}?classId=${firstClass.id}&mine=true`;
   };
 
   const publicNavItems = [
@@ -244,14 +276,22 @@ function Navbar() {
     },
     {
       type: "link",
-      path: "/students",
+      path: getTeacherScopedPath("/students"),
+      activePath: "/students",
       icon: <FaUsers />,
       label: "My Students",
     },
-    { type: "link", path: "/results", icon: <FaChartBar />, label: "Results" },
     {
       type: "link",
-      path: "/attendance",
+      path: getTeacherScopedPath("/results"),
+      activePath: "/results",
+      icon: <FaChartBar />,
+      label: "Results",
+    },
+    {
+      type: "link",
+      path: getTeacherScopedPath("/attendance"),
+      activePath: "/attendance",
       icon: <FaClipboardCheck />,
       label: "Attendance",
     },
@@ -338,7 +378,6 @@ function Navbar() {
   ];
 
   let navItems = publicNavItems;
-  const role = user?.role;
 
   if (isAuthenticated) {
     if (role === "ADMIN") navItems = adminNavItems;
@@ -347,13 +386,12 @@ function Navbar() {
     else if (role === "STUDENT") navItems = studentNavItems;
   }
 
-  // Determine home path based on user role
   const getHomePath = () => {
     if (!isAuthenticated) return "/";
     if (role === "TEACHER") return "/teacher-dashboard";
     if (role === "PARENT") return "/parent-dashboard";
     if (role === "STUDENT") return "/student-dashboard";
-    return "/"; // ADMIN and others go to main dashboard
+    return "/";
   };
 
   return (
@@ -366,7 +404,6 @@ function Navbar() {
           to={getHomePath()}
           onClick={closeMenu}
         >
-          {/* Show different icons based on user role */}
           {role === "ADMIN" && <FaSchool className="me-2" />}
           {role === "TEACHER" && <FaChalkboardTeacher className="me-2" />}
           {role === "PARENT" && <FaUserTie className="me-2" />}
@@ -431,7 +468,7 @@ function Navbar() {
                   </div>
                 ) : (
                   <Link
-                    className={`nav-link ${isActive(item.path) ? "active" : ""}`}
+                    className={`nav-link ${isActive(item.activePath || item.path) ? "active" : ""}`}
                     to={item.path}
                     onClick={closeMenu}
                   >

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { studentAPI, teacherAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -22,25 +22,23 @@ function StudentManagement() {
 
   const isTeacher = user?.role === "TEACHER";
   const isAdmin = user?.role === "ADMIN";
+  const teacherScoped = isTeacher && mine === "true" && !!classId;
 
   const [students, setStudents] = useState([]);
-  const [filteredStudents, setFilteredStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pageTitle, setPageTitle] = useState("Student Management");
-
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     class: "",
     status: "",
     gender: "",
   });
-
   const [sortConfig, setSortConfig] = useState({
     key: "admissionNumber",
     direction: "asc",
   });
-
   const [currentPage, setCurrentPage] = useState(1);
+
   const itemsPerPage = 10;
 
   const classes = [
@@ -74,17 +72,11 @@ function StudentManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mine, classId, user?.role]);
 
-  useEffect(() => {
-    filterAndSortStudents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [students, searchTerm, filters, sortConfig]);
-
   const fetchStudents = async () => {
     setLoading(true);
 
     try {
-      // STRICT teacher-only mode
-      if (isTeacher && mine === "true" && classId) {
+      if (teacherScoped) {
         const teacherClassesRes = await teacherAPI.getMyClasses();
         const teacherClasses = teacherClassesRes.data || [];
 
@@ -107,33 +99,36 @@ function StudentManagement() {
         return;
       }
 
-      // Admin / normal full list
       const response = await studentAPI.getAllStudents();
       setStudents(response.data || []);
       setPageTitle("Student Management");
     } catch (error) {
       console.error("Error fetching students:", error);
-      toast.error("Failed to load students");
       setStudents([]);
+      toast.error(error?.response?.data?.message || "Failed to load students");
     } finally {
       setLoading(false);
     }
   };
 
-  const filterAndSortStudents = () => {
+  const filteredStudents = useMemo(() => {
     let filtered = [...students];
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (s) =>
-          s.fullName?.toLowerCase().includes(term) ||
-          s.firstName?.toLowerCase().includes(term) ||
-          s.lastName?.toLowerCase().includes(term) ||
-          s.admissionNumber?.toLowerCase().includes(term) ||
-          s.parentName?.toLowerCase().includes(term) ||
-          s.parentPhone?.includes(term),
-      );
+      filtered = filtered.filter((s) => {
+        const fullName =
+          s.fullName || `${s.firstName || ""} ${s.lastName || ""}`.trim();
+
+        return (
+          fullName.toLowerCase().includes(term) ||
+          (s.firstName || "").toLowerCase().includes(term) ||
+          (s.lastName || "").toLowerCase().includes(term) ||
+          (s.admissionNumber || "").toLowerCase().includes(term) ||
+          (s.parentName || "").toLowerCase().includes(term) ||
+          (s.parentPhone || "").includes(term)
+        );
+      });
     }
 
     if (filters.class) {
@@ -167,32 +162,34 @@ function StudentManagement() {
       return 0;
     });
 
-    setFilteredStudents(filtered);
+    return filtered;
+  }, [students, searchTerm, filters, sortConfig]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  };
+  }, [searchTerm, filters, sortConfig, students]);
 
   const handleSort = (key) => {
-    setSortConfig({
+    setSortConfig((prev) => ({
       key,
-      direction:
-        sortConfig.key === key && sortConfig.direction === "asc"
-          ? "desc"
-          : "asc",
-    });
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
   };
 
   const handleDelete = async (id) => {
     if (!isAdmin) return;
 
-    if (window.confirm("Are you sure you want to delete this student?")) {
-      try {
-        await studentAPI.deleteStudent(id);
-        toast.success("Student deleted successfully");
-        fetchStudents();
-      } catch (error) {
-        console.error("Error deleting student:", error);
-        toast.error("Failed to delete student");
-      }
+    if (!window.confirm("Are you sure you want to delete this student?")) {
+      return;
+    }
+
+    try {
+      await studentAPI.deleteStudent(id);
+      toast.success("Student deleted successfully");
+      fetchStudents();
+    } catch (error) {
+      console.error("Error deleting student:", error);
+      toast.error("Failed to delete student");
     }
   };
 
@@ -200,14 +197,6 @@ function StudentManagement() {
     setFilters({ class: "", status: "", gender: "" });
     setSearchTerm("");
   };
-
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredStudents.slice(
-    indexOfFirstItem,
-    indexOfLastItem,
-  );
-  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
 
   const getStatusBadge = (status) => {
     const colors = {
@@ -220,43 +209,55 @@ function StudentManagement() {
     return `badge bg-${colors[status] || "secondary"}`;
   };
 
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredStudents.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  );
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+
   return (
-    <div className="student-management container-fluid py-4">
+    <div className="container-fluid py-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="mb-0">{pageTitle}</h2>
+        <h2>{pageTitle}</h2>
 
         {isAdmin && (
-          <Link to="/students/new" className="btn btn-nigerian">
-            <FaPlus className="me-2" /> Register New Student
+          <Link to="/students/new" className="btn btn-primary">
+            <FaPlus className="me-2" />
+            Register New Student
           </Link>
         )}
       </div>
 
       <div className="card mb-4">
         <div className="card-body">
-          <div className="row">
-            <div className="col-md-6 mb-3">
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label">Search</label>
               <div className="input-group">
-                <span className="input-group-text bg-white">
+                <span className="input-group-text">
                   <FaSearch />
                 </span>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Search by name, admission number, parent name or phone..."
+                  placeholder="Search by name, admission no, parent..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
             </div>
 
-            <div className="col-md-2 mb-3">
+            <div className="col-md-2">
+              <label className="form-label">Class</label>
               <select
                 className="form-select"
                 value={filters.class}
                 onChange={(e) =>
                   setFilters({ ...filters, class: e.target.value })
                 }
+                disabled={teacherScoped}
               >
                 <option value="">All Classes</option>
                 {classes.map((c) => (
@@ -267,7 +268,8 @@ function StudentManagement() {
               </select>
             </div>
 
-            <div className="col-md-2 mb-3">
+            <div className="col-md-2">
+              <label className="form-label">Status</label>
               <select
                 className="form-select"
                 value={filters.status}
@@ -284,7 +286,8 @@ function StudentManagement() {
               </select>
             </div>
 
-            <div className="col-md-2 mb-3">
+            <div className="col-md-2">
+              <label className="form-label">Gender</label>
               <select
                 className="form-select"
                 value={filters.gender}
@@ -300,188 +303,195 @@ function StudentManagement() {
                 ))}
               </select>
             </div>
-          </div>
 
-          <div className="d-flex justify-content-end">
-            <button
-              className="btn btn-outline-secondary"
-              onClick={clearFilters}
-            >
-              Clear Filters
-            </button>
+            <div className="col-md-2 d-flex align-items-end">
+              <button
+                className="btn btn-outline-secondary w-100"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {loading ? (
-        <div className="text-center py-5">
-          <div className="spinner-border text-nigerian" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="table-responsive">
-            <table className="table table-striped table-hover">
-              <thead className="bg-light">
-                <tr>
-                  <th
-                    onClick={() => handleSort("admissionNumber")}
-                    style={{ cursor: "pointer" }}
-                  >
-                    Admission No.{" "}
-                    {sortConfig.key === "admissionNumber" &&
-                      (sortConfig.direction === "asc" ? (
-                        <FaArrowUp />
-                      ) : (
-                        <FaArrowDown />
-                      ))}
-                  </th>
-                  <th
-                    onClick={() => handleSort("fullName")}
-                    style={{ cursor: "pointer" }}
-                  >
-                    Student Name{" "}
-                    {sortConfig.key === "fullName" &&
-                      (sortConfig.direction === "asc" ? (
-                        <FaArrowUp />
-                      ) : (
-                        <FaArrowDown />
-                      ))}
-                  </th>
-                  <th
-                    onClick={() => handleSort("studentClass")}
-                    style={{ cursor: "pointer" }}
-                  >
-                    Class{" "}
-                    {sortConfig.key === "studentClass" &&
-                      (sortConfig.direction === "asc" ? (
-                        <FaArrowUp />
-                      ) : (
-                        <FaArrowDown />
-                      ))}
-                  </th>
-                  <th>Arm</th>
-                  <th>Gender</th>
-                  <th>Parent Name</th>
-                  <th>Parent Phone</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {currentItems.map((student) => (
-                  <tr key={student.id}>
-                    <td className="fw-bold">{student.admissionNumber}</td>
-                    <td>
-                      {student.fullName ||
-                        `${student.firstName || ""} ${student.lastName || ""}`.trim()}
-                    </td>
-                    <td>{student.studentClass}</td>
-                    <td>{student.classArm}</td>
-                    <td>{student.gender}</td>
-                    <td>{student.parentName}</td>
-                    <td>{student.parentPhone}</td>
-                    <td>
-                      <span className={getStatusBadge(student.status)}>
-                        {student.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="btn-group btn-group-sm">
-                        <Link
-                          to={`/students/view/${student.id}`}
-                          className="btn btn-info"
-                          title="View"
-                        >
-                          <FaEye />
-                        </Link>
-
-                        {isAdmin && (
-                          <>
+      <div className="card">
+        <div className="card-body">
+          {loading ? (
+            <div className="text-center py-5">Loading...</div>
+          ) : (
+            <>
+              <div className="table-responsive">
+                <table className="table table-striped table-hover align-middle">
+                  <thead>
+                    <tr>
+                      <th
+                        onClick={() => handleSort("admissionNumber")}
+                        style={{ cursor: "pointer" }}
+                      >
+                        Admission No.{" "}
+                        {sortConfig.key === "admissionNumber" &&
+                          (sortConfig.direction === "asc" ? (
+                            <FaArrowUp />
+                          ) : (
+                            <FaArrowDown />
+                          ))}
+                      </th>
+                      <th
+                        onClick={() => handleSort("fullName")}
+                        style={{ cursor: "pointer" }}
+                      >
+                        Student Name{" "}
+                        {sortConfig.key === "fullName" &&
+                          (sortConfig.direction === "asc" ? (
+                            <FaArrowUp />
+                          ) : (
+                            <FaArrowDown />
+                          ))}
+                      </th>
+                      <th
+                        onClick={() => handleSort("studentClass")}
+                        style={{ cursor: "pointer" }}
+                      >
+                        Class{" "}
+                        {sortConfig.key === "studentClass" &&
+                          (sortConfig.direction === "asc" ? (
+                            <FaArrowUp />
+                          ) : (
+                            <FaArrowDown />
+                          ))}
+                      </th>
+                      <th>Arm</th>
+                      <th>Gender</th>
+                      <th>Parent Name</th>
+                      <th>Parent Phone</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentItems.map((student) => (
+                      <tr key={student.id}>
+                        <td>{student.admissionNumber}</td>
+                        <td>
+                          {student.fullName ||
+                            `${student.firstName || ""} ${student.lastName || ""}`.trim()}
+                        </td>
+                        <td>{student.studentClass}</td>
+                        <td>{student.classArm}</td>
+                        <td>{student.gender}</td>
+                        <td>{student.parentName}</td>
+                        <td>{student.parentPhone}</td>
+                        <td>
+                          <span className={getStatusBadge(student.status)}>
+                            {student.status}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="btn-group btn-group-sm">
                             <Link
-                              to={`/students/edit/${student.id}`}
-                              className="btn btn-warning"
-                              title="Edit"
+                              to={`/students/view/${student.id}`}
+                              state={{
+                                from: `/students${window.location.search}`,
+                              }}
+                              className="btn btn-outline-info"
+                              title="View"
                             >
-                              <FaEdit />
+                              <FaEye />
                             </Link>
 
-                            <button
-                              className="btn btn-danger"
-                              onClick={() => handleDelete(student.id)}
-                              title="Delete"
-                            >
-                              <FaTrash />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                            {isAdmin && (
+                              <>
+                                <Link
+                                  to={`/students/edit/${student.id}`}
+                                  state={{
+                                    from: `/students${window.location.search}`,
+                                  }}
+                                  className="btn btn-outline-primary"
+                                  title="Edit"
+                                >
+                                  <FaEdit />
+                                </Link>
+                                <button
+                                  className="btn btn-outline-danger"
+                                  onClick={() => handleDelete(student.id)}
+                                  title="Delete"
+                                >
+                                  <FaTrash />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
 
-                {filteredStudents.length === 0 && (
-                  <tr>
-                    <td colSpan="9" className="text-center py-4">
-                      <p className="text-muted mb-0">No students found</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                    {filteredStudents.length === 0 && (
+                      <tr>
+                        <td colSpan="9" className="text-center py-4">
+                          No students found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-          {totalPages > 1 && (
-            <nav className="mt-4">
-              <ul className="pagination justify-content-center">
-                <li
-                  className={`page-item ${currentPage === 1 ? "disabled" : ""}`}
-                >
-                  <button
-                    className="page-link"
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                  >
-                    Previous
-                  </button>
-                </li>
-
-                {[...Array(totalPages)].map((_, i) => (
-                  <li
-                    key={i + 1}
-                    className={`page-item ${currentPage === i + 1 ? "active" : ""}`}
-                  >
-                    <button
-                      className="page-link"
-                      onClick={() => setCurrentPage(i + 1)}
+              {totalPages > 1 && (
+                <nav className="mt-3">
+                  <ul className="pagination justify-content-center">
+                    <li
+                      className={`page-item ${currentPage === 1 ? "disabled" : ""}`}
                     >
-                      {i + 1}
-                    </button>
-                  </li>
-                ))}
+                      <button
+                        className="page-link"
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </button>
+                    </li>
 
-                <li
-                  className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}
-                >
-                  <button
-                    className="page-link"
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                  >
-                    Next
-                  </button>
-                </li>
-              </ul>
-            </nav>
+                    {[...Array(totalPages)].map((_, i) => (
+                      <li
+                        key={i + 1}
+                        className={`page-item ${currentPage === i + 1 ? "active" : ""}`}
+                      >
+                        <button
+                          className="page-link"
+                          onClick={() => setCurrentPage(i + 1)}
+                        >
+                          {i + 1}
+                        </button>
+                      </li>
+                    ))}
+
+                    <li
+                      className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}
+                    >
+                      <button
+                        className="page-link"
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </button>
+                    </li>
+                  </ul>
+                </nav>
+              )}
+
+              <div className="text-muted mt-2">
+                Showing{" "}
+                {filteredStudents.length === 0 ? 0 : indexOfFirstItem + 1} to{" "}
+                {Math.min(indexOfLastItem, filteredStudents.length)} of{" "}
+                {filteredStudents.length} students
+              </div>
+            </>
           )}
-
-          <div className="text-muted mt-2">
-            Showing {filteredStudents.length === 0 ? 0 : indexOfFirstItem + 1}{" "}
-            to {Math.min(indexOfLastItem, filteredStudents.length)} of{" "}
-            {filteredStudents.length} students
-          </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

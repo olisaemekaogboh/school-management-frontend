@@ -300,8 +300,8 @@ export const teacherAPI = {
 
   getMyTeacherProfile: () => api.get("/teachers/me"),
 
-  // teacher-scoped access
   getMyClasses: () => api.get("/teachers/me/classes"),
+  getMySubjectAssignments: () => api.get("/teachers/me/subject-assignments"),
 
   getMyClassStudents: (classId) =>
     api.get(`/teachers/me/classes/${classId}/students`),
@@ -561,6 +561,14 @@ export const sessionResultAPI = {
       params: { session },
     }),
 
+  calculateClassArmSessionResults: (className, arm, session) =>
+    api.post(
+      `/session-results/calculate/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
+      null,
+      {
+        params: { session },
+      },
+    ),
   getSessionResult: (studentId, session) =>
     api.get(`/session-results/student/${studentId}`, {
       params: { session },
