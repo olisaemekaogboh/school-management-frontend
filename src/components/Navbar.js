@@ -7,7 +7,6 @@ import {
   FaTimes,
   FaCalendarAlt,
   FaGraduationCap,
-  FaBullhorn,
   FaMoneyBill,
   FaChevronDown,
   FaUser,
@@ -30,9 +29,8 @@ import {
   FaClock,
   FaRoute,
   FaBook,
-  FaSearch,
-  FaFileAlt,
   FaUserGraduate,
+  FaBullhorn,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
 import { teacherAPI } from "../services/api";
@@ -126,13 +124,14 @@ function Navbar() {
 
   const adminNavItems = [
     { type: "link", path: "/", icon: <FaHome />, label: "Dashboard" },
+
     {
       type: "dropdown",
-      label: "Students",
+      label: "People",
       icon: <FaUsers />,
-      name: "students",
+      name: "people",
       items: [
-        { path: "/students", label: "All Students", icon: <FaUsers /> },
+        { path: "/students", label: "Students", icon: <FaUserGraduate /> },
         {
           path: "/students/new",
           label: "Register Student",
@@ -143,29 +142,13 @@ function Navbar() {
           label: "Promotion",
           icon: <FaArrowUp />,
         },
-      ],
-    },
-    {
-      type: "dropdown",
-      label: "Teachers",
-      icon: <FaChalkboardTeacher />,
-      name: "teachers",
-      items: [
-        { path: "/teachers", label: "All Teachers", icon: <FaUsers /> },
+        { path: "/teachers", label: "Teachers", icon: <FaChalkboardTeacher /> },
         {
           path: "/teachers/new",
           label: "Add Teacher",
           icon: <FaPlusCircle />,
         },
-      ],
-    },
-    {
-      type: "dropdown",
-      label: "Parents",
-      icon: <FaUserTie />,
-      name: "parents",
-      items: [
-        { path: "/parents", label: "All Parents", icon: <FaUsers /> },
+        { path: "/parents", label: "Parents", icon: <FaUserTie /> },
         {
           path: "/parents/register",
           label: "Register Parent",
@@ -173,28 +156,21 @@ function Navbar() {
         },
       ],
     },
-    {
-      type: "dropdown",
-      label: "Classes",
-      icon: <FaLayerGroup />,
-      name: "classes",
-      items: [
-        { path: "/classes", label: "Class List", icon: <FaList /> },
-        {
-          path: "/classes/manage",
-          label: "Manage Classes",
-          icon: <FaPlusCircle />,
-        },
-        { path: "/subjects", label: "Subjects", icon: <FaBookOpen /> },
-        { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
-      ],
-    },
+
     {
       type: "dropdown",
       label: "Academics",
       icon: <FaBookOpen />,
       name: "academics",
       items: [
+        { path: "/classes", label: "Classes", icon: <FaLayerGroup /> },
+        {
+          path: "/classes/manage",
+          label: "Manage Classes",
+          icon: <FaList />,
+        },
+        { path: "/subjects", label: "Subjects", icon: <FaBookOpen /> },
+        { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
         { path: "/results", label: "Results", icon: <FaChartBar /> },
         {
           path: "/attendance",
@@ -206,9 +182,10 @@ function Navbar() {
           label: "Session Results",
           icon: <FaGraduationCap />,
         },
-        { path: "/sessions", label: "Session Management", icon: <FaClock /> },
+        { path: "/sessions", label: "Sessions", icon: <FaClock /> },
       ],
     },
+
     {
       type: "dropdown",
       label: "Finance",
@@ -216,7 +193,11 @@ function Navbar() {
       name: "finance",
       items: [
         { path: "/fees", label: "Fees", icon: <FaMoneyBill /> },
-        { path: "/fees/payments", label: "Payments", icon: <FaMoneyBill /> },
+        {
+          path: "/fees/payments",
+          label: "Payments",
+          icon: <FaMoneyBill />,
+        },
         {
           path: "/fees/defaulters",
           label: "Defaulters",
@@ -224,50 +205,24 @@ function Navbar() {
         },
       ],
     },
-    {
-      type: "dropdown",
-      label: "Communication",
-      icon: <FaBullhorn />,
-      name: "communication",
-      items: [
-        {
-          path: "/announcements",
-          label: "Announcements",
-          icon: <FaBullhorn />,
-        },
-        {
-          path: "/announcements/new",
-          label: "New Announcement",
-          icon: <FaPlusCircle />,
-        },
-      ],
-    },
+
     {
       type: "dropdown",
       label: "Operations",
       icon: <FaBus />,
       name: "operations",
       items: [
+        {
+          path: "/announcements",
+          label: "Announcements",
+          icon: <FaBullhorn />,
+        },
         { path: "/transport", label: "Transport", icon: <FaBus /> },
         { path: "/transport/routes", label: "Routes", icon: <FaRoute /> },
         { path: "/library", label: "Library", icon: <FaBook /> },
       ],
     },
-    {
-      type: "dropdown",
-      label: "Reports",
-      icon: <FaFileAlt />,
-      name: "reports",
-      items: [
-        { path: "/reports", label: "Reports", icon: <FaFileAlt /> },
-        {
-          path: "/reports/generate",
-          label: "Generate Report",
-          icon: <FaChartBar />,
-        },
-        { path: "/search", label: "Search", icon: <FaSearch /> },
-      ],
-    },
+
     { type: "link", path: "/users", icon: <FaUserShield />, label: "Users" },
   ];
 
@@ -404,7 +359,9 @@ function Navbar() {
 
   return (
     <nav
-      className={`navbar navbar-expand-lg navbar-dark navbar-school ${scrolled ? "scrolled" : ""}`}
+      className={`navbar navbar-expand-lg navbar-dark navbar-school ${
+        scrolled ? "scrolled" : ""
+      }`}
     >
       <div className="container-fluid">
         <Link
@@ -448,23 +405,31 @@ function Navbar() {
                 {item.type === "dropdown" ? (
                   <div className="nav-dropdown">
                     <button
-                      className={`nav-link dropdown-toggle ${isDropdownActive(item.items) ? "active" : ""}`}
+                      className={`nav-link dropdown-toggle ${
+                        isDropdownActive(item.items) ? "active" : ""
+                      }`}
                       onClick={() => toggleDropdown(item.name)}
                       aria-expanded={openDropdown === item.name}
                     >
                       <span className="nav-icon">{item.icon}</span>
                       <span className="nav-label">{item.label}</span>
                       <FaChevronDown
-                        className={`dropdown-arrow ${openDropdown === item.name ? "rotated" : ""}`}
+                        className={`dropdown-arrow ${
+                          openDropdown === item.name ? "rotated" : ""
+                        }`}
                       />
                     </button>
                     <div
-                      className={`dropdown-menu ${openDropdown === item.name ? "show" : ""}`}
+                      className={`dropdown-menu ${
+                        openDropdown === item.name ? "show" : ""
+                      }`}
                     >
                       {item.items.map((subItem, subIndex) => (
                         <Link
                           key={subIndex}
-                          className={`dropdown-item ${isActive(subItem.path) ? "active" : ""}`}
+                          className={`dropdown-item ${
+                            isActive(subItem.path) ? "active" : ""
+                          }`}
                           to={subItem.path}
                           onClick={closeMenu}
                         >
@@ -476,7 +441,9 @@ function Navbar() {
                   </div>
                 ) : (
                   <Link
-                    className={`nav-link ${isActive(item.activePath || item.path) ? "active" : ""}`}
+                    className={`nav-link ${
+                      isActive(item.activePath || item.path) ? "active" : ""
+                    }`}
                     to={item.path}
                     onClick={closeMenu}
                   >
@@ -517,11 +484,15 @@ function Navbar() {
                     {user?.firstName || "User"}
                   </span>
                   <FaChevronDown
-                    className={`user-arrow ${openDropdown === "user" ? "rotated" : ""}`}
+                    className={`user-arrow ${
+                      openDropdown === "user" ? "rotated" : ""
+                    }`}
                   />
                 </button>
                 <div
-                  className={`dropdown-menu user-dropdown-menu ${openDropdown === "user" ? "show" : ""}`}
+                  className={`dropdown-menu user-dropdown-menu ${
+                    openDropdown === "user" ? "show" : ""
+                  }`}
                 >
                   <Link
                     to={
@@ -531,7 +502,7 @@ function Navbar() {
                           ? "/parent-dashboard"
                           : role === "STUDENT"
                             ? "/student-dashboard"
-                            : "/profile"
+                            : "/"
                     }
                     className="dropdown-item"
                     onClick={closeMenu}

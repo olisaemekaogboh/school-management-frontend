@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { studentAPI, feeAPI } from "../services/api";
+import { studentAPI, feeAPI, parentPortalAPI } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "react-toastify";
 import {
   FiDollarSign,
@@ -43,6 +44,13 @@ import useActiveSession from "../hooks/useActiveSession";
 import "./FeeManagement.css";
 
 function FeeManagement() {
+  const { user } = useAuth();
+
+  const isAdmin = user?.role === "ADMIN";
+  const isStudent = user?.role === "STUDENT";
+  const isParent = user?.role === "PARENT";
+  const isTeacher = user?.role === "TEACHER";
+
   const [students, setStudents] = useState([]);
   const [fees, setFees] = useState([]);
   const [defaulters, setDefaulters] = useState([]);
@@ -126,9 +134,17 @@ function FeeManagement() {
     );
   };
 
+  const canManageFees = isAdmin;
+  const canViewAdminTabs = isAdmin;
+  const canRecordPayment = isAdmin;
+  const canSendReminders = isAdmin;
+  const canUseBulkPayment = isAdmin;
+  const canExportAllData = isAdmin;
+
   useEffect(() => {
-    fetchStudents();
-  }, []);
+    loadScopedStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   useEffect(() => {
     if (session && !formData.session) {
@@ -151,83 +167,167 @@ function FeeManagement() {
   useEffect(() => {
     if (!session || !term) return;
 
-    if (selectedStudent) {
+    if (selectedStudent || isStudent) {
       fetchStudentFees();
     }
-    fetchFeeStatistics();
-    fetchDefaulters();
+
+    if (isAdmin) {
+      fetchFeeStatistics();
+      fetchDefaulters();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, term, selectedStudent]);
+  }, [session, term, selectedStudent, isAdmin, isStudent]);
 
   useEffect(() => {
-    if (!session || !term) return;
+    if (!session || !term || !isAdmin) return;
 
     if (activeTab === "all-students") {
       fetchAllStudentsFeeStatus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, term, activeTab]);
+  }, [session, term, activeTab, isAdmin]);
 
-  const fetchStudents = async () => {
+  const loadScopedStudents = async () => {
     try {
-      const response = await studentAPI.getAllStudents();
-      setStudents(response.data || []);
+      setLoading(true);
+
+      if (isTeacher) {
+        setStudents([]);
+        setSelectedStudent(null);
+        return;
+      }
+
+      if (isAdmin) {
+        const response = await studentAPI.getAllStudents();
+        const data = Array.isArray(response.data) ? response.data : [];
+        setStudents(data);
+        return;
+      }
+
+      if (isStudent) {
+        const response = await studentAPI.getMyProfile();
+        const me = response?.data || null;
+        const oneStudent = me ? [me] : [];
+        setStudents(oneStudent);
+        setSelectedStudent(me);
+        setFormData((prev) => ({
+          ...prev,
+          studentId: me?.id || "",
+        }));
+        return;
+      }
+
+      if (isParent) {
+        const response = await parentPortalAPI.getMyWards();
+        const wards = Array.isArray(response.data) ? response.data : [];
+        setStudents(wards);
+
+        if (wards.length === 1) {
+          setSelectedStudent(wards[0]);
+          setFormData((prev) => ({
+            ...prev,
+            studentId: wards[0]?.id || "",
+          }));
+        }
+        return;
+      }
+
+      setStudents([]);
+      setSelectedStudent(null);
     } catch (error) {
-      console.error("Error fetching students:", error);
-      toast.error("Failed to load students");
+      console.error("Error loading scoped students:", error);
+      toast.error("Failed to load student records");
+      setStudents([]);
+      setSelectedStudent(null);
+    } finally {
+      setLoading(false);
     }
   };
 
   const fetchStudentFees = async () => {
-    if (!selectedStudent || !session || !term) return;
+    if (!session || !term) return;
+
+    if (isStudent) {
+      setLoading(true);
+      try {
+        const response = await feeAPI.getMyFees(session, term);
+        setFees(Array.isArray(response.data) ? response.data : []);
+      } catch (error) {
+        console.error("Error fetching my fees:", error);
+        toast.error("Failed to load your fees");
+        setFees([]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!selectedStudent) return;
 
     setLoading(true);
     try {
-      const response = await feeAPI.getStudentFees(
-        selectedStudent.id,
-        session,
-        term,
-      );
-      setFees(response.data || []);
+      let response;
+
+      if (isParent) {
+        response = await parentPortalAPI.getWardFees(
+          selectedStudent.id,
+          session,
+          term,
+        );
+      } else if (isAdmin) {
+        response = await feeAPI.getStudentFees(
+          selectedStudent.id,
+          session,
+          term,
+        );
+      } else {
+        setFees([]);
+        return;
+      }
+
+      setFees(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Error fetching fees:", error);
       toast.error("Failed to load fees");
+      setFees([]);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchFeeStatistics = async () => {
-    if (!session || !term) return;
+    if (!isAdmin || !session || !term) return;
 
     try {
       const response = await feeAPI.getFeeStatistics(session, term);
-      if (response.data) {
-        setStatistics(response.data);
-      }
+      setStatistics(response.data || null);
     } catch (error) {
       console.error("Error fetching statistics:", error);
+      setStatistics(null);
     }
   };
 
   const fetchDefaulters = async () => {
-    if (!session || !term) return;
+    if (!isAdmin || !session || !term) return;
 
     try {
       const response = await feeAPI.getDefaultingStudents(session, term);
-      setDefaulters(response.data || []);
+      setDefaulters(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Error fetching defaulters:", error);
+      setDefaulters([]);
     }
   };
 
   const fetchAllStudentsFeeStatus = async () => {
-    if (!session || !term) return;
+    if (!isAdmin || !session || !term) return;
 
     setLoading(true);
     try {
       const studentsResponse = await studentAPI.getAllStudents();
-      const allStudents = studentsResponse.data || [];
+      const allStudents = Array.isArray(studentsResponse.data)
+        ? studentsResponse.data
+        : [];
 
       const studentsWithStatus = await Promise.all(
         allStudents.map(async (student) => {
@@ -237,7 +337,9 @@ function FeeManagement() {
               session,
               term,
             );
-            const studentFees = feesResponse.data || [];
+            const studentFees = Array.isArray(feesResponse.data)
+              ? feesResponse.data
+              : [];
 
             const totalFees = studentFees.reduce(
               (sum, f) => sum + (Number(f.amount) || 0),
@@ -311,6 +413,7 @@ function FeeManagement() {
     } catch (error) {
       console.error("Error fetching all students fee status:", error);
       toast.error("Failed to load all students");
+      setAllStudentsFeeStatus([]);
     } finally {
       setLoading(false);
     }
@@ -455,6 +558,11 @@ function FeeManagement() {
   };
 
   const handleBulkPaymentSubmit = async () => {
+    if (!isAdmin) {
+      toast.error("Only admin can process bulk payments");
+      return;
+    }
+
     if (bulkPaymentData.selectedStudents.length === 0) {
       toast.error("Please select at least one student");
       return;
@@ -533,7 +641,7 @@ function FeeManagement() {
       await fetchAllStudentsFeeStatus();
       await fetchFeeStatistics();
       await fetchDefaulters();
-      if (selectedStudent) await fetchStudentFees();
+      if (selectedStudent || isStudent) await fetchStudentFees();
     } catch (error) {
       console.error("Error processing bulk payment:", error);
       toast.error("Failed to process bulk payment");
@@ -547,11 +655,17 @@ function FeeManagement() {
       let data = [];
       let filename = `fee_report_${session}_${term}`;
 
-      if (activeTab === "fees" && selectedStudent) {
+      if (activeTab === "fees") {
         data = fees.map((fee) => ({
-          "Student Name": fee.studentName,
-          "Admission No": fee.admissionNumber,
-          Class: `${fee.studentClass || ""} ${fee.classArm || ""}`.trim(),
+          "Student Name":
+            fee.studentName ||
+            getStudentName(selectedStudent) ||
+            getStudentName(students[0]),
+          "Admission No":
+            fee.admissionNumber || selectedStudent?.admissionNumber,
+          Class: `${fee.studentClass || selectedStudent?.studentClass || ""} ${
+            fee.classArm || selectedStudent?.classArm || ""
+          }`.trim(),
           "Fee Type": fee.feeType,
           Description: fee.description || "",
           "Amount (₦)": fee.amount || 0,
@@ -566,8 +680,12 @@ function FeeManagement() {
             ? moment(fee.paidDate).format("DD/MM/YYYY")
             : "-",
         }));
-        filename += `_${getStudentName(selectedStudent).replace(/\s+/g, "_")}`;
-      } else if (activeTab === "all-students") {
+
+        const exportStudent = selectedStudent || students[0];
+        if (exportStudent) {
+          filename += `_${getStudentName(exportStudent).replace(/\s+/g, "_")}`;
+        }
+      } else if (activeTab === "all-students" && isAdmin) {
         data = filteredStudents.map((student) => ({
           "Student Name": getStudentName(student),
           "Admission No": student.admissionNumber || "",
@@ -582,7 +700,7 @@ function FeeManagement() {
           "Fee Count": student.feeCount || 0,
         }));
         filename += "_all_students";
-      } else if (activeTab === "defaulters") {
+      } else if (activeTab === "defaulters" && isAdmin) {
         data = defaulters.map((def) => ({
           "Student Name": def.studentName || "",
           "Admission No": def.admissionNumber || "",
@@ -601,9 +719,7 @@ function FeeManagement() {
       XLSX.utils.book_append_sheet(wb, ws, "Fee Report");
       XLSX.writeFile(wb, `${filename}.xlsx`);
 
-      toast.success(
-        `${activeTab === "fees" ? "Fee" : "Report"} exported successfully!`,
-      );
+      toast.success("Exported successfully!");
     } catch (error) {
       console.error("Error exporting to Excel:", error);
       toast.error("Failed to export to Excel");
@@ -617,8 +733,9 @@ function FeeManagement() {
       let tableData = [];
       let tableHeaders = [];
 
-      if (activeTab === "fees" && selectedStudent) {
-        title = `Fee Report - ${getStudentName(selectedStudent)}`;
+      if (activeTab === "fees") {
+        const exportStudent = selectedStudent || students[0];
+        title = `Fee Report - ${getStudentName(exportStudent)}`;
         tableHeaders = [
           [
             "Fee Type",
@@ -639,7 +756,7 @@ function FeeManagement() {
           fee.dueDate ? moment(fee.dueDate).format("DD/MM/YYYY") : "",
           fee.status || "",
         ]);
-      } else if (activeTab === "all-students") {
+      } else if (activeTab === "all-students" && isAdmin) {
         title = "All Students Fee Status";
         tableHeaders = [
           [
@@ -661,7 +778,7 @@ function FeeManagement() {
           `₦${(student.balance || 0).toLocaleString()}`,
           student.status || "NO_FEES",
         ]);
-      } else if (activeTab === "defaulters") {
+      } else if (activeTab === "defaulters" && isAdmin) {
         title = "Fee Defaulters Report";
         tableHeaders = [
           [
@@ -715,6 +832,12 @@ function FeeManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      toast.error("Only admin can create or edit fees");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -751,7 +874,11 @@ function FeeManagement() {
 
   const handleRecordPayment = async (e) => {
     e.preventDefault();
-    if (!selectedFee) return;
+
+    if (!isAdmin || !selectedFee) {
+      toast.error("Only admin can record payment");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -773,7 +900,7 @@ function FeeManagement() {
         notes: "",
       });
 
-      if (selectedStudent) {
+      if (selectedStudent || isStudent) {
         await fetchStudentFees();
       }
       await fetchFeeStatistics();
@@ -787,6 +914,11 @@ function FeeManagement() {
   };
 
   const handleSendReminders = async () => {
+    if (!isAdmin) {
+      toast.error("Only admin can send reminders");
+      return;
+    }
+
     if (!window.confirm("Send fee reminders to all defaulting students?")) {
       return;
     }
@@ -803,6 +935,11 @@ function FeeManagement() {
   };
 
   const handleSendIndividualReminder = async (student) => {
+    if (!isAdmin) {
+      toast.error("Only admin can send reminders");
+      return;
+    }
+
     if (
       !window.confirm(
         `Send SMS reminder to ${student.parentName || getStudentName(student)}?`,
@@ -845,7 +982,8 @@ function FeeManagement() {
         searchTerm === "" ||
         fee.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fee.admissionNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fee.feeType?.toLowerCase().includes(searchTerm.toLowerCase());
+        fee.feeType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fee.description?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus =
         filterStatus === "all" || fee.status === filterStatus;
@@ -899,6 +1037,25 @@ function FeeManagement() {
     );
   }
 
+  if (isTeacher) {
+    return (
+      <div className="fee-management">
+        <div className="content-wrapper">
+          <div className="glass-effect p-4 text-center">
+            <FiXCircle size={42} className="mb-3 text-danger" />
+            <h3>Access Restricted</h3>
+            <p className="mb-0">
+              Teachers are not allowed to access fee management.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const feeOwner = selectedStudent || students[0] || null;
+  const isScopedUser = isStudent || isParent;
+
   return (
     <div className="fee-management">
       <div className="animated-bg">
@@ -916,7 +1073,11 @@ function FeeManagement() {
                 Fee Management
               </h1>
               <p className="header-subtitle">
-                Manage and track all fee payments
+                {isAdmin
+                  ? "Manage and track all fee payments"
+                  : isStudent
+                    ? "View your fee records"
+                    : "View your ward's fee records"}
               </p>
               <p className="header-subtitle">
                 Active Session:{" "}
@@ -928,10 +1089,12 @@ function FeeManagement() {
               className="btn-refresh"
               onClick={() => {
                 refreshActiveSession();
-                fetchFeeStatistics();
-                fetchDefaulters();
-                if (selectedStudent) fetchStudentFees();
-                if (activeTab === "all-students") fetchAllStudentsFeeStatus();
+                if (isAdmin) {
+                  fetchFeeStatistics();
+                  fetchDefaulters();
+                  if (activeTab === "all-students") fetchAllStudentsFeeStatus();
+                }
+                if (selectedStudent || isStudent) fetchStudentFees();
               }}
             >
               <FiRefreshCw className={loading ? "spin" : ""} />
@@ -939,7 +1102,7 @@ function FeeManagement() {
             </button>
           </div>
 
-          {stats && (
+          {isAdmin && stats && (
             <div className="stats-grid">
               <div
                 className={`stat-card glass-effect ${
@@ -1075,64 +1238,76 @@ function FeeManagement() {
               </select>
             </div>
 
-            <div className="filter-group">
-              <label>
-                <FiUser /> Student
-              </label>
-              <select
-                value={selectedStudent?.id || ""}
-                onChange={(e) => {
-                  const student = students.find(
-                    (s) => s.id === parseInt(e.target.value, 10),
-                  );
-                  setSelectedStudent(student || null);
-                  setFormData((prev) => ({
-                    ...prev,
-                    studentId: student?.id || "",
-                    session: session || prev.session,
-                    term: term || prev.term,
-                  }));
-                  setCurrentPage(1);
-                }}
-              >
-                <option value="">Select Student</option>
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {getStudentName(s)} - {s.admissionNumber}
+            {(isAdmin || isParent) && (
+              <div className="filter-group">
+                <label>
+                  <FiUser /> {isParent ? "Ward" : "Student"}
+                </label>
+                <select
+                  value={selectedStudent?.id || ""}
+                  onChange={(e) => {
+                    const student = students.find(
+                      (s) => s.id === parseInt(e.target.value, 10),
+                    );
+                    setSelectedStudent(student || null);
+                    setFormData((prev) => ({
+                      ...prev,
+                      studentId: student?.id || "",
+                      session: session || prev.session,
+                      term: term || prev.term,
+                    }));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value="">
+                    {isParent ? "Select Ward" : "Select Student"}
                   </option>
-                ))}
-              </select>
-            </div>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {getStudentName(s)} - {s.admissionNumber}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-            <div className="filter-group">
-              <label>&nbsp;</label>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  resetForm();
-                  setShowForm(true);
-                }}
-                disabled={!selectedStudent}
-              >
-                <FiPlus /> Add Fee
-              </button>
-            </div>
+            {canManageFees && (
+              <div className="filter-group">
+                <label>&nbsp;</label>
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    resetForm();
+                    setShowForm(true);
+                  }}
+                  disabled={!selectedStudent}
+                >
+                  <FiPlus /> Add Fee
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="quick-actions">
-            <button
-              className="btn-warning"
-              onClick={handleSendReminders}
-              disabled={loading}
-            >
-              <FiBell /> Send Reminders
-            </button>
-            <button
-              className="btn-success"
-              onClick={() => setShowBulkPaymentModal(true)}
-            >
-              <BsWallet2 /> Bulk Payment
-            </button>
+            {canSendReminders && (
+              <button
+                className="btn-warning"
+                onClick={handleSendReminders}
+                disabled={loading}
+              >
+                <FiBell /> Send Reminders
+              </button>
+            )}
+
+            {canUseBulkPayment && (
+              <button
+                className="btn-success"
+                onClick={() => setShowBulkPaymentModal(true)}
+              >
+                <BsWallet2 /> Bulk Payment
+              </button>
+            )}
+
             <button className="btn-excel" onClick={handleExportToExcel}>
               <BsFileEarmarkExcel /> Excel
             </button>
@@ -1146,7 +1321,7 @@ function FeeManagement() {
               <FiSearch />
               <input
                 type="text"
-                placeholder="Search by name, admission or fee type..."
+                placeholder="Search by fee type or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1182,39 +1357,48 @@ function FeeManagement() {
             className={`tab-btn ${activeTab === "fees" ? "active" : ""}`}
             onClick={() => setActiveTab("fees")}
           >
-            <FiDollarSign /> Student Fees
+            <FiDollarSign />{" "}
+            {isStudent ? "My Fees" : isParent ? "Ward Fees" : "Student Fees"}
           </button>
-          <button
-            className={`tab-btn ${activeTab === "all-students" ? "active" : ""}`}
-            onClick={() => setActiveTab("all-students")}
-          >
-            <FiUsers /> All Students
-          </button>
-          <button
-            className={`tab-btn ${activeTab === "defaulters" ? "active" : ""}`}
-            onClick={() => setActiveTab("defaulters")}
-          >
-            <FiAlertTriangle /> Defaulters{" "}
-            <span className="badge">{defaulters.length}</span>
-          </button>
+
+          {canViewAdminTabs && (
+            <>
+              <button
+                className={`tab-btn ${
+                  activeTab === "all-students" ? "active" : ""
+                }`}
+                onClick={() => setActiveTab("all-students")}
+              >
+                <FiUsers /> All Students
+              </button>
+              <button
+                className={`tab-btn ${
+                  activeTab === "defaulters" ? "active" : ""
+                }`}
+                onClick={() => setActiveTab("defaulters")}
+              >
+                <FiAlertTriangle /> Defaulters{" "}
+                <span className="badge">{defaulters.length}</span>
+              </button>
+            </>
+          )}
         </div>
 
         {activeTab === "fees" && (
           <div className="fees-tab glass-effect">
-            {selectedStudent ? (
+            {feeOwner ? (
               <>
                 <div className="student-info-card">
                   <div className="student-avatar">
                     <RiUserStarLine />
                   </div>
                   <div className="student-details">
-                    <h3>{getStudentName(selectedStudent)}</h3>
+                    <h3>{getStudentName(feeOwner)}</h3>
                     <p>
-                      <FiUser /> {selectedStudent.admissionNumber}
+                      <FiUser /> {feeOwner.admissionNumber}
                     </p>
                     <p>
-                      <FiUsers /> {selectedStudent.studentClass}{" "}
-                      {selectedStudent.classArm}
+                      <FiUsers /> {feeOwner.studentClass} {feeOwner.classArm}
                     </p>
                   </div>
                   <div className="student-stats">
@@ -1321,24 +1505,26 @@ function FeeManagement() {
                                 <td>{getStatusBadge(fee.status)}</td>
                                 <td>
                                   <div className="action-buttons">
-                                    {fee.status !== "PAID" && (
-                                      <button
-                                        className="btn-pay"
-                                        onClick={() => {
-                                          setSelectedFee(fee);
-                                          setPaymentData({
-                                            amount: fee.balance,
-                                            paymentMethod: "CASH",
-                                            reference: "",
-                                            notes: "",
-                                          });
-                                          setShowPaymentModal(true);
-                                        }}
-                                        title="Record Payment"
-                                      >
-                                        <MdOutlinePayments />
-                                      </button>
-                                    )}
+                                    {canRecordPayment &&
+                                      fee.status !== "PAID" && (
+                                        <button
+                                          className="btn-pay"
+                                          onClick={() => {
+                                            setSelectedFee(fee);
+                                            setPaymentData({
+                                              amount: fee.balance,
+                                              paymentMethod: "CASH",
+                                              reference: "",
+                                              notes: "",
+                                            });
+                                            setShowPaymentModal(true);
+                                          }}
+                                          title="Record Payment"
+                                        >
+                                          <MdOutlinePayments />
+                                        </button>
+                                      )}
+
                                     <button
                                       className="btn-view"
                                       onClick={() => toggleRowExpansion(fee.id)}
@@ -1408,12 +1594,14 @@ function FeeManagement() {
                               <td colSpan="9" className="empty-state">
                                 <FiDollarSign size={40} />
                                 <p>No fees found</p>
-                                <button
-                                  className="btn-primary"
-                                  onClick={() => setShowForm(true)}
-                                >
-                                  <FiPlus /> Add First Fee
-                                </button>
+                                {canManageFees && (
+                                  <button
+                                    className="btn-primary"
+                                    onClick={() => setShowForm(true)}
+                                  >
+                                    <FiPlus /> Add First Fee
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           )}
@@ -1452,16 +1640,18 @@ function FeeManagement() {
             ) : (
               <div className="select-student-prompt">
                 <FiUsers size={50} />
-                <h3>Select a Student</h3>
+                <h3>{isParent ? "Select a Ward" : "Select a Student"}</h3>
                 <p>
-                  Choose a student from the dropdown above to view their fees
+                  {isScopedUser
+                    ? "No student record available for this account"
+                    : "Choose a student from the dropdown above to view their fees"}
                 </p>
               </div>
             )}
           </div>
         )}
 
-        {activeTab === "all-students" && (
+        {isAdmin && activeTab === "all-students" && (
           <div className="all-students-tab glass-effect">
             <div className="quick-stats-grid">
               <div className="quick-stat-card total">
@@ -1702,7 +1892,7 @@ function FeeManagement() {
           </div>
         )}
 
-        {activeTab === "defaulters" && (
+        {isAdmin && activeTab === "defaulters" && (
           <div className="defaulters-tab glass-effect">
             <div className="defaulter-summary">
               <div className="summary-card total">
@@ -1819,7 +2009,7 @@ function FeeManagement() {
           </div>
         )}
 
-        {showBulkPaymentModal && (
+        {isAdmin && showBulkPaymentModal && (
           <div
             className="modal-overlay"
             onClick={() => setShowBulkPaymentModal(false)}
@@ -2014,7 +2204,7 @@ function FeeManagement() {
           </div>
         )}
 
-        {showForm && (
+        {isAdmin && showForm && (
           <div className="modal-overlay" onClick={() => setShowForm(false)}>
             <div
               className="modal-content glass-effect"
@@ -2183,7 +2373,7 @@ function FeeManagement() {
           </div>
         )}
 
-        {showPaymentModal && selectedFee && (
+        {isAdmin && showPaymentModal && selectedFee && (
           <div
             className="modal-overlay"
             onClick={() => setShowPaymentModal(false)}
