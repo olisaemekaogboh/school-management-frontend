@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { authAPI, resultAPI, attendanceAPI, feeAPI } from "../services/api";
+import {
+  authAPI,
+  studentAPI,
+  resultAPI,
+  attendanceAPI,
+  feeAPI,
+} from "../services/api";
 import { Link } from "react-router-dom";
 import {
   FaUserGraduate,
   FaMoneyBill,
   FaChartBar,
   FaCalendarAlt,
-  FaBookOpen,
   FaSpinner,
   FaSyncAlt,
 } from "react-icons/fa";
@@ -364,6 +369,7 @@ function StudentDashboard() {
 
       const requests = [
         authAPI.getCurrentUser(),
+        studentAPI.getMyProfile(),
         session && term
           ? resultAPI.getMyTermResult(session, term)
           : Promise.resolve({ data: [] }),
@@ -375,21 +381,27 @@ function StudentDashboard() {
           : Promise.resolve({ data: [] }),
       ];
 
-      const [meRes, resultsRes, attendanceRes, feesRes] =
+      const [meRes, profileRes, resultsRes, attendanceRes, feesRes] =
         await Promise.allSettled(requests);
 
       const meUser =
         meRes.status === "fulfilled" ? meRes.value?.data || null : null;
 
+      const studentProfile =
+        profileRes.status === "fulfilled"
+          ? profileRes.value?.data || null
+          : null;
+
       const resolvedProfile = normalizeStudentLike(
-        user?.student,
-        user?.studentProfile,
-        user?.profile,
-        user,
+        studentProfile,
         meUser?.student,
         meUser?.studentProfile,
         meUser?.profile,
+        user?.student,
+        user?.studentProfile,
+        user?.profile,
         meUser,
+        user,
       );
 
       setStudentData(resolvedProfile);
@@ -669,9 +681,6 @@ function StudentDashboard() {
                 </Link>
                 <Link to="/fees" className="btn btn-outline-warning">
                   <FaMoneyBill className="me-2" /> Fee Details
-                </Link>
-                <Link to="/timetable" className="btn btn-outline-info">
-                  <FaBookOpen className="me-2" /> Timetable
                 </Link>
               </div>
             </div>

@@ -80,6 +80,7 @@ import ParentProfile from "./components/ParentProfile";
 
 import "./App.css";
 import SessionResultSheet from "./components/SessionResultSheet";
+import TimetableManagement from "./components/TimetableManagement";
 
 function App() {
   return (
@@ -493,7 +494,7 @@ function App() {
                       <ProtectedRoute
                         requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
                       >
-                        <Timetable />
+                        <TimetableManagement />
                       </ProtectedRoute>
                     }
                   />

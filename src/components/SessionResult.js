@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   studentAPI,
@@ -27,6 +33,7 @@ function SessionResult() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const initializedRef = useRef(false);
 
   const isAdmin = user?.role === "ADMIN";
   const isTeacher = user?.role === "TEACHER";
@@ -57,6 +64,8 @@ function SessionResult() {
   const query = new URLSearchParams(location.search);
   const classIdFromQuery = query.get("classId") || "";
   const mineFromQuery = query.get("mine") === "true";
+  const studentIdFromQuery = query.get("student") || "";
+  const scopeFromQuery = query.get("scope") || "";
 
   const classes = [
     "Nursery",
@@ -225,6 +234,8 @@ function SessionResult() {
   );
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -372,7 +383,12 @@ function SessionResult() {
       const wards = Array.isArray(response.data) ? response.data : [];
       setParentWards(wards);
 
-      if (wards.length === 1) {
+      if (studentIdFromQuery) {
+        const matchedWard = wards.find(
+          (ward) => String(ward.id) === String(studentIdFromQuery),
+        );
+        setSelectedStudent(matchedWard || wards[0] || null);
+      } else if (wards.length === 1) {
         setSelectedStudent(wards[0]);
       }
     } catch (error) {
@@ -462,7 +478,7 @@ function SessionResult() {
     try {
       let response;
 
-      if (isParent) {
+      if (isParent || scopeFromQuery === "parent") {
         response = await parentPortalAPI.getWardSessionResult(
           selectedStudent.id,
           session,
@@ -1059,7 +1075,7 @@ function SessionResult() {
                         onChange={(e) => {
                           const source = isParent ? parentWards : students;
                           const student = source.find(
-                            (s) => s.id === parseInt(e.target.value, 10),
+                            (s) => String(s.id) === String(e.target.value),
                           );
                           setSelectedStudent(student || null);
                         }}
@@ -1234,7 +1250,7 @@ function SessionResult() {
                   className="btn text-white"
                   onClick={fetchGraduates}
                   disabled={loading}
-                  style={{ backgroundColor: "#9C27B0" }}
+                  style={{ background: "#9C27B0" }}
                 >
                   {loading ? (
                     <FaSpinner className="spinner" />

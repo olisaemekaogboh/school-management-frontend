@@ -570,6 +570,7 @@ export const sessionResultAPI = {
         params: { session },
       },
     ),
+
   getSessionResult: (studentId, session) =>
     api.get(`/session-results/student/${studentId}`, {
       params: { session },
@@ -787,12 +788,26 @@ export const timetableAPI = {
       params: { session, term },
     }),
 
+  getMyTimetable: (session, term) =>
+    api.get("/timetable/me", {
+      params: { session, term },
+    }),
+
+  getMyStudentTimetable: (session, term) =>
+    api.get("/timetable/student/me", {
+      params: { session, term },
+    }),
+
+  getWardTimetable: (studentId, session, term) =>
+    api.get(`/timetable/parent/ward/${studentId}`, {
+      params: { session, term },
+    }),
+
   checkAvailability: ({ teacherId, day, session, term, startTime, endTime }) =>
     api.get("/timetable/check-availability", {
       params: { teacherId, day, session, term, startTime, endTime },
     }),
 };
-
 /* ================================
    PARENT API
 ================================ */
@@ -923,6 +938,10 @@ export const teacherPortalAPI = {
     api.get(`/teachers/me/classes/${classId}/attendance`, {
       params: { date, session, term },
     }),
+  getWardTimetable: (studentId, session, term) =>
+    api.get("/parents/me/timetable", {
+      params: { studentId, session, term },
+    }),
   markMyClassAttendance: (classId, payload) =>
     api.post(`/teachers/me/classes/${classId}/attendance`, payload),
   getMyClassResults: (classId, session, term) =>
@@ -937,7 +956,10 @@ export const studentPortalAPI = {
 
   getMyTermResult: (session, term) =>
     api.get("/results/me/term", { params: { session, term } }),
-
+  getMyTimetable: (session, term) =>
+    api.get("/timetable/me", {
+      params: { session, term },
+    }),
   getMySessionResult: (session) =>
     api.get("/results/me/annual", { params: { session } }),
 
@@ -965,34 +987,37 @@ export const parentPortalAPI = {
   getDashboard: () => api.get("/parents/me/dashboard"),
   getMyProfile: () => api.get("/parents/me"),
   getMyWards: () => api.get("/parents/me/wards"),
-
+  getWardTimetable: (studentId, session, term) =>
+    api.get("/parents/me/timetable", {
+      params: { studentId, session, term },
+    }),
   getWardTermResult: (studentId, session, term) =>
-    api.get(`/results/student/${studentId}/term`, {
+    api.get(`/parents/me/wards/${studentId}/results/term`, {
       params: { session, term },
     }),
 
   getWardSessionResult: (studentId, session) =>
-    api.get(`/results/student/${studentId}/annual`, {
+    api.get(`/parents/me/wards/${studentId}/results/session`, {
       params: { session },
     }),
 
   getWardAttendance: (studentId, session, term) =>
-    api.get(`/attendance/student/${studentId}/summary`, {
+    api.get(`/parents/me/wards/${studentId}/attendance`, {
       params: { session, term },
     }),
 
   getWardAttendanceList: (studentId, session, term) =>
-    api.get(`/attendance/student/${studentId}/term`, {
+    api.get(`/parents/me/wards/${studentId}/attendance`, {
       params: { session, term },
     }),
 
   getWardFees: (studentId, session, term) =>
-    api.get(`/fees/student/${studentId}`, {
+    api.get(`/parents/me/wards/${studentId}/fees`, {
       params: { session, term },
     }),
 
   getWardPaymentHistory: (studentId, session) =>
-    api.get(`/fees/student/${studentId}/payments`, {
+    api.get(`/parents/me/wards/${studentId}/fees/payments`, {
       params: session ? { session } : {},
     }),
 };

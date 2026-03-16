@@ -124,7 +124,6 @@ function Navbar() {
 
   const adminNavItems = [
     { type: "link", path: "/", icon: <FaHome />, label: "Dashboard" },
-
     {
       type: "dropdown",
       label: "People",
@@ -156,7 +155,6 @@ function Navbar() {
         },
       ],
     },
-
     {
       type: "dropdown",
       label: "Academics",
@@ -185,7 +183,6 @@ function Navbar() {
         { path: "/sessions", label: "Sessions", icon: <FaClock /> },
       ],
     },
-
     {
       type: "dropdown",
       label: "Finance",
@@ -205,7 +202,6 @@ function Navbar() {
         },
       ],
     },
-
     {
       type: "dropdown",
       label: "Operations",
@@ -222,7 +218,6 @@ function Navbar() {
         { path: "/library", label: "Library", icon: <FaBook /> },
       ],
     },
-
     { type: "link", path: "/users", icon: <FaUserShield />, label: "Users" },
   ];
 
@@ -264,7 +259,7 @@ function Navbar() {
       type: "link",
       path: "/timetable",
       icon: <FaCalendarAlt />,
-      label: "Timetable",
+      label: "My Timetable",
     },
   ];
 
@@ -289,9 +284,21 @@ function Navbar() {
     },
     {
       type: "link",
+      path: "/attendance",
+      icon: <FaClipboardCheck />,
+      label: "Ward Attendance",
+    },
+    {
+      type: "link",
       path: "/session-results",
       icon: <FaGraduationCap />,
       label: "Session Results",
+    },
+    {
+      type: "link",
+      path: "/timetable",
+      icon: <FaCalendarAlt />,
+      label: "Ward Timetable",
     },
     {
       type: "link",
@@ -316,6 +323,12 @@ function Navbar() {
     },
     {
       type: "link",
+      path: "/attendance",
+      icon: <FaClipboardCheck />,
+      label: "My Attendance",
+    },
+    {
+      type: "link",
       path: "/session-results",
       icon: <FaGraduationCap />,
       label: "Session Results",
@@ -330,7 +343,7 @@ function Navbar() {
       type: "link",
       path: "/timetable",
       icon: <FaCalendarAlt />,
-      label: "Timetable",
+      label: "My Timetable",
     },
     {
       type: "link",
