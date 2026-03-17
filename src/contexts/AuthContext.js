@@ -1,9 +1,9 @@
 import React, {
   createContext,
-  useState,
   useContext,
   useEffect,
   useMemo,
+  useState,
 } from "react";
 import { authAPI, setAuthToken, clearAuthToken } from "../services/api";
 import { toast } from "react-toastify";
@@ -27,29 +27,70 @@ const pickFirst = (...values) => {
   return null;
 };
 
+const normalizeRoleValue = (roleValue) => {
+  if (!roleValue) return null;
+  return String(roleValue)
+    .replace(/^ROLE_/, "")
+    .toUpperCase();
+};
+
 const normalizeUser = (rawUser) => {
   if (!rawUser) return null;
+
+  const resolvedRole = normalizeRoleValue(
+    pickFirst(
+      rawUser.role,
+      rawUser.user?.role,
+      rawUser.userRole,
+      rawUser.type,
+      Array.isArray(rawUser.authorities) && rawUser.authorities.length > 0
+        ? rawUser.authorities[0]?.authority
+        : null,
+      Array.isArray(rawUser.roles) && rawUser.roles.length > 0
+        ? rawUser.roles[0]
+        : null,
+    ),
+  );
 
   const studentProfile =
     rawUser.student ||
     rawUser.studentProfile ||
-    (rawUser.role === "STUDENT" ? rawUser : null);
+    (resolvedRole === "STUDENT" ? rawUser : null);
 
   const teacherProfile =
     rawUser.teacher ||
     rawUser.teacherProfile ||
-    (rawUser.role === "TEACHER" ? rawUser : null);
+    (resolvedRole === "TEACHER" ? rawUser : null);
 
   const parentProfile =
     rawUser.parent ||
     rawUser.parentProfile ||
-    (rawUser.role === "PARENT" ? rawUser : null);
+    (resolvedRole === "PARENT" ? rawUser : null);
+
+  const firstName = pickFirst(
+    rawUser.firstName,
+    studentProfile?.firstName,
+    teacherProfile?.firstName,
+    parentProfile?.firstName,
+  );
+
+  const middleName = pickFirst(
+    rawUser.middleName,
+    studentProfile?.middleName,
+    teacherProfile?.middleName,
+    parentProfile?.middleName,
+  );
+
+  const lastName = pickFirst(
+    rawUser.lastName,
+    studentProfile?.lastName,
+    teacherProfile?.lastName,
+    parentProfile?.lastName,
+  );
 
   return {
     ...rawUser,
-
-    role: rawUser.role || null,
-
+    role: resolvedRole,
     student: rawUser.student || rawUser.studentProfile || null,
     teacher: rawUser.teacher || rawUser.teacherProfile || null,
     parent: rawUser.parent || rawUser.parentProfile || null,
@@ -59,62 +100,23 @@ const normalizeUser = (rawUser) => {
       rawUser.student?.id,
       rawUser.studentProfile?.id,
     ),
-    parentId: pickFirst(
-      rawUser.parentId,
-      rawUser.parent?.id,
-      rawUser.parentProfile?.id,
-    ),
     teacherId: pickFirst(
       rawUser.teacherId,
       rawUser.teacher?.id,
       rawUser.teacherProfile?.id,
     ),
+    parentId: pickFirst(
+      rawUser.parentId,
+      rawUser.parent?.id,
+      rawUser.parentProfile?.id,
+    ),
 
-    firstName: pickFirst(
-      rawUser.firstName,
-      studentProfile?.firstName,
-      teacherProfile?.firstName,
-      parentProfile?.firstName,
-    ),
-    lastName: pickFirst(
-      rawUser.lastName,
-      studentProfile?.lastName,
-      teacherProfile?.lastName,
-      parentProfile?.lastName,
-    ),
-    middleName: pickFirst(
-      rawUser.middleName,
-      studentProfile?.middleName,
-      teacherProfile?.middleName,
-      parentProfile?.middleName,
-    ),
+    firstName,
+    middleName,
+    lastName,
     fullName: pickFirst(
       rawUser.fullName,
-      studentProfile?.fullName,
-      teacherProfile?.fullName,
-      parentProfile?.fullName,
-      [
-        pickFirst(
-          rawUser.firstName,
-          studentProfile?.firstName,
-          teacherProfile?.firstName,
-          parentProfile?.firstName,
-        ),
-        pickFirst(
-          rawUser.middleName,
-          studentProfile?.middleName,
-          teacherProfile?.middleName,
-          parentProfile?.middleName,
-        ),
-        pickFirst(
-          rawUser.lastName,
-          studentProfile?.lastName,
-          teacherProfile?.lastName,
-          parentProfile?.lastName,
-        ),
-      ]
-        .filter(Boolean)
-        .join(" "),
+      [firstName, middleName, lastName].filter(Boolean).join(" "),
     ),
 
     admissionNumber: pickFirst(
@@ -149,16 +151,34 @@ const normalizeUser = (rawUser) => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const storedUser = localStorage.getItem("user");
+      return storedUser ? normalizeUser(JSON.parse(storedUser)) : null;
+    } catch (error) {
+      console.error("Failed to parse stored user:", error);
+      return null;
+    }
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem("accessToken");
+  });
+
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const loadUser = async () => {
+    let isMounted = true;
+
+    const bootstrapAuth = async () => {
       const token = localStorage.getItem("accessToken");
 
       if (!token) {
-        setLoading(false);
+        if (isMounted) {
+          setUser(null);
+          setIsAuthenticated(false);
+          setLoading(false);
+        }
         return;
       }
 
@@ -166,54 +186,72 @@ export const AuthProvider = ({ children }) => {
         const response = await authAPI.getCurrentUser();
         const normalizedUser = normalizeUser(response.data);
 
+        if (!isMounted) return;
+
         setUser(normalizedUser);
-        localStorage.setItem("user", JSON.stringify(normalizedUser));
         setIsAuthenticated(true);
+        localStorage.setItem("user", JSON.stringify(normalizedUser));
       } catch (error) {
-        console.error("Failed to load user:", error);
+        console.error("Failed to load current user:", error);
 
         try {
           const refreshToken = localStorage.getItem("refreshToken");
-          if (refreshToken) {
-            const refreshResponse = await authAPI.refreshToken({
-              refreshToken,
-            });
 
-            if (refreshResponse.data.accessToken) {
-              setAuthToken(
-                refreshResponse.data.accessToken,
-                refreshResponse.data.refreshToken,
-                refreshResponse.data.user,
-              );
-
-              const userResponse = await authAPI.getCurrentUser();
-              const normalizedUser = normalizeUser(userResponse.data);
-
-              setUser(normalizedUser);
-              localStorage.setItem("user", JSON.stringify(normalizedUser));
-              setIsAuthenticated(true);
-            } else {
-              clearAuthToken();
-            }
-          } else {
-            clearAuthToken();
+          if (!refreshToken) {
+            throw new Error("No refresh token available");
           }
+
+          const refreshResponse = await authAPI.refreshToken({ refreshToken });
+          const {
+            accessToken,
+            refreshToken: nextRefreshToken,
+            user: refreshUser,
+          } = refreshResponse.data || {};
+
+          if (!accessToken) {
+            throw new Error("No access token returned from refresh");
+          }
+
+          const normalizedRefreshUser = normalizeUser(refreshUser);
+
+          setAuthToken(
+            accessToken,
+            nextRefreshToken || refreshToken,
+            normalizedRefreshUser,
+          );
+
+          if (!isMounted) return;
+
+          setUser(normalizedRefreshUser);
+          setIsAuthenticated(true);
+          localStorage.setItem("user", JSON.stringify(normalizedRefreshUser));
         } catch (refreshError) {
-          console.error("Refresh failed:", refreshError);
+          console.error("Refresh token failed:", refreshError);
+
+          if (!isMounted) return;
+
           clearAuthToken();
+          setUser(null);
+          setIsAuthenticated(false);
         }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    loadUser();
+    bootstrapAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = async (usernameOrEmail, password) => {
     try {
       const response = await authAPI.login({ usernameOrEmail, password });
-      const { accessToken, refreshToken, user: rawUser } = response.data;
+      const { accessToken, refreshToken, user: rawUser } = response.data || {};
 
       const normalizedUser = normalizeUser(rawUser);
 
@@ -225,7 +263,7 @@ export const AuthProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error("Login error:", error);
-      toast.error(error.response?.data?.message || "Login failed");
+      toast.error(error?.response?.data?.message || "Login failed");
       return false;
     }
   };
@@ -233,7 +271,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await authAPI.register(userData);
-      const { accessToken, refreshToken, user: rawUser } = response.data;
+      const { accessToken, refreshToken, user: rawUser } = response.data || {};
 
       const normalizedUser = normalizeUser(rawUser);
 
@@ -247,7 +285,7 @@ export const AuthProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error("Registration error:", error);
-      toast.error(error.response?.data?.message || "Registration failed");
+      toast.error(error?.response?.data?.message || "Registration failed");
       return false;
     }
   };

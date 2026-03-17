@@ -464,20 +464,17 @@ export const resultAPI = {
 /* ================================
    ATTENDANCE API
 ================================ */
+/* ================================
+   ATTENDANCE API
+================================ */
 export const attendanceAPI = {
-  markAttendance: (studentId, date, session, term, status, remarks) =>
+  markAttendance: (studentId, date, session, term, status, remarks = "") =>
     api.post(`/attendance/student/${studentId}`, null, {
-      params: {
-        date,
-        session,
-        term,
-        status,
-        ...(remarks ? { remarks } : {}),
-      },
+      params: { date, session, term, status, remarks },
     }),
 
   markBulkAttendance: (studentIds, date, session, term, status) =>
-    api.post("/attendance/bulk", studentIds, {
+    api.post(`/attendance/bulk`, studentIds, {
       params: { date, session, term, status },
     }),
 
@@ -496,58 +493,37 @@ export const attendanceAPI = {
       params: { session, term },
     }),
 
-  getStudentSessionSummary: (studentId, session) =>
-    api.get(`/attendance/student/${studentId}/session`, {
-      params: { session },
-    }),
-
   getMyAttendance: (session, term) =>
-    api.get("/attendance/me/term", {
+    api.get(`/attendance/me/term`, {
       params: { session, term },
     }),
 
   getMyAttendanceSummary: (session, term) =>
-    api.get("/attendance/me/summary", {
+    api.get(`/attendance/me/summary`, {
       params: { session, term },
     }),
 
-  getClassAttendanceWithArm: (className, arm, date, session, term) =>
-    api.get(`/attendance/class/${className}/arm/${arm}`, {
-      params: { date, session, term },
-    }),
+  getClassAttendance: (className, arm, date, session, term) =>
+    api.get(
+      `/attendance/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
+      {
+        params: { date, session, term },
+      },
+    ),
 
   getClassTermStatistics: (className, arm, session, term) =>
-    api.get(`/attendance/statistics/class/${className}/arm/${arm}`, {
-      params: { session, term },
-    }),
+    api.get(
+      `/attendance/statistics/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
+      {
+        params: { session, term },
+      },
+    ),
 
   getSchoolAttendanceStatistics: (session, term) =>
-    api.get("/attendance/statistics/school", {
+    api.get(`/attendance/statistics/school`, {
       params: { session, term },
     }),
-
-  initializeSchoolDays: (dates, session, term) =>
-    api.post("/attendance/initialize-days", dates, {
-      params: { session, term },
-    }),
-
-  calculateAllTermSummaries: (session, term) =>
-    api.post("/attendance/calculate-all", null, {
-      params: { session, term },
-    }),
-
-  testSingleAttendance: (studentId, date, session, term, status) =>
-    api.post("/attendance/test-single", null, {
-      params: { studentId, date, session, term, status },
-    }),
-
-  debugAttendance: (className, date, session, term, arm = null) => {
-    const params = { className, date, session, term };
-    if (arm) params.arm = arm;
-    return api.get("/attendance/debug", { params });
-  },
 };
-
 /* ================================
    SESSION RESULT API
 ================================ */
@@ -899,6 +875,8 @@ export const transportAPI = {
     }),
   getBusLocation: (routeId) => api.get(`/transport/location/${routeId}`),
   getTransportStatistics: () => api.get("/transport/statistics"),
+  getStudentAssignedRoute: (studentId) =>
+    api.get(`/transport/student/${studentId}`),
 };
 
 /* ================================

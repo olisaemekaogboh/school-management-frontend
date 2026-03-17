@@ -1,4 +1,3 @@
-// src/App.js
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -49,15 +48,16 @@ import ClassManager from "./components/ClassManager";
 import ClassDetails from "./components/ClassDetails";
 import ClassView from "./components/ClassView";
 
-import Timetable from "./components/Timetable";
 import SubjectManagement from "./components/SubjectManagement";
 import ResultManagement from "./components/ResultManagement";
 import SessionResult from "./components/SessionResult";
 import AttendanceManager from "./components/AttendanceManager";
 import ResultSheet from "./components/ResultSheet";
+
 import FeeManagement from "./components/FeeManagement";
 import FeePayments from "./components/FeePayments";
 import FeeDefaulters from "./components/FeeDefaulters";
+
 import AnnouncementManager from "./components/AnnouncementManager";
 import AnnouncementForm from "./components/AnnouncementForm";
 import AnnouncementDetails from "./components/AnnouncementDetails";
@@ -77,10 +77,10 @@ import SessionManagement from "./components/SessionManagement";
 
 import ParentPortal from "./components/ParentPortal";
 import ParentProfile from "./components/ParentProfile";
-
-import "./App.css";
 import SessionResultSheet from "./components/SessionResultSheet";
 import TimetableManagement from "./components/TimetableManagement";
+
+import "./App.css";
 
 function App() {
   return (
@@ -89,6 +89,7 @@ function App() {
         <ParentProvider>
           <div className="app-container">
             <Navbar />
+
             <main className="main-content">
               <div className="content-wrapper">
                 <Routes>
@@ -296,22 +297,6 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route
-                    path="/fees/payments"
-                    element={
-                      <ProtectedRoute requiredRole="ADMIN">
-                        <FeePayments />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/fees/defaulters"
-                    element={
-                      <ProtectedRoute requiredRole="ADMIN">
-                        <FeeDefaulters />
-                      </ProtectedRoute>
-                    }
-                  />
 
                   <Route
                     path="/library"
@@ -435,70 +420,6 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-
-                  <Route
-                    path="/attendance"
-                    element={
-                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
-                        <AttendanceManager />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/results"
-                    element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
-                      >
-                        <ResultManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/session-results"
-                    element={
-                      <ProtectedRoute
-                        allowedRoles={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
-                      >
-                        <SessionResult />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/session-results/:studentId"
-                    element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
-                      >
-                        <SessionResultSheet />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/results/:studentId"
-                    element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
-                      >
-                        <ResultSheet />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/timetable"
-                    element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
-                      >
-                        <TimetableManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-
                   <Route
                     path="/student-dashboard"
                     element={
@@ -507,7 +428,6 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-
                   <Route
                     path="/parent-dashboard"
                     element={
@@ -529,6 +449,67 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole="PARENT">
                         <ParentProfile />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/attendance"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <AttendanceManager />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/results"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <ResultManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/results/:studentId"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <ResultSheet />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/session-results"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
+                      >
+                        <SessionResult />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/session-results/:studentId"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <SessionResultSheet />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/timetable"
+                    element={
+                      <ProtectedRoute
+                        requiredRole={["ADMIN", "TEACHER", "STUDENT", "PARENT"]}
+                      >
+                        <TimetableManagement />
                       </ProtectedRoute>
                     }
                   />
@@ -560,6 +541,7 @@ function App() {
                 </Routes>
               </div>
             </main>
+
             <Footer />
             <ToastContainer position="top-right" autoClose={3000} />
           </div>

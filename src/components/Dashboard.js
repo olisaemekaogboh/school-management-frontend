@@ -21,12 +21,10 @@ import {
   FaUmbrella,
   FaExclamationTriangle,
   FaInfoCircle,
-  FaMoneyBill,
   FaPlusCircle,
   FaSearch,
   FaEye,
   FaBell,
-  FaUserCheck,
   FaMoneyCheck,
   FaClipboardList,
   FaChartBar,
@@ -86,51 +84,80 @@ function Dashboard() {
     fetchDashboardData();
   }, []);
 
+  const getStudentDisplayName = (student) => {
+    if (!student) return "N/A";
+
+    if (student.fullName && student.fullName.trim()) {
+      return student.fullName;
+    }
+
+    const firstName = student.firstName || "";
+    const lastName = student.lastName || "";
+    const otherName = student.otherName || "";
+
+    const combined = `${firstName} ${otherName} ${lastName}`
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return combined || student.admissionNumber || "N/A";
+  };
+
   const fetchDashboardData = async () => {
     try {
-      // Fetch student statistics
       const statsResponse = await studentAPI.getStatistics();
       setStatistics(statsResponse.data);
 
-      // Fetch all students
       const studentsResponse = await studentAPI.getAllStudents();
-      const recent = studentsResponse.data.slice(0, 5);
-      setRecentStudents(recent);
+      const allStudents = Array.isArray(studentsResponse.data)
+        ? studentsResponse.data
+        : [];
 
-      // Calculate total students
-      const totalStudents = studentsResponse.data.length;
+      setRecentStudents(allStudents.slice(0, 5));
 
-      // Try to fetch today's actual attendance
+      const totalStudents = allStudents.length;
+
       try {
         const today = moment().format("YYYY-MM-DD");
-        // Fetch attendance for a few classes to get real data
-        const classes = [
-          "Primary 1",
-          "Primary 2",
-          "Primary 3",
-          "JSS 1",
-          "JSS 2",
-          "SSS 1",
-        ];
-        const promises = classes.map(async (className) => {
-          try {
-            const res = await attendanceAPI.getClassAttendance(
-              className,
-              today,
-              currentSession,
-              currentTerm,
-            );
-            return res.data;
-          } catch (err) {
-            return [];
+
+        // Build real class/arm combinations from actual students
+        const uniqueClassArms = [];
+        const seen = new Set();
+
+        allStudents.forEach((student) => {
+          const className = student?.studentClass?.trim();
+          const arm = student?.classArm?.trim();
+
+          if (!className || !arm) return;
+
+          const key = `${className}__${arm}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueClassArms.push({ className, arm });
           }
         });
 
-        const results = await Promise.all(promises);
+        const attendancePromises = uniqueClassArms.map(
+          async ({ className, arm }) => {
+            try {
+              const res = await attendanceAPI.getClassAttendance(
+                className,
+                arm,
+                today,
+                currentSession,
+                currentTerm,
+              );
+              return Array.isArray(res.data) ? res.data : [];
+            } catch (err) {
+              return [];
+            }
+          },
+        );
+
+        const results = await Promise.all(attendancePromises);
         const allAttendance = results.flat();
+
         setTodayAttendance(allAttendance);
 
-        // Calculate real attendance stats
         const presentCount = allAttendance.filter(
           (a) => a.status === "PRESENT",
         ).length;
@@ -151,13 +178,13 @@ function Dashboard() {
           totalExcused: excusedCount,
           averageAttendance:
             allAttendance.length > 0
-              ? (presentCount / allAttendance.length) * 100
+              ? ((presentCount + lateCount) / allAttendance.length) * 100
               : 0,
           totalStudents: allAttendance.length,
         });
       } catch (error) {
-        console.log("Using simulated attendance data");
-        // Fallback to simulated data
+        console.log("Using fallback attendance data");
+
         const presentCount = Math.floor(totalStudents * 0.75);
         const lateCount = Math.floor(totalStudents * 0.1);
         const absentCount = Math.floor(totalStudents * 0.1);
@@ -169,17 +196,17 @@ function Dashboard() {
           totalAbsent: absentCount,
           totalLate: lateCount,
           totalExcused: excusedCount,
-          averageAttendance: 85,
-          totalStudents: totalStudents,
+          averageAttendance: totalStudents > 0 ? 85 : 0,
+          totalStudents,
         });
       }
 
-      // Fetch fee statistics
       try {
         const feeResponse = await feeAPI.getFeeStatistics(
           currentSession,
           currentTerm,
         );
+
         if (feeResponse.data) {
           setFeeSummary({
             totalCollected: feeResponse.data.totalCollected || 0,
@@ -195,13 +222,18 @@ function Dashboard() {
         console.log("Fee statistics not available");
       }
 
-      // Fetch announcements
       try {
         const announcementsResponse =
           await announcementAPI.getAllAnnouncements();
-        const activeAnnouncements = announcementsResponse.data
+
+        const allAnnouncements = Array.isArray(announcementsResponse.data)
+          ? announcementsResponse.data
+          : [];
+
+        const activeAnnouncements = allAnnouncements
           .filter((a) => a.active !== false)
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
         setAnnouncements(activeAnnouncements.slice(0, 5));
       } catch (error) {
         console.error("Error fetching announcements:", error);
@@ -301,7 +333,9 @@ function Dashboard() {
       },
       NORMAL: { class: "bg-primary", label: "Normal", icon: <FaInfoCircle /> },
     };
-    const badge = badges[priority] || badges["NORMAL"];
+
+    const badge = badges[priority] || badges.NORMAL;
+
     return (
       <span className={`badge ${badge.class} d-flex align-items-center gap-1`}>
         {badge.icon} {badge.label}
@@ -320,18 +354,12 @@ function Dashboard() {
       EXAM: { icon: "📝", color: "#6f42c1", label: "Exam" },
       GENERAL: { icon: "📢", color: "#6c757d", label: "General" },
     };
+
     return icons[type] || { icon: "📢", color: "#6c757d", label: "General" };
   };
 
-  const totalDisplayedAttendance =
-    attendanceStats.totalPresent +
-    attendanceStats.totalLate +
-    attendanceStats.totalAbsent +
-    attendanceStats.totalExcused;
-
   return (
     <div className="dashboard">
-      {/* Hero Section */}
       <div className="hero-section text-center">
         <div className="container">
           <h1 className="display-4">
@@ -342,7 +370,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
           <div className="stat-card">
@@ -351,6 +378,7 @@ function Dashboard() {
             <p>Total Students</p>
           </div>
         </div>
+
         <div className="col-md-3 mb-3">
           <div
             className="stat-card"
@@ -361,6 +389,7 @@ function Dashboard() {
             <p>Active Students</p>
           </div>
         </div>
+
         <div className="col-md-3 mb-3">
           <div
             className="stat-card"
@@ -375,6 +404,7 @@ function Dashboard() {
             <p>Classes</p>
           </div>
         </div>
+
         <div className="col-md-3 mb-3">
           <div
             className="stat-card"
@@ -389,7 +419,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Attendance Statistics Cards */}
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
           <div
@@ -413,6 +442,7 @@ function Dashboard() {
             <small className="text-white-50">Click to view details</small>
           </div>
         </div>
+
         <div className="col-md-3 mb-3">
           <div
             className="stat-card"
@@ -435,9 +465,10 @@ function Dashboard() {
             <FaClock size={40} className="mb-2" />
             <h3>{attendanceStats.totalLate}</h3>
             <p>Late Today</p>
-            <small className="text-dark-50">Click to view details</small>
+            <small>Click to view details</small>
           </div>
         </div>
+
         <div className="col-md-3 mb-3">
           <div
             className="stat-card"
@@ -462,6 +493,7 @@ function Dashboard() {
             <small className="text-white-50">Click to view details</small>
           </div>
         </div>
+
         <div className="col-md-3 mb-3">
           <div
             className="stat-card"
@@ -488,7 +520,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Info Banner */}
       <div
         className="alert alert-info mb-4"
         style={{
@@ -514,7 +545,6 @@ function Dashboard() {
         </Link>
       </div>
 
-      {/* Quick Attendance Preview */}
       {todayAttendance.length > 0 && (
         <div className="row mb-4">
           <div className="col-12">
@@ -534,6 +564,7 @@ function Dashboard() {
                   {showDailyPreview ? "Hide" : "Show"} Preview
                 </button>
               </div>
+
               {showDailyPreview && (
                 <div className="card-body">
                   <div className="table-responsive">
@@ -547,8 +578,8 @@ function Dashboard() {
                       </thead>
                       <tbody>
                         {todayAttendance.slice(0, 10).map((record, index) => (
-                          <tr key={index}>
-                            <td>{record.student?.fullName || "N/A"}</td>
+                          <tr key={record.id || index}>
+                            <td>{getStudentDisplayName(record.student)}</td>
                             <td>
                               {record.student?.studentClass || "N/A"}{" "}
                               {record.student?.classArm || ""}
@@ -572,6 +603,7 @@ function Dashboard() {
                         ))}
                       </tbody>
                     </table>
+
                     {todayAttendance.length > 10 && (
                       <p className="text-muted mt-2">
                         Showing 10 of {todayAttendance.length} records
@@ -585,7 +617,6 @@ function Dashboard() {
         </div>
       )}
 
-      {/* Charts and Announcements */}
       <div className="row">
         <div className="col-md-6 mb-4">
           <div className="school-card p-3">
@@ -603,7 +634,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Announcements and Recent Students */}
       <div className="row">
         <div className="col-md-6 mb-4">
           <div className="school-card">
@@ -624,16 +654,18 @@ function Dashboard() {
                 <FaEye className="me-1" /> View All
               </Link>
             </div>
+
             <div className="announcements-list">
               {announcements.length > 0 ? (
                 announcements.map((announcement) => {
                   const typeInfo = getAnnouncementTypeIcon(announcement.type);
+
                   return (
                     <div key={announcement.id} className="announcement-item">
                       <div
                         className="announcement-icon"
                         style={{
-                          backgroundColor: typeInfo.color + "20",
+                          backgroundColor: `${typeInfo.color}20`,
                           color: typeInfo.color,
                         }}
                       >
@@ -641,17 +673,19 @@ function Dashboard() {
                           {typeInfo.icon}
                         </span>
                       </div>
+
                       <div className="announcement-content">
                         <div className="announcement-header">
                           <h6 className="announcement-title">
                             {announcement.title}
                           </h6>
+
                           <div className="announcement-badges">
                             {getPriorityBadge(announcement.priority)}
                             <span
                               className="announcement-type"
                               style={{
-                                backgroundColor: typeInfo.color + "20",
+                                backgroundColor: `${typeInfo.color}20`,
                                 color: typeInfo.color,
                               }}
                             >
@@ -659,10 +693,12 @@ function Dashboard() {
                             </span>
                           </div>
                         </div>
+
                         <p className="announcement-text">
                           {announcement.content?.substring(0, 120)}
                           {announcement.content?.length > 120 ? "..." : ""}
                         </p>
+
                         <div className="announcement-meta">
                           <span>
                             <FaCalendarAlt className="me-1" />
@@ -703,6 +739,7 @@ function Dashboard() {
                 Recent Admissions
               </h5>
             </div>
+
             <div className="list-group list-group-flush">
               {recentStudents.length > 0 ? (
                 recentStudents.map((student) => (
@@ -712,7 +749,7 @@ function Dashboard() {
                     className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
                   >
                     <div>
-                      <strong>{student.fullName}</strong>
+                      <strong>{getStudentDisplayName(student)}</strong>
                       <br />
                       <small className="text-muted">
                         {student.admissionNumber}
@@ -736,7 +773,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Quick Actions - ALL BUTTONS RESTORED (New Announcement Removed) */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-4">
@@ -753,15 +789,6 @@ function Dashboard() {
                     borderRadius: "10px",
                     transition: "transform 0.3s, box-shadow 0.3s",
                     textDecoration: "none",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-5px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 20px rgba(40, 167, 69, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
                   <FaClipboardList size={32} className="mb-2" />
@@ -782,15 +809,6 @@ function Dashboard() {
                     transition: "transform 0.3s, box-shadow 0.3s",
                     textDecoration: "none",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-5px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 20px rgba(23, 162, 184, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
                 >
                   <FaChartBar size={32} className="mb-2" />
                   <span className="fw-bold">Daily Report</span>
@@ -809,15 +827,6 @@ function Dashboard() {
                     borderRadius: "10px",
                     transition: "transform 0.3s, box-shadow 0.3s",
                     textDecoration: "none",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-5px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 20px rgba(253, 126, 20, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
                   <FaMoneyCheck size={32} className="mb-2" />
@@ -838,15 +847,6 @@ function Dashboard() {
                     transition: "transform 0.3s, box-shadow 0.3s",
                     textDecoration: "none",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-5px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 20px rgba(102, 16, 242, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
                 >
                   <FaPlusCircle size={32} className="mb-2" />
                   <span className="fw-bold">Register Student</span>
@@ -865,15 +865,6 @@ function Dashboard() {
                     borderRadius: "10px",
                     transition: "transform 0.3s, box-shadow 0.3s",
                     textDecoration: "none",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-5px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 20px rgba(108, 117, 125, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
                   <FaUsers size={32} className="mb-2" />
@@ -894,15 +885,6 @@ function Dashboard() {
                     transition: "transform 0.3s, box-shadow 0.3s",
                     textDecoration: "none",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-5px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 20px rgba(23, 162, 184, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
                 >
                   <FaSearch size={32} className="mb-2" />
                   <span className="fw-bold">Search</span>
@@ -919,16 +901,6 @@ function Dashboard() {
                     color: "white",
                     border: "none",
                     borderRadius: "10px",
-                    transition: "transform 0.3s, box-shadow 0.3s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-5px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 20px rgba(111, 66, 193, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
                   <FaFileAlt size={32} className="mb-2" />
@@ -946,17 +918,7 @@ function Dashboard() {
                     color: "white",
                     border: "none",
                     borderRadius: "10px",
-                    transition: "transform 0.3s, box-shadow 0.3s",
                     textDecoration: "none",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-5px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 10px 20px rgba(253, 126, 20, 0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
                   <FaBell size={32} className="mb-2" />
@@ -969,7 +931,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Attendance Summary Card */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-3">
@@ -1020,6 +981,7 @@ function Dashboard() {
                 </div>
               </div>
             </div>
+
             <div className="mt-3 text-center">
               <p className="text-muted">
                 <strong>Total Students Tracked:</strong>{" "}
@@ -1027,7 +989,8 @@ function Dashboard() {
                 <strong> Attendance Rate:</strong>{" "}
                 {attendanceStats.totalStudents > 0
                   ? (
-                      (attendanceStats.totalPresent /
+                      ((attendanceStats.totalPresent +
+                        attendanceStats.totalLate) /
                         attendanceStats.totalStudents) *
                       100
                     ).toFixed(1)
@@ -1035,28 +998,36 @@ function Dashboard() {
                 %
               </p>
             </div>
+
             <div className="progress mt-2" style={{ height: "25px" }}>
               <div
                 className="progress-bar bg-success"
                 style={{
-                  width: `${attendanceStats.totalStudents > 0 ? (attendanceStats.totalPresent / attendanceStats.totalStudents) * 100 : 0}%`,
+                  width: `${
+                    attendanceStats.totalStudents > 0
+                      ? ((attendanceStats.totalPresent +
+                          attendanceStats.totalLate) /
+                          attendanceStats.totalStudents) *
+                        100
+                      : 0
+                  }%`,
                 }}
               >
                 {attendanceStats.totalStudents > 0
                   ? (
-                      (attendanceStats.totalPresent /
+                      ((attendanceStats.totalPresent +
+                        attendanceStats.totalLate) /
                         attendanceStats.totalStudents) *
                       100
                     ).toFixed(0)
                   : 0}
-                % Present
+                % On Record
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Fee Summary Card */}
       {feeSummary.totalCollected > 0 && (
         <div className="fee-structure mt-4">
           <h4 className="mb-3">💰 Fee Summary</h4>
@@ -1085,7 +1056,6 @@ function Dashboard() {
         </div>
       )}
 
-      {/* Report Modal */}
       <ReportModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}

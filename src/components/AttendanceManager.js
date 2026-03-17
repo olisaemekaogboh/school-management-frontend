@@ -35,6 +35,7 @@ function AttendanceManager() {
 
   const isAdmin = user?.role === "ADMIN";
   const isTeacher = user?.role === "TEACHER";
+  const isStudent = user?.role === "STUDENT";
 
   const query = new URLSearchParams(location.search);
   const classIdFromQuery = query.get("classId") || "";
@@ -53,12 +54,13 @@ function AttendanceManager() {
   const [classStats, setClassStats] = useState(null);
   const [showInlineStats, setShowInlineStats] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
-  const [viewMode, setViewMode] = useState("mark");
+  const [viewMode, setViewMode] = useState(isStudent ? "report" : "mark");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentAttendance, setStudentAttendance] = useState([]);
   const [studentSummary, setStudentSummary] = useState(null);
   const [teacherAssignments, setTeacherAssignments] = useState([]);
+  const [myStudentProfile, setMyStudentProfile] = useState(null);
 
   const [availableSessions, setAvailableSessions] = useState([]);
   const [activeSessionObj, setActiveSessionObj] = useState(null);
@@ -101,6 +103,13 @@ function AttendanceManager() {
   }, [isTeacher, session]);
 
   useEffect(() => {
+    if (isStudent) {
+      loadMyStudentProfile();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStudent]);
+
+  useEffect(() => {
     if (!selectedClass) return;
 
     const allowedArms =
@@ -116,6 +125,7 @@ function AttendanceManager() {
   }, [selectedClass]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (isStudent) return;
     if (!selectedClass || !selectedArm || !session || !term) return;
 
     if (viewMode === "mark" || viewMode === "report") {
@@ -127,11 +137,19 @@ function AttendanceManager() {
   }, [selectedClass, selectedArm, selectedDate, session, term, viewMode]);
 
   useEffect(() => {
-    if (selectedStudent && session && term) {
-      fetchStudentAttendance();
+    if (isStudent && myStudentProfile && session && term) {
+      setSelectedStudent(myStudentProfile);
+      fetchStudentAttendance(myStudentProfile);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStudent, session, term]);
+  }, [isStudent, myStudentProfile, session, term]);
+
+  useEffect(() => {
+    if (!isStudent && selectedStudent && session && term) {
+      fetchStudentAttendance(selectedStudent);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStudent, session, term, isStudent]);
 
   const getSessionName = (sessionItem) => {
     return sessionItem?.session || sessionItem?.sessionName || "";
@@ -178,6 +196,31 @@ function AttendanceManager() {
       toast.error("Failed to load session information");
     } finally {
       setLoadingSession(false);
+    }
+  };
+
+  const loadMyStudentProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await studentAPI.getMyProfile();
+      const student = response?.data || null;
+
+      setMyStudentProfile(student);
+      setSelectedStudent(student || null);
+
+      if (student) {
+        setSelectedClass(student.studentClass || "");
+        setSelectedArm(student.classArm || "");
+        setStudents([student]);
+      }
+    } catch (error) {
+      console.error("Error loading student profile:", error);
+      toast.error("Failed to load your student profile");
+      setMyStudentProfile(null);
+      setSelectedStudent(null);
+      setStudents([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -244,8 +287,17 @@ function AttendanceManager() {
       }));
     }
 
+    if (isStudent && myStudentProfile?.studentClass) {
+      return [
+        {
+          name: myStudentProfile.studentClass,
+          arms: [myStudentProfile.classArm].filter(Boolean),
+        },
+      ];
+    }
+
     return [];
-  }, [isAdmin, isTeacher, teacherAssignments]);
+  }, [isAdmin, isTeacher, isStudent, teacherAssignments, myStudentProfile]);
 
   const selectedTeacherAssignment = useMemo(() => {
     if (!isTeacher) return null;
@@ -503,18 +555,14 @@ function AttendanceManager() {
     }
   };
 
-  const fetchStudentAttendance = async () => {
-    if (!selectedStudent || !session || !term) return;
+  const fetchStudentAttendance = async (studentArg = selectedStudent) => {
+    if (!studentArg || !session || !term) return;
 
     setLoading(true);
     try {
       const [attendanceRes, summaryRes] = await Promise.all([
-        attendanceAPI.getStudentTermAttendance(
-          selectedStudent.id,
-          session,
-          term,
-        ),
-        attendanceAPI.getStudentTermSummary(selectedStudent.id, session, term),
+        attendanceAPI.getStudentTermAttendance(studentArg.id, session, term),
+        attendanceAPI.getStudentTermSummary(studentArg.id, session, term),
       ]);
 
       const records = Array.isArray(attendanceRes.data)
@@ -771,60 +819,67 @@ function AttendanceManager() {
                 className="form-select"
                 value={viewMode}
                 onChange={(e) => setViewMode(e.target.value)}
+                disabled={isStudent}
               >
-                <option value="mark">Mark Attendance</option>
-                <option value="stats">Class Statistics</option>
-                <option value="report">Student Report</option>
+                {!isStudent && <option value="mark">Mark Attendance</option>}
+                {!isStudent && <option value="stats">Class Statistics</option>}
+                <option value="report">
+                  {isStudent ? "My Attendance Report" : "Student Report"}
+                </option>
               </select>
             </div>
 
-            <div className="col-md-2 mb-3">
-              <label className="form-label">Class</label>
-              <select
-                className="form-select"
-                value={selectedClass}
-                onChange={(e) => {
-                  setSelectedClass(e.target.value);
-                  setSelectedArm("");
-                  setSelectedStudent(null);
-                  setShowInlineStats(false);
-                }}
-                disabled={isTeacher && mineFromQuery}
-              >
-                <option value="">Select Class</option>
-                {allowedClassOptions.map((c) => (
-                  <option key={c.name} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-md-2 mb-3">
-              <label className="form-label">Arm</label>
-              <select
-                className="form-select"
-                value={selectedArm}
-                onChange={(e) => {
-                  setSelectedArm(e.target.value);
-                  setSelectedStudent(null);
-                  setShowInlineStats(false);
-                }}
-                disabled={!selectedClass || (isTeacher && mineFromQuery)}
-              >
-                <option value="">Select Arm</option>
-                {selectedClass &&
-                  allowedClassOptions
-                    .find((c) => c.name === selectedClass)
-                    ?.arms.map((arm) => (
-                      <option key={arm} value={arm}>
-                        Arm {arm}
+            {!isStudent && (
+              <>
+                <div className="col-md-2 mb-3">
+                  <label className="form-label">Class</label>
+                  <select
+                    className="form-select"
+                    value={selectedClass}
+                    onChange={(e) => {
+                      setSelectedClass(e.target.value);
+                      setSelectedArm("");
+                      setSelectedStudent(null);
+                      setShowInlineStats(false);
+                    }}
+                    disabled={isTeacher && mineFromQuery}
+                  >
+                    <option value="">Select Class</option>
+                    {allowedClassOptions.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
                       </option>
                     ))}
-              </select>
-            </div>
+                  </select>
+                </div>
 
-            {(viewMode === "mark" || viewMode === "report") && (
+                <div className="col-md-2 mb-3">
+                  <label className="form-label">Arm</label>
+                  <select
+                    className="form-select"
+                    value={selectedArm}
+                    onChange={(e) => {
+                      setSelectedArm(e.target.value);
+                      setSelectedStudent(null);
+                      setShowInlineStats(false);
+                    }}
+                    disabled={!selectedClass || (isTeacher && mineFromQuery)}
+                  >
+                    <option value="">Select Arm</option>
+                    {selectedClass &&
+                      allowedClassOptions
+                        .find((c) => c.name === selectedClass)
+                        ?.arms.map((arm) => (
+                          <option key={arm} value={arm}>
+                            Arm {arm}
+                          </option>
+                        ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {(viewMode === "mark" || (!isStudent && viewMode === "report")) && (
               <div className="col-md-2 mb-3">
                 <label className="form-label">Date</label>
                 <input
@@ -832,6 +887,7 @@ function AttendanceManager() {
                   className="form-control"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
+                  disabled={isStudent}
                 />
               </div>
             )}
@@ -879,212 +935,19 @@ function AttendanceManager() {
             </div>
           </div>
 
-          {viewMode === "mark" && selectedClass && selectedArm && (
-            <div className="mt-3">
-              <label className="form-label me-3 fw-bold">Quick Actions:</label>
+          {!isStudent &&
+            viewMode === "mark" &&
+            selectedClass &&
+            selectedArm && (
+              <div className="mt-3">
+                <label className="form-label me-3 fw-bold">
+                  Quick Actions:
+                </label>
 
-              <div className="d-flex flex-wrap gap-2">
-                <button
-                  className="btn btn-success"
-                  onClick={() => handleMarkAll("PRESENT")}
-                  disabled={loading}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    padding: "10px 20px",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    minWidth: "170px",
-                    height: "42px",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    backgroundColor: "#28a745",
-                    color: "white",
-                  }}
-                >
-                  <FaCheckCircle size={16} />
-                  <span>Mark All Present </span>
-                </button>
-
-                <button
-                  className="btn btn-danger"
-                  onClick={() => handleMarkAll("ABSENT")}
-                  disabled={loading}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    padding: "10px 20px",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    minWidth: "150px",
-                    height: "42px",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    backgroundColor: "#dc3545",
-                    color: "white",
-                  }}
-                >
-                  <FaTimesCircle size={16} />
-                  <span>Mark All Absent</span>
-                </button>
-
-                <button
-                  className="btn btn-warning"
-                  onClick={() => handleMarkAll("LATE")}
-                  disabled={loading}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    padding: "10px 20px",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    minWidth: "150px",
-                    height: "42px",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    backgroundColor: "#ffc107",
-                    color: "#212529",
-                  }}
-                >
-                  <FaClock size={16} />
-                  <span>Mark All Late</span>
-                </button>
-
-                <button
-                  className="btn btn-info"
-                  onClick={() => handleMarkAll("EXCUSED")}
-                  disabled={loading}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    padding: "10px 20px",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    minWidth: "150px",
-                    height: "42px",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    backgroundColor: "#17a2b8",
-                    color: "white",
-                  }}
-                >
-                  <FaExclamationTriangle size={16} />
-                  <span>Mark All Excused</span>
-                </button>
-
-                <button
-                  className="btn btn-outline-dark"
-                  onClick={handleShowInlineStats}
-                  disabled={loading}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    padding: "10px 20px",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    minWidth: "150px",
-                    height: "42px",
-                    border: "1px solid #343a40",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    backgroundColor: "transparent",
-                    color: "#343a40",
-                  }}
-                >
-                  <FaChartBar size={16} />
-                  <span>Show Statistics</span>
-                </button>
-              </div>
-
-              {showInlineStats && (
-                <div className="d-flex flex-wrap gap-2 mt-3">
+                <div className="d-flex flex-wrap gap-2">
                   <button
-                    className="btn btn-outline-success"
-                    onClick={exportStatisticsToCsv}
-                    disabled={loading || !classStats?.studentAttendance?.length}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                      padding: "10px 20px",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      minWidth: "160px",
-                      height: "42px",
-                      border: "1px solid #28a745",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      backgroundColor: "transparent",
-                      color: "#28a745",
-                    }}
-                  >
-                    <FaDownload size={16} />
-                    <span>Export Excel (CSV)</span>
-                  </button>
-
-                  <button
-                    className="btn btn-outline-danger"
-                    onClick={exportStatisticsToPdf}
-                    disabled={
-                      loading ||
-                      exportingPdf ||
-                      !classStats?.studentAttendance?.length
-                    }
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                      padding: "10px 20px",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      minWidth: "160px",
-                      height: "42px",
-                      border: "1px solid #dc3545",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      backgroundColor: "transparent",
-                      color: "#dc3545",
-                    }}
-                  >
-                    {exportingPdf ? (
-                      <>
-                        <FaSpinner className="spin" size={16} />
-                        <span>Exporting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <FaFilePdf size={16} />
-                        <span>Export PDF</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    className="btn btn-outline-secondary"
-                    onClick={handleHideInlineStats}
+                    className="btn btn-success"
+                    onClick={() => handleMarkAll("PRESENT")}
                     disabled={loading}
                     style={{
                       display: "inline-flex",
@@ -1094,40 +957,243 @@ function AttendanceManager() {
                       padding: "10px 20px",
                       fontSize: "14px",
                       fontWeight: "500",
-                      minWidth: "160px",
+                      minWidth: "170px",
                       height: "42px",
-                      border: "1px solid #6c757d",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      backgroundColor: "#28a745",
+                      color: "white",
+                    }}
+                  >
+                    <FaCheckCircle size={16} />
+                    <span>Mark All Present </span>
+                  </button>
+
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => handleMarkAll("ABSENT")}
+                    disabled={loading}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      minWidth: "150px",
+                      height: "42px",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      backgroundColor: "#dc3545",
+                      color: "white",
+                    }}
+                  >
+                    <FaTimesCircle size={16} />
+                    <span>Mark All Absent</span>
+                  </button>
+
+                  <button
+                    className="btn btn-warning"
+                    onClick={() => handleMarkAll("LATE")}
+                    disabled={loading}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      minWidth: "150px",
+                      height: "42px",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      backgroundColor: "#ffc107",
+                      color: "#212529",
+                    }}
+                  >
+                    <FaClock size={16} />
+                    <span>Mark All Late</span>
+                  </button>
+
+                  <button
+                    className="btn btn-info"
+                    onClick={() => handleMarkAll("EXCUSED")}
+                    disabled={loading}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      minWidth: "150px",
+                      height: "42px",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      backgroundColor: "#17a2b8",
+                      color: "white",
+                    }}
+                  >
+                    <FaExclamationTriangle size={16} />
+                    <span>Mark All Excused</span>
+                  </button>
+
+                  <button
+                    className="btn btn-outline-dark"
+                    onClick={handleShowInlineStats}
+                    disabled={loading}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      minWidth: "150px",
+                      height: "42px",
+                      border: "1px solid #343a40",
                       borderRadius: "6px",
                       cursor: "pointer",
                       transition: "all 0.2s",
                       backgroundColor: "transparent",
-                      color: "#6c757d",
+                      color: "#343a40",
                     }}
                   >
-                    <FaTimesCircle size={16} />
-                    <span>Hide Statistics</span>
+                    <FaChartBar size={16} />
+                    <span>Show Statistics</span>
                   </button>
                 </div>
-              )}
-            </div>
-          )}
 
-          {viewMode === "report" && selectedClass && selectedArm && (
-            <div className="mt-3">
-              <div className="input-group">
-                <span className="input-group-text">
-                  <FaSearch />
-                </span>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Search students by name or admission number..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                {showInlineStats && (
+                  <div className="d-flex flex-wrap gap-2 mt-3">
+                    <button
+                      className="btn btn-outline-success"
+                      onClick={exportStatisticsToCsv}
+                      disabled={
+                        loading || !classStats?.studentAttendance?.length
+                      }
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        fontSize: "14px",
+                        fontWeight: "500",
+                        minWidth: "160px",
+                        height: "42px",
+                        border: "1px solid #28a745",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        backgroundColor: "transparent",
+                        color: "#28a745",
+                      }}
+                    >
+                      <FaDownload size={16} />
+                      <span>Export Excel (CSV)</span>
+                    </button>
+
+                    <button
+                      className="btn btn-outline-danger"
+                      onClick={exportStatisticsToPdf}
+                      disabled={
+                        loading ||
+                        exportingPdf ||
+                        !classStats?.studentAttendance?.length
+                      }
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        fontSize: "14px",
+                        fontWeight: "500",
+                        minWidth: "160px",
+                        height: "42px",
+                        border: "1px solid #dc3545",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        backgroundColor: "transparent",
+                        color: "#dc3545",
+                      }}
+                    >
+                      {exportingPdf ? (
+                        <>
+                          <FaSpinner className="spin" size={16} />
+                          <span>Exporting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FaFilePdf size={16} />
+                          <span>Export PDF</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      className="btn btn-outline-secondary"
+                      onClick={handleHideInlineStats}
+                      disabled={loading}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        fontSize: "14px",
+                        fontWeight: "500",
+                        minWidth: "160px",
+                        height: "42px",
+                        border: "1px solid #6c757d",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        backgroundColor: "transparent",
+                        color: "#6c757d",
+                      }}
+                    >
+                      <FaTimesCircle size={16} />
+                      <span>Hide Statistics</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+
+          {!isStudent &&
+            viewMode === "report" &&
+            selectedClass &&
+            selectedArm && (
+              <div className="mt-3">
+                <div className="input-group">
+                  <span className="input-group-text">
+                    <FaSearch />
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search students by name or admission number..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
         </div>
       </div>
 
@@ -1140,7 +1206,7 @@ function AttendanceManager() {
         </div>
       )}
 
-      {!loading && viewMode === "stats" && classStats && (
+      {!loading && !isStudent && viewMode === "stats" && classStats && (
         <div className="card">
           <div className="card-header bg-info text-white">
             <h5 className="mb-0">
@@ -1250,50 +1316,53 @@ function AttendanceManager() {
 
       {!loading && viewMode === "report" && (
         <div className="row">
-          <div className="col-md-4 mb-4">
-            <div className="card">
-              <div className="card-header bg-primary text-white">
-                <h5 className="mb-0">
-                  <FaUsers className="me-2" />
-                  Students in {selectedClass || "-"} - Arm {selectedArm || "-"}
-                </h5>
-              </div>
-              <div className="card-body p-0">
-                <div
-                  className="list-group list-group-flush"
-                  style={{ maxHeight: "500px", overflowY: "auto" }}
-                >
-                  {filteredStudents.map((student) => (
-                    <button
-                      key={student.id}
-                      className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${
-                        selectedStudent?.id === student.id ? "active" : ""
-                      }`}
-                      onClick={() => setSelectedStudent(student)}
-                    >
-                      <div>
-                        <div className="fw-bold">
-                          {student.firstName} {student.lastName}
+          {!isStudent && (
+            <div className="col-md-4 mb-4">
+              <div className="card">
+                <div className="card-header bg-primary text-white">
+                  <h5 className="mb-0">
+                    <FaUsers className="me-2" />
+                    Students in {selectedClass || "-"} - Arm{" "}
+                    {selectedArm || "-"}
+                  </h5>
+                </div>
+                <div className="card-body p-0">
+                  <div
+                    className="list-group list-group-flush"
+                    style={{ maxHeight: "500px", overflowY: "auto" }}
+                  >
+                    {filteredStudents.map((student) => (
+                      <button
+                        key={student.id}
+                        className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${
+                          selectedStudent?.id === student.id ? "active" : ""
+                        }`}
+                        onClick={() => setSelectedStudent(student)}
+                      >
+                        <div>
+                          <div className="fw-bold">
+                            {student.firstName} {student.lastName}
+                          </div>
+                          <small className="text-muted">
+                            {student.admissionNumber}
+                          </small>
                         </div>
-                        <small className="text-muted">
-                          {student.admissionNumber}
-                        </small>
-                      </div>
-                      <FaEye />
-                    </button>
-                  ))}
+                        <FaEye />
+                      </button>
+                    ))}
 
-                  {filteredStudents.length === 0 && (
-                    <div className="list-group-item text-center text-muted">
-                      No students found
-                    </div>
-                  )}
+                    {filteredStudents.length === 0 && (
+                      <div className="list-group-item text-center text-muted">
+                        No students found
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="col-md-8">
+          <div className={isStudent ? "col-12" : "col-md-8"}>
             {selectedStudent ? (
               <div className="card">
                 <div className="card-header bg-info text-white">
@@ -1444,14 +1513,16 @@ function AttendanceManager() {
             ) : (
               <div className="alert alert-info">
                 <FaInfoCircle className="me-2" />
-                Select a student from the list to view their attendance report
+                {isStudent
+                  ? "Your attendance record is not available yet."
+                  : "Select a student from the list to view their attendance report"}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {!loading && viewMode === "mark" && students.length > 0 && (
+      {!loading && !isStudent && viewMode === "mark" && students.length > 0 && (
         <>
           <div className="card">
             <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -1677,7 +1748,7 @@ function AttendanceManager() {
         </>
       )}
 
-      {!loading && !selectedClass && (
+      {!loading && !isStudent && !selectedClass && (
         <div className="alert alert-info">
           <FaFilter className="me-2" />
           Please select a class and arm to view attendance.

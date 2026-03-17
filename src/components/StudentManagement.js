@@ -11,6 +11,10 @@ import {
   FaTrash,
   FaArrowUp,
   FaArrowDown,
+  FaUsers,
+  FaUserCheck,
+  FaSchool,
+  FaUserPlus,
 } from "react-icons/fa";
 
 function StudentManagement() {
@@ -25,7 +29,9 @@ function StudentManagement() {
   const teacherScoped = isTeacher && mine === "true" && !!classId;
 
   const [students, setStudents] = useState([]);
+  const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [pageTitle, setPageTitle] = useState("Student Management");
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
@@ -69,6 +75,11 @@ function StudentManagement() {
 
   useEffect(() => {
     fetchStudents();
+    if (isAdmin && !teacherScoped) {
+      fetchStatistics();
+    } else {
+      setStatistics(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mine, classId, user?.role]);
 
@@ -108,6 +119,22 @@ function StudentManagement() {
       toast.error(error?.response?.data?.message || "Failed to load students");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStatistics = async () => {
+    setStatsLoading(true);
+    try {
+      const response = await studentAPI.getStatistics();
+      setStatistics(response?.data || {});
+    } catch (error) {
+      console.error("Error fetching student statistics:", error);
+      setStatistics(null);
+      toast.error(
+        error?.response?.data?.message || "Failed to load student statistics",
+      );
+    } finally {
+      setStatsLoading(false);
     }
   };
 
@@ -187,6 +214,9 @@ function StudentManagement() {
       await studentAPI.deleteStudent(id);
       toast.success("Student deleted successfully");
       fetchStudents();
+      if (isAdmin && !teacherScoped) {
+        fetchStatistics();
+      }
     } catch (error) {
       console.error("Error deleting student:", error);
       toast.error("Failed to delete student");
@@ -217,6 +247,14 @@ function StudentManagement() {
   );
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
 
+  const classBreakdownCount = Array.isArray(statistics?.studentsByClass)
+    ? statistics.studentsByClass.length
+    : 0;
+
+  const recentAdmissionsCount = Array.isArray(statistics?.recentAdmissions)
+    ? statistics.recentAdmissions.length
+    : 0;
+
   return (
     <div className="container-fluid py-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -229,6 +267,74 @@ function StudentManagement() {
           </Link>
         )}
       </div>
+
+      {isAdmin && !teacherScoped && (
+        <div className="row g-3 mb-4">
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0">
+              <div className="card-body d-flex align-items-center gap-3">
+                <div className="fs-3 text-primary">
+                  <FaUsers />
+                </div>
+                <div>
+                  <h4 className="mb-0">
+                    {statsLoading ? "..." : (statistics?.totalStudents ?? 0)}
+                  </h4>
+                  <small className="text-muted">Total Students</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0">
+              <div className="card-body d-flex align-items-center gap-3">
+                <div className="fs-3 text-success">
+                  <FaUserCheck />
+                </div>
+                <div>
+                  <h4 className="mb-0">
+                    {statsLoading ? "..." : (statistics?.activeStudents ?? 0)}
+                  </h4>
+                  <small className="text-muted">Active Students</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0">
+              <div className="card-body d-flex align-items-center gap-3">
+                <div className="fs-3 text-warning">
+                  <FaSchool />
+                </div>
+                <div>
+                  <h4 className="mb-0">
+                    {statsLoading ? "..." : classBreakdownCount}
+                  </h4>
+                  <small className="text-muted">Class Groups</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0">
+              <div className="card-body d-flex align-items-center gap-3">
+                <div className="fs-3 text-info">
+                  <FaUserPlus />
+                </div>
+                <div>
+                  <h4 className="mb-0">
+                    {statsLoading ? "..." : recentAdmissionsCount}
+                  </h4>
+                  <small className="text-muted">Recent Admissions</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card mb-4">
         <div className="card-body">

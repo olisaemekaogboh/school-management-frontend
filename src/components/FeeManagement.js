@@ -1027,7 +1027,7 @@ function FeeManagement() {
   if (loadingSession) {
     return (
       <div className="fee-management">
-        <div className="content-wrapper">
+        <div className="fee-content-wrapper">
           <div className="loading-spinner">
             <FiLoader className="spin" />
             <p>Loading active session...</p>
@@ -1040,7 +1040,7 @@ function FeeManagement() {
   if (isTeacher) {
     return (
       <div className="fee-management">
-        <div className="content-wrapper">
+        <div className="fee-content-wrapper">
           <div className="glass-effect p-4 text-center">
             <FiXCircle size={42} className="mb-3 text-danger" />
             <h3>Access Restricted</h3>
@@ -1064,7 +1064,7 @@ function FeeManagement() {
         <div className="gradient-orb orb-3"></div>
       </div>
 
-      <div className="content-wrapper">
+      <div className="fee-content-wrapper">
         <div className="header-section glass-effect">
           <div className="header-top">
             <div className="header-title">

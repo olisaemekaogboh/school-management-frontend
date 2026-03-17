@@ -188,19 +188,7 @@ function Navbar() {
       label: "Finance",
       icon: <FaMoneyBill />,
       name: "finance",
-      items: [
-        { path: "/fees", label: "Fees", icon: <FaMoneyBill /> },
-        {
-          path: "/fees/payments",
-          label: "Payments",
-          icon: <FaMoneyBill />,
-        },
-        {
-          path: "/fees/defaulters",
-          label: "Defaulters",
-          icon: <FaMoneyBill />,
-        },
-      ],
+      items: [{ path: "/fees", label: "Fees", icon: <FaMoneyBill /> }],
     },
     {
       type: "dropdown",

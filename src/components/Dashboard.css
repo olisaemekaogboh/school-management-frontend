@@ -1,0 +1,83 @@
+.dashboard-page {
+  padding: 24px;
+}
+
+.dashboard-hero {
+  background: linear-gradient(135deg, #003366, #008753);
+  color: #fff;
+  border-radius: 16px;
+  padding: 28px 20px;
+  margin-bottom: 24px;
+}
+
+.dashboard-hero h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.dashboard-hero p {
+  margin: 0;
+  opacity: 0.95;
+}
+
+.dashboard-loading {
+  min-height: 55vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.debug-box {
+  background: #fff3cd;
+  border: 1px solid #ffe69c;
+  color: #664d03;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 0.95rem;
+}
+
+.stat-card {
+  min-height: 180px;
+  border-radius: 16px;
+  padding: 22px 16px;
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(135deg, #008753, #003366);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-card h3 {
+  margin: 8px 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.stat-card p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .dashboard-page {
+    padding: 16px;
+  }
+
+  .dashboard-hero {
+    padding: 22px 16px;
+  }
+
+  .dashboard-hero h1 {
+    font-size: 1.6rem;
+  }
+
+  .stat-card {
+    min-height: 150px;
+  }
+}

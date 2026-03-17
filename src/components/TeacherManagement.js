@@ -150,9 +150,30 @@ const TeacherManagement = () => {
   const fetchStatistics = async () => {
     try {
       const response = await teacherAPI.getTeacherStatistics();
-      setStatistics(response.data);
+      const stats = response?.data || {};
+
+      setStatistics({
+        totalTeachers: stats.totalTeachers ?? 0,
+        activeTeachers: stats.activeTeachers ?? 0,
+        inactiveTeachers:
+          stats.inactiveTeachers ??
+          stats.inactive ??
+          stats.totalInactiveTeachers ??
+          0,
+        specializationBreakdown:
+          stats.specializationBreakdown ?? stats.specializations ?? {},
+      });
     } catch (error) {
       console.error("Error fetching statistics:", error);
+      setStatistics({
+        totalTeachers: 0,
+        activeTeachers: 0,
+        inactiveTeachers: 0,
+        specializationBreakdown: {},
+      });
+      toast.error(
+        error?.response?.data?.message || "Failed to load teacher statistics",
+      );
     }
   };
 
