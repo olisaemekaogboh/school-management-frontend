@@ -1,20 +1,18 @@
 // src/components/TeacherForm.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { teacherAPI } from "../services/api";
 import { toast } from "react-toastify";
 import {
+  NIGERIAN_STATES,
+  LGA_BY_STATE,
+  NATIONALITIES,
+  RELIGIONS,
+} from "../utils/constants";
+import {
   FaUser,
-  FaEnvelope,
-  FaPhone,
   FaBook,
   FaGraduationCap,
-  FaIdCard,
-  FaMapMarkerAlt,
-  FaBriefcase,
-  FaCalendarAlt,
-  FaVenusMars,
-  FaUserTie,
   FaSpinner,
   FaArrowLeft,
   FaSave,
@@ -25,12 +23,16 @@ import {
   FaTrash,
   FaUpload,
   FaExclamationTriangle,
+  FaUserTie,
+  FaMapMarkerAlt,
+  FaBriefcase,
 } from "react-icons/fa";
 import "./TeacherForm.css";
 
 function TeacherForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [invitationMethod, setInvitationMethod] = useState("direct");
@@ -128,11 +130,34 @@ function TeacherForm() {
     "Fine Arts",
   ];
 
+  const stateLGAs = useMemo(() => {
+    return formData.state ? LGA_BY_STATE[formData.state] || [] : [];
+  }, [formData.state]);
+
+  const originLGAs = useMemo(() => {
+    return formData.stateOfOrigin
+      ? LGA_BY_STATE[formData.stateOfOrigin] || []
+      : [];
+  }, [formData.stateOfOrigin]);
+
   useEffect(() => {
     if (id) {
       fetchTeacher(id);
     }
   }, [id]);
+
+  useEffect(() => {
+    if (
+      formData.localGovernmentArea &&
+      formData.stateOfOrigin &&
+      !originLGAs.includes(formData.localGovernmentArea)
+    ) {
+      setFormData((prev) => ({
+        ...prev,
+        localGovernmentArea: "",
+      }));
+    }
+  }, [formData.stateOfOrigin, formData.localGovernmentArea, originLGAs]);
 
   const fetchTeacher = async (teacherId) => {
     setLoading(true);
@@ -209,14 +234,23 @@ function TeacherForm() {
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
 
-    setFormData({
-      ...formData,
-      [name]: type === "number" ? parseInt(value) || 0 : value,
+    let nextValue = type === "number" ? parseInt(value, 10) || 0 : value;
+
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [name]: nextValue,
+      };
+
+      if (name === "stateOfOrigin") {
+        updated.localGovernmentArea = "";
+      }
+
+      return updated;
     });
 
-    // Clear error for this field
     if (formErrors[name]) {
-      setFormErrors({ ...formErrors, [name]: null });
+      setFormErrors((prev) => ({ ...prev, [name]: null }));
     }
   };
 
@@ -225,8 +259,7 @@ function TeacherForm() {
     setUploadError("");
 
     if (file) {
-      // Check file size (5MB max)
-      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+      const maxSize = 5 * 1024 * 1024;
       if (file.size > maxSize) {
         setUploadError("File size exceeds 5MB limit");
         toast.error("File size exceeds 5MB limit");
@@ -234,13 +267,13 @@ function TeacherForm() {
         return;
       }
 
-      // Check file type
       const allowedTypes = [
         "image/jpeg",
         "image/jpg",
         "image/png",
         "image/gif",
       ];
+
       if (!allowedTypes.includes(file.type)) {
         setUploadError("Only JPG, PNG, and GIF images are allowed");
         toast.error("Only JPG, PNG, and GIF images are allowed");
@@ -266,8 +299,7 @@ function TeacherForm() {
   };
 
   const handleRemoveSubject = (index) => {
-    const updatedSubjects = subjects.filter((_, i) => i !== index);
-    setSubjects(updatedSubjects);
+    setSubjects(subjects.filter((_, i) => i !== index));
   };
 
   const handleAddQualification = () => {
@@ -281,8 +313,7 @@ function TeacherForm() {
   };
 
   const handleRemoveQualification = (index) => {
-    const updatedQualifications = qualifications.filter((_, i) => i !== index);
-    setQualifications(updatedQualifications);
+    setQualifications(qualifications.filter((_, i) => i !== index));
   };
 
   const validateForm = () => {
@@ -291,11 +322,13 @@ function TeacherForm() {
     if (!formData.firstName?.trim())
       errors.firstName = "First name is required";
     if (!formData.lastName?.trim()) errors.lastName = "Last name is required";
+
     if (!formData.email?.trim()) {
       errors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       errors.email = "Email is invalid";
     }
+
     if (!formData.phoneNumber?.trim())
       errors.phoneNumber = "Phone number is required";
     if (!formData.gender) errors.gender = "Gender is required";
@@ -327,19 +360,16 @@ function TeacherForm() {
     setSubmitting(true);
 
     try {
-      // Prepare teacher data object - filter out empty values
       const teacherData = {
         ...formData,
         subjects: subjects.filter((s) => s && s.trim() !== ""),
         additionalQualifications: qualifications.filter(
           (q) => q && q.trim() !== "",
         ),
-        // Ensure numbers are proper
         yearsOfExperience: Number(formData.yearsOfExperience) || 0,
         numberOfChildren: Number(formData.numberOfChildren) || 0,
       };
 
-      // Remove empty strings
       Object.keys(teacherData).forEach((key) => {
         if (
           teacherData[key] === "" ||
@@ -350,16 +380,13 @@ function TeacherForm() {
         }
       });
 
-      // Create FormData
       const formDataToSend = new FormData();
 
-      // Append teacher data as JSON blob with key 'teacher'
       const teacherBlob = new Blob([JSON.stringify(teacherData)], {
         type: "application/json",
       });
       formDataToSend.append("teacher", teacherBlob);
 
-      // Append profile picture if selected
       if (profilePicture) {
         formDataToSend.append("profilePicture", profilePicture);
       }
@@ -459,7 +486,9 @@ function TeacherForm() {
             <h3>Registration Method</h3>
             <div className="method-options">
               <label
-                className={`method-option ${invitationMethod === "direct" ? "selected" : ""}`}
+                className={`method-option ${
+                  invitationMethod === "direct" ? "selected" : ""
+                }`}
               >
                 <input
                   type="radio"
@@ -474,7 +503,9 @@ function TeacherForm() {
               </label>
 
               <label
-                className={`method-option ${invitationMethod === "invite" ? "selected" : ""}`}
+                className={`method-option ${
+                  invitationMethod === "invite" ? "selected" : ""
+                }`}
               >
                 <input
                   type="radio"
@@ -498,7 +529,6 @@ function TeacherForm() {
               : handleSubmit
           }
         >
-          {/* Profile Picture Upload */}
           <div className="form-section">
             <h3>Profile Picture</h3>
             <div className="profile-upload">
@@ -690,44 +720,68 @@ function TeacherForm() {
 
               <div className="form-group">
                 <label>Religion</label>
-                <input
-                  type="text"
+                <select
                   name="religion"
                   value={formData.religion}
                   onChange={handleInputChange}
-                />
+                >
+                  <option value="">Select Religion</option>
+                  {RELIGIONS.map((religion) => (
+                    <option key={religion} value={religion}>
+                      {religion}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
                 <label>Nationality</label>
-                <input
-                  type="text"
+                <select
                   name="nationality"
                   value={formData.nationality}
                   onChange={handleInputChange}
-                />
+                >
+                  {NATIONALITIES.map((nationality) => (
+                    <option key={nationality} value={nationality}>
+                      {nationality}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
                 <label>State of Origin</label>
-                <input
-                  type="text"
+                <select
                   name="stateOfOrigin"
                   value={formData.stateOfOrigin}
                   onChange={handleInputChange}
-                />
+                >
+                  <option value="">Select State of Origin</option>
+                  {NIGERIAN_STATES.map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
                 <label>Local Government Area</label>
-                <input
-                  type="text"
+                <select
                   name="localGovernmentArea"
                   value={formData.localGovernmentArea}
                   onChange={handleInputChange}
-                />
+                  disabled={!formData.stateOfOrigin}
+                >
+                  <option value="">Select Local Government Area</option>
+                  {originLGAs.map((lga) => (
+                    <option key={lga} value={lga}>
+                      {lga}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -760,12 +814,18 @@ function TeacherForm() {
 
               <div className="form-group">
                 <label>State/Province</label>
-                <input
-                  type="text"
+                <select
                   name="state"
                   value={formData.state}
                   onChange={handleInputChange}
-                />
+                >
+                  <option value="">Select State</option>
+                  {NIGERIAN_STATES.map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
@@ -778,6 +838,19 @@ function TeacherForm() {
                 />
               </div>
             </div>
+
+            {formData.state && stateLGAs.length > 0 && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label>State LGAs</label>
+                  <select disabled>
+                    <option>
+                      {stateLGAs.length} LGAs available for {formData.state}
+                    </option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="form-section">

@@ -1,5 +1,5 @@
 // src/components/StudentForm.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { studentAPI } from "../services/api";
 import {
@@ -67,6 +67,98 @@ function StudentForm() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errors, setErrors] = useState({});
 
+  const CANONICAL_CLASS_OPTIONS = useMemo(() => {
+    return (STUDENT_CLASSES || []).map((cls) => ({
+      value: String(cls).trim(),
+      label: String(cls).trim(),
+    }));
+  }, []);
+
+  const buildProfileImageUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("http")) return url;
+    return `http://localhost:8080${url}`;
+  };
+
+  const normalizeSpaces = (value) =>
+    String(value || "")
+      .trim()
+      .replace(/\s+/g, " ");
+
+  const normalizeClassValue = (value) => {
+    if (!value) return "";
+
+    const raw = normalizeSpaces(value);
+    const compact = raw.toLowerCase().replace(/\s+/g, "");
+
+    const aliasMap = {
+      nursery: "Nursery",
+      nursery1: "Nursery 1",
+      nursery2: "Nursery 2",
+      kg1: "Kindergarten 1",
+      kg2: "Kindergarten 2",
+      kindergarten1: "Kindergarten 1",
+      kindergarten2: "Kindergarten 2",
+      primary1: "Primary 1",
+      primary2: "Primary 2",
+      primary3: "Primary 3",
+      primary4: "Primary 4",
+      primary5: "Primary 5",
+      primary6: "Primary 6",
+      pry1: "Primary 1",
+      pry2: "Primary 2",
+      pry3: "Primary 3",
+      pry4: "Primary 4",
+      pry5: "Primary 5",
+      pry6: "Primary 6",
+      jss1: "JSS 1",
+      jss2: "JSS 2",
+      jss3: "JSS 3",
+      js1: "JSS 1",
+      js2: "JSS 2",
+      js3: "JSS 3",
+      ss1: "SSS 1",
+      ss2: "SSS 2",
+      ss3: "SSS 3",
+      sss1: "SSS 1",
+      sss2: "SSS 2",
+      sss3: "SSS 3",
+    };
+
+    if (aliasMap[compact]) {
+      return aliasMap[compact];
+    }
+
+    const exactMatch = CANONICAL_CLASS_OPTIONS.find(
+      (item) => item.value.toLowerCase() === raw.toLowerCase(),
+    );
+    if (exactMatch) {
+      return exactMatch.value;
+    }
+
+    return raw;
+  };
+
+  const normalizeArmValue = (value) => {
+    if (!value) return "";
+    return String(value).trim().toUpperCase();
+  };
+
+  const resolveStudentClassFromResponse = (student) => {
+    return normalizeClassValue(
+      student?.studentClass ||
+        student?.className ||
+        student?.schoolClass?.className ||
+        "",
+    );
+  };
+
+  const resolveClassArmFromResponse = (student) => {
+    return normalizeArmValue(
+      student?.classArm || student?.arm || student?.schoolClass?.arm || "",
+    );
+  };
+
   useEffect(() => {
     if (isEditMode) {
       fetchStudent();
@@ -91,22 +183,6 @@ function StudentForm() {
     }
   }, [formData.stateOfOrigin, formData.localGovtArea]);
 
-  const buildProfileImageUrl = (url) => {
-    if (!url) return "";
-    if (url.startsWith("http")) return url;
-    return `http://localhost:8080${url}`;
-  };
-
-  const normalizeClassValue = (value) => {
-    if (!value) return "";
-    return String(value).trim().replace(/\s+/g, " ");
-  };
-
-  const normalizeArmValue = (value) => {
-    if (!value) return "";
-    return String(value).trim().toUpperCase();
-  };
-
   const fetchStudent = async () => {
     setLoading(true);
     try {
@@ -125,8 +201,8 @@ function StudentForm() {
         dateOfBirth: formattedDate,
         religion: student.religion || "",
         nationality: student.nationality || "Nigerian",
-        studentClass: normalizeClassValue(student.studentClass || ""),
-        classArm: normalizeArmValue(student.classArm || ""),
+        studentClass: resolveStudentClassFromResponse(student),
+        classArm: resolveClassArmFromResponse(student),
         status: student.status || "ACTIVE",
         previousSchool: student.previousSchool || "",
         parentName: student.parentName || "",
@@ -277,6 +353,22 @@ function StudentForm() {
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.parentEmail)
     ) {
       newErrors.parentEmail = "Invalid email format";
+    }
+
+    const normalizedClass = normalizeClassValue(formData.studentClass);
+    const isKnownClass = CANONICAL_CLASS_OPTIONS.some(
+      (item) => item.value === normalizedClass,
+    );
+
+    if (normalizedClass && !isKnownClass) {
+      newErrors.studentClass = "Please select a valid class";
+    }
+
+    if (
+      formData.classArm &&
+      !CLASS_ARMS.includes(normalizeArmValue(formData.classArm))
+    ) {
+      newErrors.classArm = "Please select a valid class arm";
     }
 
     setErrors(newErrors);
@@ -541,8 +633,8 @@ function StudentForm() {
                           <strong>Passport photograph (200x200 pixels)</strong>
                         </li>
                         <li>
-                          The photo will appear on student's profile, result
-                          sheets, and ID card
+                          The photo will appear on student&apos;s profile,
+                          result sheets, and ID card
                         </li>
                       </ul>
                     </div>
@@ -694,9 +786,9 @@ function StudentForm() {
                   onChange={handleChange}
                 >
                   <option value="">Select Class</option>
-                  {STUDENT_CLASSES.map((cls) => (
-                    <option key={cls} value={cls}>
-                      {cls}
+                  {CANONICAL_CLASS_OPTIONS.map((cls) => (
+                    <option key={cls.value} value={cls.value}>
+                      {cls.label}
                     </option>
                   ))}
                 </select>

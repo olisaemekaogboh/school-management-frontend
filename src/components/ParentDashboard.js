@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { parentPortalAPI } from "../services/api";
@@ -39,44 +39,106 @@ function ParentDashboard() {
     useActiveSession("FIRST");
 
   useEffect(() => {
-    fetchWards();
-  }, []);
+    if (!loadingSession) {
+      fetchDashboardData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingSession, session, term]);
 
   const normalizeWardsResponse = (data) => {
-    if (Array.isArray(data)) {
-      return data;
-    }
-    if (Array.isArray(data?.wards)) {
-      return data.wards;
-    }
-    if (Array.isArray(data?.data)) {
-      return data.data;
-    }
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.wards)) return data.wards;
+    if (Array.isArray(data?.data)) return data.data;
     return [];
   };
 
-  const fetchWards = async () => {
+  const getWardFullName = (ward) => {
+    return (
+      ward?.fullName ||
+      `${ward?.firstName || ""} ${ward?.middleName || ""} ${ward?.lastName || ""}`
+        .replace(/\s+/g, " ")
+        .trim()
+    );
+  };
+
+  const getWardProfilePicture = (ward) => {
+    return ward?.profilePictureUrl || ward?.profilePicture || "";
+  };
+
+  const normalizeAttendanceSummary = (data, ward) => {
+    return {
+      attendance: Number(data?.attendancePercentage || 0),
+      totalSchoolDays: Number(data?.totalSchoolDays || 0),
+      daysPresent: Number(data?.daysPresent || 0),
+      daysAbsent: Number(data?.daysAbsent || 0),
+      daysLate: Number(data?.daysLate || 0),
+      daysExcused: Number(data?.daysExcused || 0),
+      session: data?.session || session || "",
+      term: data?.term || term || "",
+      nextClass: getNextClass(ward?.studentClass),
+    };
+  };
+
+  const normalizeSessionResult = (data) => {
+    return {
+      annualAverage: Number(
+        data?.annualAverage ??
+          data?.annualSummary?.annualAverage ??
+          data?.average ??
+          0,
+      ),
+      annualTotal: Number(
+        data?.annualTotal ?? data?.annualSummary?.annualTotal ?? 0,
+      ),
+      attendancePercentage: Number(data?.attendancePercentage || 0),
+      promoted:
+        typeof data?.promoted === "boolean"
+          ? data.promoted
+          : data?.promotion?.promoted || false,
+      promotionRemark: data?.promotionRemark || data?.promotion?.remark || "",
+      firstTermAverage: Number(data?.firstTermAverage || 0),
+      secondTermAverage: Number(data?.secondTermAverage || 0),
+      thirdTermAverage: Number(data?.thirdTermAverage || 0),
+    };
+  };
+
+  const normalizeFees = (data) => {
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.fees)
+        ? data.fees
+        : [];
+    const total = list.reduce(
+      (acc, item) => acc + Number(item?.amount || 0),
+      0,
+    );
+    const paid = list.reduce(
+      (acc, item) => acc + Number(item?.paidAmount || 0),
+      0,
+    );
+    const balance = list.reduce(
+      (acc, item) => acc + Number(item?.balance || 0),
+      0,
+    );
+
+    return {
+      total,
+      paid,
+      balance,
+      count: list.length,
+      fees: list,
+    };
+  };
+
+  const fetchDashboardData = async () => {
     setLoading(true);
     setErrorMessage("");
 
     try {
       const response = await parentPortalAPI.getMyWards();
-      console.log("Parent wards response:", response?.data);
-
       const normalizedWards = normalizeWardsResponse(response?.data);
-      setWards(normalizedWards);
 
-      // Generate mock stats for each ward
-      const stats = {};
-      normalizedWards.forEach((ward) => {
-        stats[ward.id] = {
-          attendance: Math.floor(Math.random() * 15 + 85), // 85-100%
-          performance: Math.floor(Math.random() * 20 + 70), // 70-90%
-          assignments: Math.floor(Math.random() * 5 + 5), // 5-10
-          nextClass: getNextClass(ward.studentClass),
-        };
-      });
-      setWardStats(stats);
+      setWards(normalizedWards);
 
       if (!Array.isArray(response?.data) && normalizedWards.length === 0) {
         const backendMessage =
@@ -89,6 +151,79 @@ function ParentDashboard() {
           setErrorMessage(backendMessage);
         }
       }
+
+      const statsEntries = await Promise.all(
+        normalizedWards.map(async (ward) => {
+          const stats = {
+            attendance: 0,
+            totalSchoolDays: 0,
+            daysPresent: 0,
+            daysAbsent: 0,
+            daysLate: 0,
+            daysExcused: 0,
+            annualAverage: 0,
+            annualTotal: 0,
+            promoted: false,
+            promotionRemark: "",
+            feeTotal: 0,
+            feePaid: 0,
+            feeBalance: 0,
+            feeCount: 0,
+            nextClass: getNextClass(ward?.studentClass),
+          };
+
+          try {
+            const attendanceRes = await parentPortalAPI.getWardAttendance(
+              ward.id,
+              session,
+              term,
+            );
+            Object.assign(
+              stats,
+              normalizeAttendanceSummary(attendanceRes?.data, ward),
+            );
+          } catch (error) {
+            console.error(`Attendance load failed for ward ${ward.id}`, error);
+          }
+
+          try {
+            const sessionResultRes = await parentPortalAPI.getWardSessionResult(
+              ward.id,
+              session,
+            );
+            Object.assign(
+              stats,
+              normalizeSessionResult(sessionResultRes?.data),
+            );
+          } catch (error) {
+            console.error(
+              `Session result load failed for ward ${ward.id}`,
+              error,
+            );
+          }
+
+          try {
+            if (parentPortalAPI.getWardFees) {
+              const feesRes = await parentPortalAPI.getWardFees(
+                ward.id,
+                session,
+                term,
+              );
+              const feeSummary = normalizeFees(feesRes?.data);
+              stats.feeTotal = feeSummary.total;
+              stats.feePaid = feeSummary.paid;
+              stats.feeBalance = feeSummary.balance;
+              stats.feeCount = feeSummary.count;
+            }
+          } catch (error) {
+            console.error(`Fees load failed for ward ${ward.id}`, error);
+          }
+
+          return [ward.id, stats];
+        }),
+      );
+
+      setWardStats(Object.fromEntries(statsEntries));
     } catch (error) {
       console.error("Error fetching wards:", error);
 
@@ -100,6 +235,7 @@ function ParentDashboard() {
 
       setErrorMessage(backendMessage);
       setWards([]);
+      setWardStats({});
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -123,7 +259,9 @@ function ParentDashboard() {
       "SSS 3",
     ];
 
-    const index = classOrder.indexOf(currentClass);
+    const normalized = String(currentClass || "").trim();
+    const index = classOrder.findIndex((c) => c === normalized);
+
     if (index !== -1 && index < classOrder.length - 1) {
       return classOrder[index + 1];
     }
@@ -132,7 +270,7 @@ function ParentDashboard() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchWards();
+    await fetchDashboardData();
   };
 
   const getPerformanceColor = (percentage) => {
@@ -143,13 +281,46 @@ function ParentDashboard() {
     return "#F44336";
   };
 
+  const overviewStats = useMemo(() => {
+    if (!wards.length) {
+      return {
+        avgAttendance: 0,
+        avgPerformance: 0,
+        totalOutstanding: 0,
+      };
+    }
+
+    const avgAttendance =
+      wards.reduce(
+        (acc, ward) => acc + Number(wardStats[ward.id]?.attendance || 0),
+        0,
+      ) / wards.length;
+
+    const avgPerformance =
+      wards.reduce(
+        (acc, ward) => acc + Number(wardStats[ward.id]?.annualAverage || 0),
+        0,
+      ) / wards.length;
+
+    const totalOutstanding = wards.reduce(
+      (acc, ward) => acc + Number(wardStats[ward.id]?.feeBalance || 0),
+      0,
+    );
+
+    return {
+      avgAttendance: Math.round(avgAttendance),
+      avgPerformance: Math.round(avgPerformance),
+      totalOutstanding,
+    };
+  }, [wards, wardStats]);
+
   if (loading || loadingSession) {
     return (
       <div className="parent-dashboard-loading">
         <div className="loading-spinner">
           <FaSpinner className="spin" size={50} />
           <h3>Loading Dashboard</h3>
-          <p>Please wait while we fetch your wards' information...</p>
+          <p>Please wait while we fetch your wards&apos; information...</p>
         </div>
       </div>
     );
@@ -157,7 +328,6 @@ function ParentDashboard() {
 
   return (
     <div className="parent-dashboard">
-      {/* Header Section */}
       <div className="dashboard-header">
         <div className="header-content">
           <div className="header-left">
@@ -166,7 +336,7 @@ function ParentDashboard() {
               Welcome back, {user?.firstName}!
             </h1>
             <p className="header-subtitle">
-              Monitor your wards' academic progress and activities
+              Monitor your wards&apos; academic progress and activities
             </p>
           </div>
           <div className="header-right">
@@ -196,7 +366,6 @@ function ParentDashboard() {
         </div>
       </div>
 
-      {/* Error Message */}
       {errorMessage && (
         <div className="error-alert">
           <FaExclamationTriangle className="alert-icon" />
@@ -207,7 +376,6 @@ function ParentDashboard() {
         </div>
       )}
 
-      {/* No Wards State */}
       {wards.length === 0 ? (
         <div className="no-wards-container">
           <div className="no-wards-card">
@@ -221,7 +389,6 @@ function ParentDashboard() {
         </div>
       ) : (
         <>
-          {/* Quick Stats Overview */}
           <div className="stats-overview">
             <div className="stat-card total-wards">
               <div className="stat-icon">
@@ -232,6 +399,7 @@ function ParentDashboard() {
                 <span className="stat-value">{wards.length}</span>
               </div>
             </div>
+
             <div className="stat-card avg-attendance">
               <div className="stat-icon">
                 <FaClock />
@@ -239,16 +407,11 @@ function ParentDashboard() {
               <div className="stat-content">
                 <span className="stat-label">Avg Attendance</span>
                 <span className="stat-value">
-                  {Math.round(
-                    wards.reduce(
-                      (acc, w) => acc + (wardStats[w.id]?.attendance || 0),
-                      0,
-                    ) / wards.length,
-                  )}
-                  %
+                  {overviewStats.avgAttendance}%
                 </span>
               </div>
             </div>
+
             <div className="stat-card avg-performance">
               <div className="stat-icon">
                 <FaChartBar />
@@ -256,196 +419,269 @@ function ParentDashboard() {
               <div className="stat-content">
                 <span className="stat-label">Avg Performance</span>
                 <span className="stat-value">
-                  {Math.round(
-                    wards.reduce(
-                      (acc, w) => acc + (wardStats[w.id]?.performance || 0),
-                      0,
-                    ) / wards.length,
-                  )}
-                  %
+                  {overviewStats.avgPerformance}%
                 </span>
               </div>
             </div>
+
             <div className="stat-card active-session">
               <div className="stat-icon">
-                <FaBookOpen />
+                <FaMoneyBill />
               </div>
               <div className="stat-content">
-                <span className="stat-label">Current Term</span>
-                <span className="stat-value">{term}</span>
+                <span className="stat-label">Outstanding Fees</span>
+                <span className="stat-value">
+                  ₦{overviewStats.totalOutstanding.toLocaleString()}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Wards Grid */}
           <div className="wards-grid">
-            {wards.map((ward) => (
-              <div
-                key={ward.id}
-                className={`ward-card ${selectedWard === ward.id ? "expanded" : ""}`}
-                onClick={() =>
-                  setSelectedWard(selectedWard === ward.id ? null : ward.id)
-                }
-              >
-                <div className="ward-card-header">
-                  <div className="ward-avatar">
-                    {ward.profilePicture ? (
-                      <img src={ward.profilePicture} alt={ward.fullName} />
-                    ) : (
-                      <FaUserCircle />
-                    )}
-                  </div>
-                  <div className="ward-info">
-                    <h3 className="ward-name">
-                      {ward.fullName ||
-                        `${ward.firstName || ""} ${ward.lastName || ""}`.trim()}
-                    </h3>
-                    <div className="ward-meta">
-                      <span className="ward-class">
-                        <FaSchool /> {ward.studentClass || "N/A"}{" "}
-                        {ward.classArm || ""}
-                      </span>
-                      <span className="ward-admission">
-                        <FaIdCard /> {ward.admissionNumber || "N/A"}
-                      </span>
+            {wards.map((ward) => {
+              const stats = wardStats[ward.id] || {};
+
+              return (
+                <div
+                  key={ward.id}
+                  className={`ward-card ${selectedWard === ward.id ? "expanded" : ""}`}
+                  onClick={() =>
+                    setSelectedWard(selectedWard === ward.id ? null : ward.id)
+                  }
+                >
+                  <div className="ward-card-header">
+                    <div className="ward-avatar">
+                      {getWardProfilePicture(ward) ? (
+                        <img
+                          src={getWardProfilePicture(ward)}
+                          alt={getWardFullName(ward)}
+                        />
+                      ) : (
+                        <FaUserCircle />
+                      )}
+                    </div>
+
+                    <div className="ward-info">
+                      <h3 className="ward-name">{getWardFullName(ward)}</h3>
+                      <div className="ward-meta">
+                        <span className="ward-class">
+                          <FaSchool /> {ward.studentClass || "N/A"}{" "}
+                          {ward.classArm || ""}
+                        </span>
+                        <span className="ward-admission">
+                          <FaIdCard /> {ward.admissionNumber || "N/A"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="ward-expand-icon">
+                      {selectedWard === ward.id ? "−" : "+"}
                     </div>
                   </div>
-                  <div className="ward-expand-icon">
-                    {selectedWard === ward.id ? "−" : "+"}
-                  </div>
-                </div>
 
-                {/* Performance Indicators */}
-                <div className="ward-performance">
-                  <div className="performance-item">
-                    <div className="performance-label">
+                  <div className="ward-performance">
+                    <div className="performance-item">
+                      <div className="performance-label">
+                        <span>Attendance</span>
+                        <span className="performance-value">
+                          {Number(stats.attendance || 0).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill attendance"
+                          style={{
+                            width: `${Math.min(
+                              Number(stats.attendance || 0),
+                              100,
+                            )}%`,
+                            backgroundColor: getPerformanceColor(
+                              stats.attendance || 0,
+                            ),
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="performance-item">
+                      <div className="performance-label">
+                        <span>Academic Performance</span>
+                        <span className="performance-value">
+                          {Number(stats.annualAverage || 0).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill academic"
+                          style={{
+                            width: `${Math.min(
+                              Number(stats.annualAverage || 0),
+                              100,
+                            )}%`,
+                            backgroundColor: getPerformanceColor(
+                              stats.annualAverage || 0,
+                            ),
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="ward-actions">
+                    <Link
+                      to={`/results?student=${ward.id}&scope=parent`}
+                      className="action-btn results"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <FaChartBar />
+                      <span>Results</span>
+                    </Link>
+
+                    <Link
+                      to={`/attendance?student=${ward.id}&scope=parent`}
+                      className="action-btn attendance"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <FaCalendarAlt />
                       <span>Attendance</span>
-                      <span className="performance-value">
-                        {wardStats[ward.id]?.attendance || 0}%
-                      </span>
-                    </div>
-                    <div className="progress-bar">
-                      <div
-                        className="progress-fill attendance"
-                        style={{
-                          width: `${wardStats[ward.id]?.attendance || 0}%`,
-                          backgroundColor: getPerformanceColor(
-                            wardStats[ward.id]?.attendance || 0,
-                          ),
-                        }}
-                      />
-                    </div>
+                    </Link>
+
+                    <Link
+                      to={`/fees?student=${ward.id}&scope=parent`}
+                      className="action-btn fees"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <FaMoneyBill />
+                      <span>Fees</span>
+                    </Link>
                   </div>
-                  <div className="performance-item">
-                    <div className="performance-label">
-                      <span>Academic Performance</span>
-                      <span className="performance-value">
-                        {wardStats[ward.id]?.performance || 0}%
-                      </span>
+
+                  {selectedWard === ward.id && (
+                    <div className="ward-details">
+                      <div className="details-grid">
+                        <div className="detail-item">
+                          <FaPhone className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Phone</span>
+                            <span className="detail-value">
+                              {ward.phone || ward.phoneNumber || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaEnvelope className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Email</span>
+                            <span className="detail-value">
+                              {ward.email || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaMapMarkerAlt className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Address</span>
+                            <span className="detail-value">
+                              {ward.address || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaGraduationCap className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Next Class</span>
+                            <span className="detail-value">
+                              {stats.nextClass || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaBookOpen className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Annual Total</span>
+                            <span className="detail-value">
+                              {Number(stats.annualTotal || 0).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaCheckCircle className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Promotion</span>
+                            <span className="detail-value">
+                              {stats.promoted ? "Promoted" : "Retained"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaMoneyBill className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Fees Paid</span>
+                            <span className="detail-value">
+                              ₦{Number(stats.feePaid || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaExclamationTriangle className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">
+                              Outstanding Fees
+                            </span>
+                            <span className="detail-value">
+                              ₦{Number(stats.feeBalance || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="recent-updates">
+                        <h4>Current Summary</h4>
+
+                        <div className="update-item">
+                          <FaCheckCircle className="update-icon success" />
+                          <span>
+                            Attendance:{" "}
+                            {Number(stats.attendance || 0).toFixed(1)}%
+                          </span>
+                          <small>
+                            Present: {stats.daysPresent || 0} /{" "}
+                            {stats.totalSchoolDays || 0}
+                          </small>
+                        </div>
+
+                        <div className="update-item">
+                          <FaChartBar className="update-icon info" />
+                          <span>
+                            Annual Average:{" "}
+                            {Number(stats.annualAverage || 0).toFixed(1)}%
+                          </span>
+                          <small>
+                            {stats.promotionRemark || "No remark yet"}
+                          </small>
+                        </div>
+
+                        <div className="update-item">
+                          <FaBell className="update-icon warning" />
+                          <span>Fees Count: {stats.feeCount || 0}</span>
+                          <small>
+                            Outstanding: ₦
+                            {Number(stats.feeBalance || 0).toLocaleString()}
+                          </small>
+                        </div>
+                      </div>
                     </div>
-                    <div className="progress-bar">
-                      <div
-                        className="progress-fill academic"
-                        style={{
-                          width: `${wardStats[ward.id]?.performance || 0}%`,
-                          backgroundColor: getPerformanceColor(
-                            wardStats[ward.id]?.performance || 0,
-                          ),
-                        }}
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
-
-                {/* Quick Actions */}
-                <div className="ward-actions">
-                  <Link
-                    to={`/results?student=${ward.id}&scope=parent`}
-                    className="action-btn results"
-                  >
-                    <FaChartBar />
-                    <span>Results</span>
-                  </Link>
-                  <Link
-                    to={`/attendance?student=${ward.id}&scope=parent`}
-                    className="action-btn attendance"
-                  >
-                    <FaCalendarAlt />
-                    <span>Attendance</span>
-                  </Link>
-                  <Link
-                    to={`/fees?student=${ward.id}&scope=parent`}
-                    className="action-btn fees"
-                  >
-                    <FaMoneyBill />
-                    <span>Fees</span>
-                  </Link>
-                </div>
-
-                {/* Expanded Details */}
-                {selectedWard === ward.id && (
-                  <div className="ward-details">
-                    <div className="details-grid">
-                      <div className="detail-item">
-                        <FaPhone className="detail-icon" />
-                        <div className="detail-content">
-                          <span className="detail-label">Phone</span>
-                          <span className="detail-value">
-                            {ward.phone || "N/A"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="detail-item">
-                        <FaEnvelope className="detail-icon" />
-                        <div className="detail-content">
-                          <span className="detail-label">Email</span>
-                          <span className="detail-value">
-                            {ward.email || "N/A"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="detail-item">
-                        <FaMapMarkerAlt className="detail-icon" />
-                        <div className="detail-content">
-                          <span className="detail-label">Address</span>
-                          <span className="detail-value">
-                            {ward.address || "N/A"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="detail-item">
-                        <FaGraduationCap className="detail-icon" />
-                        <div className="detail-content">
-                          <span className="detail-label">Next Class</span>
-                          <span className="detail-value">
-                            {wardStats[ward.id]?.nextClass || "N/A"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="recent-updates">
-                      <h4>Recent Updates</h4>
-                      <div className="update-item">
-                        <FaCheckCircle className="update-icon success" />
-                        <span>Submitted Mathematics assignment</span>
-                        <small>2 hours ago</small>
-                      </div>
-                      <div className="update-item">
-                        <FaClock className="update-icon warning" />
-                        <span>Pending Science project submission</span>
-                        <small>Due tomorrow</small>
-                      </div>
-                      <div className="update-item">
-                        <FaBell className="update-icon info" />
-                        <span>Parent-teacher meeting next week</span>
-                        <small>3 days left</small>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

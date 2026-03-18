@@ -463,6 +463,50 @@ function SessionResult() {
     }
   };
 
+  const normalizeParentSessionResult = (data) => {
+    if (!data) return null;
+
+    // already flat
+    if (
+      data.firstTermAverage !== undefined ||
+      data.annualAverage !== undefined ||
+      data.subjectAverages !== undefined
+    ) {
+      return data;
+    }
+
+    const firstTerm = data.termResults?.firstTerm || {};
+    const secondTerm = data.termResults?.secondTerm || {};
+    const thirdTerm = data.termResults?.thirdTerm || {};
+    const annual = data.annualSummary || {};
+
+    return {
+      firstTermTotal: firstTerm.total ?? 0,
+      secondTermTotal: secondTerm.total ?? 0,
+      thirdTermTotal: thirdTerm.total ?? 0,
+
+      firstTermAverage: firstTerm.average ?? 0,
+      secondTermAverage: secondTerm.average ?? 0,
+      thirdTermAverage: thirdTerm.average ?? 0,
+
+      firstTermPosition: firstTerm.position ?? null,
+      secondTermPosition: secondTerm.position ?? null,
+      thirdTermPosition: thirdTerm.position ?? null,
+
+      annualTotal: annual.annualTotal ?? 0,
+      annualAverage: annual.annualAverage ?? 0,
+      annualPositionInClass: annual.positionInClass ?? null,
+      annualPositionInArm: annual.positionInArm ?? null,
+      annualPositionInSchool: annual.positionInSchool ?? null,
+
+      attendancePercentage: annual.attendancePercentage ?? 0,
+      promoted: annual.promoted ?? false,
+      promotionRemark: annual.remark ?? "",
+
+      subjectAverages: annual.subjectAverages || data.subjectAverages || {},
+    };
+  };
+
   const fetchSessionResult = async () => {
     if (!selectedStudent || !session) {
       return;
@@ -477,20 +521,23 @@ function SessionResult() {
     setLoading(true);
     try {
       let response;
+      let resultData = null;
 
       if (isParent || scopeFromQuery === "parent") {
         response = await parentPortalAPI.getWardSessionResult(
           selectedStudent.id,
           session,
         );
+        resultData = normalizeParentSessionResult(response?.data);
       } else {
         response = await sessionResultAPI.getSessionResult(
           selectedStudent.id,
           session,
         );
+        resultData = response?.data || null;
       }
 
-      setSessionResult(response?.data || null);
+      setSessionResult(resultData);
     } catch (error) {
       console.error("Error fetching session result:", error);
       setSessionResult(null);
@@ -502,7 +549,6 @@ function SessionResult() {
       setLoading(false);
     }
   };
-
   const fetchRankings = async (type, className, arm) => {
     if (!session) {
       toast.error("No session selected");

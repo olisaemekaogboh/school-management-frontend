@@ -1,4 +1,5 @@
 // src/utils/constants.js
+
 export const NIGERIAN_STATES = [
   "Abia",
   "Adamawa",
@@ -76,8 +77,81 @@ export const NATIONALITIES = ["Nigerian", "Other"];
 
 export const API_BASE_URL = "http://localhost:8080/api";
 
-// Nigerian Local Governments (sample for Lagos)
-// src/utils/nigeria-lgas.js
+/**
+ * Converts old/dirty class values into the one true frontend format.
+ * Examples:
+ * SS1 -> SSS 1
+ * ss2 -> SSS 2
+ * jss1 -> JSS 1
+ * primary3 -> Primary 3
+ */
+export const normalizeStudentClass = (value) => {
+  if (!value) return "";
+
+  const raw = String(value).trim().replace(/\s+/g, " ");
+  const compact = raw.toLowerCase().replace(/\s+/g, "");
+
+  const aliasMap = {
+    nursery: "Nursery",
+    nursery1: "Nursery 1",
+    nursery2: "Nursery 2",
+    kg1: "Kindergarten 1",
+    kg2: "Kindergarten 2",
+    kindergarten1: "Kindergarten 1",
+    kindergarten2: "Kindergarten 2",
+    primary1: "Primary 1",
+    primary2: "Primary 2",
+    primary3: "Primary 3",
+    primary4: "Primary 4",
+    primary5: "Primary 5",
+    primary6: "Primary 6",
+    pry1: "Primary 1",
+    pry2: "Primary 2",
+    pry3: "Primary 3",
+    pry4: "Primary 4",
+    pry5: "Primary 5",
+    pry6: "Primary 6",
+    jss1: "JSS 1",
+    jss2: "JSS 2",
+    jss3: "JSS 3",
+    js1: "JSS 1",
+    js2: "JSS 2",
+    js3: "JSS 3",
+    ss1: "SSS 1",
+    ss2: "SSS 2",
+    ss3: "SSS 3",
+    sss1: "SSS 1",
+    sss2: "SSS 2",
+    sss3: "SSS 3",
+  };
+
+  if (aliasMap[compact]) {
+    return aliasMap[compact];
+  }
+
+  const directMatch = STUDENT_CLASSES.find(
+    (item) => item.toLowerCase() === raw.toLowerCase(),
+  );
+
+  return directMatch || raw;
+};
+
+export const normalizeClassArm = (value) => {
+  if (!value) return "";
+  return String(value).trim().toUpperCase();
+};
+
+export const CLASS_OPTIONS = STUDENT_CLASSES.map((name) => ({
+  value: name,
+  label: name,
+}));
+
+export const CLASS_ARM_OPTIONS = CLASS_ARMS.map((arm) => ({
+  value: arm,
+  label: arm,
+}));
+
+// Nigerian Local Governments
 export const LGA_BY_STATE = {
   Abia: [
     "Aba North",

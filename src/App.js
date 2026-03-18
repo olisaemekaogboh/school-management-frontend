@@ -41,7 +41,6 @@ import StudentDetails from "./components/StudentDetails";
 import StudentPromotion from "./components/StudentPromotion";
 import TeacherManagement from "./components/TeacherManagement";
 import TeacherForm from "./components/TeacherForm";
-import TeacherDetails from "./components/TeacherDetails";
 
 import ClassManagement from "./components/ClassManagement";
 import ClassManager from "./components/ClassManager";
@@ -191,14 +190,6 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole="ADMIN">
                         <TeacherForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/teachers/view/:id"
-                    element={
-                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
-                        <TeacherDetails />
                       </ProtectedRoute>
                     }
                   />
