@@ -31,6 +31,8 @@ import {
   FaBook,
   FaUserGraduate,
   FaBullhorn,
+  FaCalendarCheck,
+  FaEnvelope,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
 import { teacherAPI } from "../services/api";
@@ -113,6 +115,9 @@ function Navbar() {
   };
 
   const publicNavItems = [
+    { type: "link", path: "/", icon: <FaHome />, label: "Home" },
+    { type: "link", path: "/about", icon: <FaBook />, label: "About" },
+    { type: "link", path: "/contact", icon: <FaEnvelope />, label: "Contact" },
     { type: "link", path: "/login", icon: <FaSignInAlt />, label: "Login" },
     {
       type: "link",
@@ -123,7 +128,7 @@ function Navbar() {
   ];
 
   const adminNavItems = [
-    { type: "link", path: "/", icon: <FaHome />, label: "Dashboard" },
+    { type: "link", path: "/dashboard", icon: <FaHome />, label: "Dashboard" },
     {
       type: "dropdown",
       label: "People",
@@ -201,6 +206,7 @@ function Navbar() {
           label: "Announcements",
           icon: <FaBullhorn />,
         },
+        { path: "/events", label: "Events", icon: <FaCalendarCheck /> },
         { path: "/transport", label: "Transport", icon: <FaBus /> },
         { path: "/transport/routes", label: "Routes", icon: <FaRoute /> },
         { path: "/library", label: "Library", icon: <FaBook /> },

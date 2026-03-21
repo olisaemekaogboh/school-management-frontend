@@ -11,7 +11,9 @@ import {
   FaSyncAlt,
   FaClock,
   FaEdit,
+  FaEye,
 } from "react-icons/fa";
+import { useAuth } from "../contexts/AuthContext";
 
 function SessionManagement() {
   const [sessions, setSessions] = useState([]);
@@ -21,6 +23,7 @@ function SessionManagement() {
   const [activatingId, setActivatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [editingSessionId, setEditingSessionId] = useState(null);
+  const { user, isAuthenticated } = useAuth();
 
   const [formData, setFormData] = useState({
     session: "",
@@ -51,13 +54,33 @@ function SessionManagement() {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      const [sessionsRes, activeRes] = await Promise.all([
-        sessionAPI.getAllSessions(),
-        sessionAPI.getActiveSession(),
-      ]);
+      // Load active session (public endpoint)
+      let activeData = null;
+      try {
+        const activeRes = await sessionAPI.getActiveSession();
+        activeData = activeRes.data;
+      } catch (error) {
+        console.error("Error loading active session:", error);
+        activeData = null;
+      }
+      setActiveSession(activeData);
 
-      setSessions(sessionsRes.data || []);
-      setActiveSession(activeRes.data || null);
+      // Load all sessions - only if user is admin
+      if (isAuthenticated && user?.role === "ADMIN") {
+        try {
+          const sessionsRes = await sessionAPI.getAllSessions();
+          setSessions(sessionsRes.data || []);
+        } catch (error) {
+          console.error("Error loading all sessions:", error);
+          if (error.response?.status !== 403) {
+            toast.error("Failed to load sessions");
+          }
+          setSessions([]);
+        }
+      } else {
+        // Non-admin users can only see the active session
+        setSessions(activeData ? [activeData] : []);
+      }
     } catch (error) {
       console.error("Error loading sessions:", error);
       toast.error("Failed to load sessions");
@@ -139,12 +162,18 @@ function SessionManagement() {
   const handleCreateOrUpdateSession = async (e) => {
     e.preventDefault();
 
+    // Check if user is admin
+    if (!isAuthenticated || user?.role !== "ADMIN") {
+      toast.error("Only administrators can manage sessions");
+      return;
+    }
+
     if (!validateForm()) return;
 
     setSubmitting(true);
     try {
       const payload = {
-        session: formData.session,
+        sessionName: formData.session,
         startDate: formData.startDate,
         endDate: formData.endDate,
         currentTerm: formData.currentTerm,
@@ -170,6 +199,12 @@ function SessionManagement() {
   };
 
   const handleEdit = (sessionItem) => {
+    // Check if user is admin
+    if (!isAuthenticated || user?.role !== "ADMIN") {
+      toast.error("Only administrators can edit sessions");
+      return;
+    }
+
     setEditingSessionId(sessionItem.id);
     setFormData({
       session: sessionItem.session || sessionItem.sessionName || "",
@@ -187,6 +222,12 @@ function SessionManagement() {
   };
 
   const handleActivate = async (id) => {
+    // Check if user is admin
+    if (!isAuthenticated || user?.role !== "ADMIN") {
+      toast.error("Only administrators can activate sessions");
+      return;
+    }
+
     if (!window.confirm("Activate this session?")) return;
 
     setActivatingId(id);
@@ -205,6 +246,12 @@ function SessionManagement() {
   };
 
   const handleDelete = async (id, sessionName) => {
+    // Check if user is admin
+    if (!isAuthenticated || user?.role !== "ADMIN") {
+      toast.error("Only administrators can delete sessions");
+      return;
+    }
+
     if (!window.confirm(`Delete session ${sessionName}?`)) return;
 
     setDeletingId(id);
@@ -240,13 +287,18 @@ function SessionManagement() {
     return sessionItem.session || sessionItem.sessionName || "-";
   };
 
+  // Check if user has admin permissions
+  const isAdmin = isAuthenticated && user?.role === "ADMIN";
+
   return (
     <div className="container-fluid py-4">
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
           <h2 className="mb-1">Session Management</h2>
           <p className="text-muted mb-0">
-            Create, update, activate, and manage academic sessions
+            {isAdmin
+              ? "Create, update, activate, and manage academic sessions"
+              : "View current academic session"}
           </p>
         </div>
 
@@ -257,135 +309,141 @@ function SessionManagement() {
       </div>
 
       <div className="row">
-        <div className="col-lg-4 mb-4">
-          <div className="card shadow-sm">
-            <div className="card-header bg-primary text-white">
-              <h5 className="mb-0">
-                {editingSessionId ? (
-                  <>
-                    <FaEdit className="me-2" />
-                    Edit Session
-                  </>
-                ) : (
-                  <>
-                    <FaPlus className="me-2" />
-                    Create Session
-                  </>
-                )}
-              </h5>
-            </div>
+        {/* Session Form - Only visible to Admin */}
+        {isAdmin && (
+          <div className="col-lg-4 mb-4">
+            <div className="card shadow-sm">
+              <div className="card-header bg-primary text-white">
+                <h5 className="mb-0">
+                  {editingSessionId ? (
+                    <>
+                      <FaEdit className="me-2" />
+                      Edit Session
+                    </>
+                  ) : (
+                    <>
+                      <FaPlus className="me-2" />
+                      Create Session
+                    </>
+                  )}
+                </h5>
+              </div>
 
-            <div className="card-body">
-              <form onSubmit={handleCreateOrUpdateSession}>
-                <div className="mb-3">
-                  <label className="form-label">Session Name</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    name="session"
-                    value={formData.session}
-                    onChange={handleChange}
-                    placeholder="e.g. 2025/2026"
-                  />
-                  <small className="text-muted">
-                    This can auto-fill from the dates below.
-                  </small>
-                </div>
+              <div className="card-body">
+                <form onSubmit={handleCreateOrUpdateSession}>
+                  <div className="mb-3">
+                    <label className="form-label">Session Name</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      name="session"
+                      value={formData.session}
+                      onChange={handleChange}
+                      placeholder="e.g. 2025/2026"
+                    />
+                    <small className="text-muted">
+                      This can auto-fill from the dates below.
+                    </small>
+                  </div>
 
-                <div className="mb-3">
-                  <label className="form-label">Start Date</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    name="startDate"
-                    value={formData.startDate}
-                    onChange={handleChange}
-                  />
-                </div>
+                  <div className="mb-3">
+                    <label className="form-label">Start Date</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      name="startDate"
+                      value={formData.startDate}
+                      onChange={handleChange}
+                    />
+                  </div>
 
-                <div className="mb-3">
-                  <label className="form-label">End Date</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    name="endDate"
-                    value={formData.endDate}
-                    onChange={handleChange}
-                  />
-                </div>
+                  <div className="mb-3">
+                    <label className="form-label">End Date</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      name="endDate"
+                      value={formData.endDate}
+                      onChange={handleChange}
+                    />
+                  </div>
 
-                <div className="mb-3">
-                  <label className="form-label">Current Term</label>
-                  <select
-                    className="form-select"
-                    name="currentTerm"
-                    value={formData.currentTerm}
-                    onChange={handleChange}
-                  >
-                    {terms.map((term) => (
-                      <option key={term.value} value={term.value}>
-                        {term.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <div className="mb-3">
+                    <label className="form-label">Current Term</label>
+                    <select
+                      className="form-select"
+                      name="currentTerm"
+                      value={formData.currentTerm}
+                      onChange={handleChange}
+                    >
+                      {terms.map((term) => (
+                        <option key={term.value} value={term.value}>
+                          {term.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div className="form-check mb-3">
-                  <input
-                    id="activeSession"
-                    type="checkbox"
-                    className="form-check-input"
-                    name="active"
-                    checked={formData.active}
-                    onChange={handleChange}
-                  />
-                  <label htmlFor="activeSession" className="form-check-label">
-                    Make active immediately
-                  </label>
-                </div>
+                  <div className="form-check mb-3">
+                    <input
+                      id="activeSession"
+                      type="checkbox"
+                      className="form-check-input"
+                      name="active"
+                      checked={formData.active}
+                      onChange={handleChange}
+                    />
+                    <label htmlFor="activeSession" className="form-check-label">
+                      Make active immediately
+                    </label>
+                  </div>
 
-                <div className="d-grid gap-2">
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <>
-                        <FaSpinner className="me-2 spin" />
-                        {editingSessionId ? "Updating..." : "Creating..."}
-                      </>
-                    ) : editingSessionId ? (
-                      <>
-                        <FaEdit className="me-2" />
-                        Update Session
-                      </>
-                    ) : (
-                      <>
-                        <FaPlus className="me-2" />
-                        Create Session
-                      </>
-                    )}
-                  </button>
+                  <div className="d-grid gap-2">
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={submitting}
+                    >
+                      {submitting ? (
+                        <>
+                          <FaSpinner className="me-2 spin" />
+                          {editingSessionId ? "Updating..." : "Creating..."}
+                        </>
+                      ) : editingSessionId ? (
+                        <>
+                          <FaEdit className="me-2" />
+                          Update Session
+                        </>
+                      ) : (
+                        <>
+                          <FaPlus className="me-2" />
+                          Create Session
+                        </>
+                      )}
+                    </button>
 
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={resetForm}
-                    disabled={submitting}
-                  >
-                    {editingSessionId ? "Cancel Edit" : "Clear"}
-                  </button>
-                </div>
-              </form>
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      onClick={resetForm}
+                      disabled={submitting}
+                    >
+                      {editingSessionId ? "Cancel Edit" : "Clear"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
+        )}
 
-          <div className="card shadow-sm mt-4">
+        {/* Active Session Card */}
+        <div className={isAdmin ? "col-lg-8 mb-4" : "col-lg-12 mb-4"}>
+          <div className="card shadow-sm">
             <div className="card-header bg-success text-white">
               <h5 className="mb-0">
                 <FaCheckCircle className="me-2" />
-                Active Session
+                Current Active Session
               </h5>
             </div>
             <div className="card-body">
@@ -409,14 +467,13 @@ function SessionManagement() {
               )}
             </div>
           </div>
-        </div>
 
-        <div className="col-lg-8 mb-4">
-          <div className="card shadow-sm">
+          {/* All Sessions Table - Show different views for admin vs regular users */}
+          <div className="card shadow-sm mt-4">
             <div className="card-header bg-dark text-white">
               <h5 className="mb-0">
                 <FaCalendarAlt className="me-2" />
-                All Sessions
+                {isAdmin ? "All Sessions" : "Session Information"}
               </h5>
             </div>
 
@@ -440,7 +497,7 @@ function SessionManagement() {
                         <th>End Date</th>
                         <th>Current Term</th>
                         <th>Status</th>
-                        <th className="text-end">Actions</th>
+                        {isAdmin && <th className="text-end">Actions</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -467,58 +524,63 @@ function SessionManagement() {
                                 </span>
                               )}
                             </td>
-                            <td>
-                              <div className="d-flex justify-content-end gap-2 flex-wrap">
-                                <button
-                                  className="btn btn-sm btn-outline-primary"
-                                  onClick={() => handleEdit(item)}
-                                  disabled={submitting}
-                                >
-                                  <FaEdit className="me-1" />
-                                  Edit
-                                </button>
-
-                                {!active && (
+                            {isAdmin && (
+                              <td>
+                                <div className="d-flex justify-content-end gap-2 flex-wrap">
                                   <button
-                                    className="btn btn-sm btn-success"
-                                    onClick={() => handleActivate(item.id)}
-                                    disabled={activatingId === item.id}
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={() => handleEdit(item)}
+                                    disabled={submitting}
                                   >
-                                    {activatingId === item.id ? (
+                                    <FaEdit className="me-1" />
+                                    Edit
+                                  </button>
+
+                                  {!active && (
+                                    <button
+                                      className="btn btn-sm btn-success"
+                                      onClick={() => handleActivate(item.id)}
+                                      disabled={activatingId === item.id}
+                                    >
+                                      {activatingId === item.id ? (
+                                        <>
+                                          <FaSpinner className="me-1 spin" />
+                                          Activating
+                                        </>
+                                      ) : (
+                                        <>
+                                          <FaCheckCircle className="me-1" />
+                                          Activate
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() =>
+                                      handleDelete(
+                                        item.id,
+                                        getSessionName(item),
+                                      )
+                                    }
+                                    disabled={deletingId === item.id}
+                                  >
+                                    {deletingId === item.id ? (
                                       <>
                                         <FaSpinner className="me-1 spin" />
-                                        Activating
+                                        Deleting
                                       </>
                                     ) : (
                                       <>
-                                        <FaCheckCircle className="me-1" />
-                                        Activate
+                                        <FaTrash className="me-1" />
+                                        Delete
                                       </>
                                     )}
                                   </button>
-                                )}
-
-                                <button
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() =>
-                                    handleDelete(item.id, getSessionName(item))
-                                  }
-                                  disabled={deletingId === item.id}
-                                >
-                                  {deletingId === item.id ? (
-                                    <>
-                                      <FaSpinner className="me-1 spin" />
-                                      Deleting
-                                    </>
-                                  ) : (
-                                    <>
-                                      <FaTrash className="me-1" />
-                                      Delete
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </td>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}

@@ -13,7 +13,7 @@ import {
   FaArrowRight,
   FaShieldAlt,
 } from "react-icons/fa";
-import "./Auth.css";
+import "./Login.css";
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -24,10 +24,28 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || "/";
+  const from = location.state?.from?.pathname || "/dashboard";
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      // Redirect based on user role
+      if (user.role === "ADMIN") {
+        navigate("/dashboard", { replace: true });
+      } else if (user.role === "TEACHER") {
+        navigate("/teacher-dashboard", { replace: true });
+      } else if (user.role === "STUDENT") {
+        navigate("/student-dashboard", { replace: true });
+      } else if (user.role === "PARENT") {
+        navigate("/parent-dashboard", { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
+    }
+  }, [user, navigate, from]);
 
   // Load saved credentials if remember me was checked
   useEffect(() => {
@@ -49,6 +67,18 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate inputs
+    if (!formData.usernameOrEmail.trim()) {
+      setLoginError("Please enter your username or email");
+      return;
+    }
+
+    if (!formData.password) {
+      setLoginError("Please enter your password");
+      return;
+    }
+
     setLoading(true);
     setLoginError("");
 
@@ -59,15 +89,24 @@ function Login() {
       localStorage.removeItem("rememberedUsername");
     }
 
-    const success = await login(formData.usernameOrEmail, formData.password);
+    try {
+      const success = await login(formData.usernameOrEmail, formData.password);
 
-    if (success) {
-      navigate(from, { replace: true });
-    } else {
-      setLoginError("Invalid username/email or password");
+      if (success) {
+        // Navigation will be handled by the useEffect above
+        return;
+      } else {
+        setLoginError("Invalid username/email or password. Please try again.");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      setLoginError(
+        error?.response?.data?.message ||
+          "An error occurred during login. Please try again.",
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -106,7 +145,7 @@ function Login() {
             <div className="form-group">
               <label htmlFor="usernameOrEmail">
                 <FaEnvelope className="input-icon" />
-                Username or Email
+                ..Username or Email
               </label>
               <input
                 type="text"
@@ -117,13 +156,14 @@ function Login() {
                 placeholder="Enter your username or email"
                 required
                 className={loginError ? "error" : ""}
+                autoComplete="username"
               />
             </div>
 
             <div className="form-group">
               <label htmlFor="password">
                 <FaLock className="input-icon" />
-                Password
+                ..Password
               </label>
               <div className={`password-input ${loginError ? "error" : ""}`}>
                 <input
@@ -134,6 +174,7 @@ function Login() {
                   onChange={handleChange}
                   placeholder="Enter your password"
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -191,12 +232,6 @@ function Login() {
               </div>
               <FaArrowRight className="register-arrow" />
             </Link>
-          </div>
-
-          {/* Demo credentials hint */}
-          <div className="auth-demo-hint">
-            <p>Demo Credentials:</p>
-            <small>admin@faithschool.edu / password123</small>
           </div>
         </div>
       </div>

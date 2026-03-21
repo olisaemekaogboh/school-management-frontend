@@ -815,10 +815,13 @@ export const libraryAPI = {
   searchBooks: (term) => api.get("/library/books/search", { params: { term } }),
   getBooksByCategory: (category) =>
     api.get(`/library/books/category/${category}`),
+
   borrowBook: (data) => api.post("/library/borrow", data),
   returnBook: (id) => api.post(`/library/return/${id}`),
   renewBook: (id) => api.post(`/library/renew/${id}`),
   reportLost: (id) => api.post(`/library/lost/${id}`),
+
+  getAllBorrowings: () => api.get("/library/borrowings"),
   getBorrowingsByStudent: (studentId) =>
     api.get(`/library/borrowings/student/${studentId}`),
   getBorrowingsByTeacher: (teacherId) =>
@@ -826,7 +829,6 @@ export const libraryAPI = {
   getOverdueBorrowings: () => api.get("/library/borrowings/overdue"),
   getLibraryStatistics: () => api.get("/library/statistics"),
 };
-
 /* ================================
    SESSION API
 ================================ */
@@ -1000,4 +1002,14 @@ export const parentPortalAPI = {
     }),
 };
 
+export const eventAPI = {
+  getAllEvents: () => api.get("/events"),
+  getUpcomingEvents: () => api.get("/events/upcoming"),
+  getEventById: (id) => api.get(`/events/${id}`),
+  getEventsByDateRange: (startDate, endDate) =>
+    api.get(`/events/date-range?startDate=${startDate}&endDate=${endDate}`),
+  createEvent: (eventData) => api.post("/events", eventData),
+  updateEvent: (id, eventData) => api.put(`/events/${id}`, eventData),
+  deleteEvent: (id) => api.delete(`/events/${id}`),
+};
 export default api;

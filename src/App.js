@@ -10,6 +10,9 @@ import "react-toastify/dist/ReactToastify.css";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import Home from "./components/Home";
+import About from "./components/About";
+import Contact from "./components/Contact";
 
 import Login from "./components/Login";
 import Register from "./components/Register";
@@ -60,6 +63,7 @@ import FeeDefaulters from "./components/FeeDefaulters";
 import AnnouncementManager from "./components/AnnouncementManager";
 import AnnouncementForm from "./components/AnnouncementForm";
 import AnnouncementDetails from "./components/AnnouncementDetails";
+import EventManagement from "./components/EventManagement";
 import LibraryManagement from "./components/LibraryManagement";
 import BookManagement from "./components/BookManagement";
 import BorrowingManagement from "./components/BorrowingManagement";
@@ -92,6 +96,10 @@ function App() {
             <main className="main-content">
               <div className="content-wrapper">
                 <Routes>
+                  {/* Public Routes - Everyone can access */}
+                  <Route path="/" element={<Home />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/contact" element={<Contact />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -110,8 +118,9 @@ function App() {
                   />
                   <Route path="/verify-student" element={<VerifyStudent />} />
 
+                  {/* Protected Routes - Require Authentication */}
                   <Route
-                    path="/"
+                    path="/dashboard"
                     element={
                       <ProtectedRoute>
                         <Dashboard />
@@ -374,6 +383,16 @@ function App() {
                         requiredRole={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
                       >
                         <AnnouncementDetails />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Event Management - Admin Only */}
+                  <Route
+                    path="/events"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <EventManagement />
                       </ProtectedRoute>
                     }
                   />
