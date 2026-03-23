@@ -1,4 +1,5 @@
-// src/components/ResultManagement.js
+// src/components/ResultManagement.js - Full working version with all classes showing
+
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -42,6 +43,7 @@ function ResultManagement() {
   const query = new URLSearchParams(location.search);
   const classIdFromQuery = query.get("classId") || "";
   const mineFromQuery = query.get("mine") === "true";
+  const subjectIdFromQuery = query.get("subject") || "";
 
   const [students, setStudents] = useState([]);
   const [parentWards, setParentWards] = useState([]);
@@ -56,9 +58,11 @@ function ResultManagement() {
   const [teacherSubjectAssignments, setTeacherSubjectAssignments] = useState(
     [],
   );
+  const [teacherAssignedSubjects, setTeacherAssignedSubjects] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [resultSheet, setResultSheet] = useState(null);
   const [rankings, setRankings] = useState(null);
+  const [teacherClasses, setTeacherClasses] = useState([]);
 
   const [activeTab, setActiveTab] = useState(() => {
     if (isStudent || isParent) return "view";
@@ -75,6 +79,7 @@ function ResultManagement() {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
   const [teacherClassAssignments, setTeacherClassAssignments] = useState([]);
+  const [teacherFormClass, setTeacherFormClass] = useState(null);
 
   const terms = ["FIRST", "SECOND", "THIRD"];
 
@@ -279,6 +284,13 @@ function ResultManagement() {
     mineFromQuery,
   ]);
 
+  useEffect(() => {
+    if (isTeacher && selectedClass && selectedArm) {
+      loadSubjectAssignmentsForClass(selectedClass, selectedArm);
+      loadTeacherStudentsForSelectedClass();
+    }
+  }, [isTeacher, selectedClass, selectedArm]);
+
   const loadSessionData = async () => {
     setSessionsLoading(true);
     try {
@@ -400,8 +412,158 @@ function ResultManagement() {
     }
   };
 
+  const loadTeacherClasses = async () => {
+    try {
+      console.log("=== loadTeacherClasses START ===");
+
+      // Get subject assignments
+      const subjectsResponse = await teacherAPI.getMySubjectAssignments();
+      const subjectAssignments = Array.isArray(subjectsResponse.data)
+        ? subjectsResponse.data
+        : [];
+      console.log("ALL subject assignments:", subjectAssignments);
+      console.log("Number of assignments:", subjectAssignments.length);
+
+      // Log each assignment
+      subjectAssignments.forEach((assignment, idx) => {
+        console.log(`Assignment ${idx + 1}:`, {
+          className: assignment.className,
+          classArm: assignment.classArm,
+          subjectId: assignment.subjectId,
+          subjectName: assignment.subjectName,
+        });
+      });
+
+      // Extract unique classes from subject assignments
+      const teachingClassesMap = new Map();
+      subjectAssignments.forEach((assignment) => {
+        const className = assignment.className;
+        const classArm = assignment.classArm;
+        const key = `${className}-${classArm}`;
+
+        console.log(
+          `Processing assignment for class: ${className} ${classArm}`,
+        );
+
+        if (!teachingClassesMap.has(key)) {
+          teachingClassesMap.set(key, {
+            id: `${className}-${classArm}`,
+            className: className,
+            arm: classArm,
+            isFormTeacher: false,
+            subjectCount: 0,
+            subjects: [],
+          });
+        }
+        const classData = teachingClassesMap.get(key);
+        classData.subjectCount++;
+        classData.subjects.push({
+          id: assignment.subjectId,
+          name: assignment.subjectName,
+        });
+      });
+
+      const teachingClasses = Array.from(teachingClassesMap.values());
+      console.log("Teaching classes extracted:", teachingClasses);
+      console.log("Number of teaching classes:", teachingClasses.length);
+
+      // Get form classes
+      const formResponse = await teacherAPI.getMyClasses();
+      const formClasses = Array.isArray(formResponse.data)
+        ? formResponse.data
+        : [];
+      console.log("Form classes from API:", formClasses);
+
+      // Combine classes
+      const allClassesMap = new Map();
+
+      teachingClasses.forEach((tc) => {
+        const key = `${tc.className}-${tc.arm}`;
+        allClassesMap.set(key, { ...tc, isTeachingClass: true });
+      });
+
+      formClasses.forEach((fc) => {
+        const key = `${fc.className}-${fc.arm}`;
+        if (allClassesMap.has(key)) {
+          const existing = allClassesMap.get(key);
+          existing.isFormTeacher = true;
+          existing.id = fc.id;
+        } else {
+          allClassesMap.set(key, {
+            id: fc.id,
+            className: fc.className,
+            arm: fc.arm,
+            isFormTeacher: true,
+            isTeachingClass: false,
+            subjectCount: 0,
+            subjects: [],
+          });
+        }
+      });
+
+      const allClasses = Array.from(allClassesMap.values());
+      console.log("FINAL combined classes:", allClasses);
+      console.log("Number of classes:", allClasses.length);
+
+      setTeacherClasses(allClasses);
+
+      // Set default class if none selected
+      if (allClasses.length > 0 && !selectedClass) {
+        console.log(
+          "Setting default class to:",
+          allClasses[0].className,
+          allClasses[0].arm,
+        );
+        setSelectedClass(allClasses[0].className);
+        setSelectedArm(allClasses[0].arm);
+      }
+    } catch (error) {
+      console.error("Error in loadTeacherClasses:", error);
+    }
+  };
+
+  const loadSubjectAssignmentsForClass = async (className, classArm) => {
+    if (!isTeacher || !className || !classArm) return;
+
+    console.log(`Loading subjects for ${className} ${classArm}...`);
+
+    try {
+      const response = await teacherAPI.getMySubjectAssignments();
+      const allAssignments = Array.isArray(response.data) ? response.data : [];
+
+      const filtered = allAssignments.filter(
+        (a) => a.className === className && a.classArm === classArm,
+      );
+
+      console.log(`Subjects for ${className} ${classArm}:`, filtered);
+      setTeacherSubjectAssignments(filtered);
+
+      const uniqueSubjects = new Map();
+      filtered.forEach((assignment) => {
+        if (!uniqueSubjects.has(assignment.subjectId)) {
+          uniqueSubjects.set(assignment.subjectId, {
+            id: assignment.subjectId,
+            name: assignment.subjectName,
+          });
+        }
+      });
+      const uniqueSubjectsArray = Array.from(uniqueSubjects.values());
+      console.log(
+        `Unique subjects for ${className} ${classArm}:`,
+        uniqueSubjectsArray,
+      );
+      setTeacherAssignedSubjects(uniqueSubjectsArray);
+    } catch (error) {
+      console.error("Error loading subject assignments:", error);
+      setTeacherSubjectAssignments([]);
+      setTeacherAssignedSubjects([]);
+    }
+  };
+
   const loadTeacherSetup = async () => {
     try {
+      await loadTeacherClasses();
+
       const classesResponse = await teacherAPI.getMyClasses();
       const assignmentsRaw = Array.isArray(classesResponse.data)
         ? classesResponse.data
@@ -412,9 +574,16 @@ function ResultManagement() {
           id: c.id,
           className: c.className,
           arm: c.arm,
+          isFormTeacher: c.isFormTeacher || false,
           subjects: c.subjects || [],
         }));
       setTeacherClassAssignments(classAssignments);
+
+      const formClass =
+        classAssignments.find((c) => c.isFormTeacher === true) ||
+        classAssignments[0] ||
+        null;
+      setTeacherFormClass(formClass);
 
       if (classAssignments.length === 0) {
         setStudents([]);
@@ -425,23 +594,8 @@ function ResultManagement() {
         return;
       }
 
-      try {
-        if (teacherAPI.getMySubjectAssignments) {
-          const assignmentsResponse =
-            await teacherAPI.getMySubjectAssignments();
-          const subjectAssignments = Array.isArray(assignmentsResponse.data)
-            ? assignmentsResponse.data
-            : [];
-          setTeacherSubjectAssignments(subjectAssignments);
-        } else {
-          setTeacherSubjectAssignments([]);
-        }
-      } catch (subjectError) {
-        console.error(
-          "Error loading teacher subject assignments:",
-          subjectError,
-        );
-        setTeacherSubjectAssignments([]);
+      if (selectedClass && selectedArm) {
+        await loadSubjectAssignmentsForClass(selectedClass, selectedArm);
       }
 
       if (classIdFromQuery && mineFromQuery) {
@@ -467,6 +621,15 @@ function ResultManagement() {
           ? response.data
           : [];
         setStudents(scopedStudents);
+
+        if (subjectIdFromQuery && teacherAssignedSubjects.length > 0) {
+          const subjectToAdd = teacherAssignedSubjects.find(
+            (s) => String(s.id) === subjectIdFromQuery,
+          );
+          if (subjectToAdd) {
+            handleAddSubjectWithPreset(subjectToAdd);
+          }
+        }
         return;
       }
 
@@ -497,6 +660,23 @@ function ResultManagement() {
       setTeacherSubjectAssignments([]);
       setLockedTeacherClassId(null);
     }
+  };
+
+  const handleAddSubjectWithPreset = (subject) => {
+    setSubjects((prev) => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        subjectId: subject.id,
+        subjectName: subject.name,
+        resumptionTest: 0,
+        assignments: 0,
+        project: 0,
+        midtermTest: 0,
+        secondTest: 0,
+        examination: 0,
+      },
+    ]);
   };
 
   const loadTeacherStudentsForSelectedClass = async () => {
@@ -986,7 +1166,7 @@ function ResultManagement() {
   }
 
   return (
-    <div className="result-management">
+    <div className={`result-management ${darkMode ? "dark-mode" : ""}`}>
       <div className="content-header d-flex justify-content-between align-items-start flex-wrap gap-3 no-print">
         <div>
           <h2>
@@ -1071,15 +1251,25 @@ function ResultManagement() {
                     />
                   </div>
                 </div>
-                {isTeacher && (
+                {isTeacher && teacherClasses.length > 0 && (
                   <>
                     <div className="filter-group">
                       <label>{t?.resultManagement?.class || "Class"}</label>
                       <select
                         value={selectedClass}
                         onChange={(e) => {
-                          setSelectedClass(e.target.value);
-                          setSelectedArm("");
+                          const newClass = e.target.value;
+                          console.log("Selected class:", newClass);
+                          setSelectedClass(newClass);
+                          // Find the arm for this class
+                          const classOptions = teacherClasses.filter(
+                            (c) => c.className === newClass,
+                          );
+                          if (classOptions.length > 0) {
+                            setSelectedArm(classOptions[0].arm);
+                          } else {
+                            setSelectedArm("");
+                          }
                           setSelectedStudent(null);
                           setSubjects([]);
                         }}
@@ -1088,11 +1278,19 @@ function ResultManagement() {
                         <option value="">
                           {t?.common?.select || "Select Class"}
                         </option>
-                        {availableRankingClasses.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
+                        {teacherClasses
+                          .filter(
+                            (v, i, a) =>
+                              a.findIndex(
+                                (t) => t.className === v.className,
+                              ) === i,
+                          )
+                          .map((c) => (
+                            <option key={c.className} value={c.className}>
+                              {c.className}{" "}
+                              {c.isFormTeacher ? "(Form Class)" : ""}
+                            </option>
+                          ))}
                       </select>
                     </div>
                     <div className="filter-group">
@@ -1100,6 +1298,7 @@ function ResultManagement() {
                       <select
                         value={selectedArm}
                         onChange={(e) => {
+                          console.log("Selected arm:", e.target.value);
                           setSelectedArm(e.target.value);
                           setSelectedStudent(null);
                           setSubjects([]);
@@ -1109,11 +1308,16 @@ function ResultManagement() {
                         <option value="">
                           {t?.common?.select || "Select Arm"}
                         </option>
-                        {availableRankingArms.map((arm) => (
-                          <option key={arm} value={arm}>
-                            {arm}
-                          </option>
-                        ))}
+                        {teacherClasses
+                          .filter((c) => c.className === selectedClass)
+                          .map((c) => (
+                            <option key={c.arm} value={c.arm}>
+                              Arm {c.arm}{" "}
+                              {c.subjectCount > 0
+                                ? `(${c.subjectCount} subjects)`
+                                : ""}
+                            </option>
+                          ))}
                       </select>
                     </div>
                   </>
@@ -1189,7 +1393,7 @@ function ResultManagement() {
         </div>
       )}
 
-      {/* Input Results Tab */}
+      {/* Input Results Tab - keep existing structure */}
       {activeTab === "input" && (isAdmin || isTeacher) && (
         <div className="input-results">
           <div className="section-header">
@@ -1229,7 +1433,7 @@ function ResultManagement() {
               <div className="alert-warning">
                 <FaInfoCircle />{" "}
                 {t?.resultManagement?.noSubjectAssignedMessage ||
-                  "No subject has been assigned to you for this class arm."}
+                  "No subject has been assigned to you for this class arm. Please contact the administrator."}
               </div>
             )}
           {selectedStudent && subjects.length === 0 && (
@@ -1889,7 +2093,23 @@ function ResultManagement() {
         </div>
       )}
 
-      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; background: #fff; padding: 0; margin: 0; } .no-print { display: none !important; } .table, .table th, .table td { border: 1px solid #000 !important; border-collapse: collapse !important; } .badge { border: 1px solid #000 !important; color: #000 !important; background: transparent !important; } .card, .result-card, .card-header, .card-body { box-shadow: none !important; } .result-management { padding: 0 !important; margin: 0 !important; } }`}</style>
+      <style>{`
+        .spin { animation: spin 1s linear infinite; } 
+        @keyframes spin { 
+          from { transform: rotate(0deg); } 
+          to { transform: rotate(360deg); } 
+        } 
+        @media print { 
+          body * { visibility: hidden; } 
+          .print-area, .print-area * { visibility: visible; } 
+          .print-area { position: absolute; left: 0; top: 0; width: 100%; background: #fff; padding: 0; margin: 0; } 
+          .no-print { display: none !important; } 
+          .table, .table th, .table td { border: 1px solid #000 !important; border-collapse: collapse !important; } 
+          .badge { border: 1px solid #000 !important; color: #000 !important; background: transparent !important; } 
+          .card, .result-card, .card-header, .card-body { box-shadow: none !important; } 
+          .result-management { padding: 0 !important; margin: 0 !important; } 
+        }
+      `}</style>
     </div>
   );
 }

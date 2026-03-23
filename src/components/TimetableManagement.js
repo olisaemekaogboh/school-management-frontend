@@ -73,6 +73,12 @@ export default function TimetableManagement() {
   const [teachers, setTeachers] = useState([]);
   const [availableSessions, setAvailableSessions] = useState([]);
   const [parentWards, setParentWards] = useState([]);
+  const [teacherSubjectAssignments, setTeacherSubjectAssignments] = useState(
+    [],
+  );
+  const [teacherAssignedSubjectIds, setTeacherAssignedSubjectIds] = useState(
+    new Set(),
+  );
 
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState(null);
@@ -108,6 +114,29 @@ export default function TimetableManagement() {
     });
     return map;
   }, [teachers]);
+
+  // Load teacher's subject assignments
+  const loadTeacherSubjects = async () => {
+    if (!isTeacher) return;
+    try {
+      const response = await teacherAPI.getMySubjectAssignments();
+      const assignments = Array.isArray(response.data) ? response.data : [];
+      setTeacherSubjectAssignments(assignments);
+
+      // Create a set of subject IDs the teacher is assigned to teach
+      const subjectIds = new Set();
+      assignments.forEach((assignment) => {
+        if (assignment.subjectId) {
+          subjectIds.add(Number(assignment.subjectId));
+        }
+      });
+      setTeacherAssignedSubjectIds(subjectIds);
+    } catch (error) {
+      console.error("Error loading teacher subject assignments:", error);
+      setTeacherSubjectAssignments([]);
+      setTeacherAssignedSubjectIds(new Set());
+    }
+  };
 
   const fetchSessions = async () => {
     setSessionsLoading(true);
@@ -147,6 +176,10 @@ export default function TimetableManagement() {
           setSelectedWardId(String(wards[0].id));
         }
         return;
+      }
+
+      if (isTeacher) {
+        await loadTeacherSubjects();
       }
 
       setClasses([]);
@@ -240,8 +273,29 @@ export default function TimetableManagement() {
 
       if (isTeacher) {
         res = await timetableAPI.getMyTimetable(session, term);
+        const allEntries = Array.isArray(res.data) ? res.data : [];
+
+        // Filter timetable entries to only show subjects the teacher is assigned to teach
+        const filteredEntries = allEntries.filter((entry) => {
+          // If entry has subjectId, check if teacher is assigned to that subject
+          if (entry.subjectId) {
+            return teacherAssignedSubjectIds.has(Number(entry.subjectId));
+          }
+          // If no subjectId, check by subject name against teacher's assigned subjects
+          if (entry.subject) {
+            return teacherSubjectAssignments.some(
+              (assignment) =>
+                assignment.subjectName?.toLowerCase() ===
+                entry.subject?.toLowerCase(),
+            );
+          }
+          return false;
+        });
+
+        setEntries(normalizeEntries(filteredEntries));
       } else if (isStudent) {
         res = await timetableAPI.getMyStudentTimetable(session, term);
+        setEntries(normalizeEntries(res.data));
       } else if (isParent) {
         if (!selectedWardId) {
           setEntries([]);
@@ -253,6 +307,7 @@ export default function TimetableManagement() {
           session,
           term,
         );
+        setEntries(normalizeEntries(res.data));
       } else if (mode === "class") {
         if (!viewClassId) {
           setEntries([]);
@@ -260,6 +315,7 @@ export default function TimetableManagement() {
           return;
         }
         res = await timetableAPI.getClassTimetable(viewClassId, session, term);
+        setEntries(normalizeEntries(res.data));
       } else if (mode === "teacher") {
         if (!viewTeacherId) {
           setEntries([]);
@@ -271,11 +327,11 @@ export default function TimetableManagement() {
           session,
           term,
         );
+        setEntries(normalizeEntries(res.data));
       } else {
         res = await timetableAPI.getSchoolTimetable(session, term);
+        setEntries(normalizeEntries(res.data));
       }
-
-      setEntries(normalizeEntries(res.data));
     } catch (error) {
       console.error("Error loading timetable:", error);
       toast.error(
@@ -291,7 +347,15 @@ export default function TimetableManagement() {
 
   useEffect(() => {
     loadTimetable();
-  }, [session, term, mode, viewClassId, viewTeacherId, selectedWardId]);
+  }, [
+    session,
+    term,
+    mode,
+    viewClassId,
+    viewTeacherId,
+    selectedWardId,
+    teacherAssignedSubjectIds,
+  ]);
 
   const startCreate = () => {
     setEditingId(null);
@@ -507,7 +571,9 @@ export default function TimetableManagement() {
   }
 
   return (
-    <div className="timetable-management container-fluid py-4">
+    <div
+      className={`timetable-management ${darkMode ? "dark-mode" : ""} container-fluid py-4`}
+    >
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
           <h2 className="mb-1">
@@ -526,13 +592,20 @@ export default function TimetableManagement() {
                 "Create and manage class schedules"
               : isTeacher
                 ? t?.timetableManagement?.myDescription ||
-                  "View your teaching schedule"
+                  "View your teaching schedule (only subjects you teach)"
                 : isParent
                   ? t?.timetableManagement?.wardDescription ||
                     "View timetable for your ward"
                   : t?.timetableManagement?.studentDescription ||
                     "View your class timetable"}
           </p>
+          {isTeacher && teacherAssignedSubjectIds.size > 0 && (
+            <small className="text-success d-block mt-1">
+              <FaCheckCircle className="me-1" />
+              Showing timetable for {teacherAssignedSubjectIds.size} subject(s)
+              you teach
+            </small>
+          )}
         </div>
 
         <button
@@ -930,7 +1003,8 @@ export default function TimetableManagement() {
         <div className="card-header bg-dark text-white">
           <h5 className="mb-0">
             {isTeacher
-              ? t?.timetableManagement?.myTimetable || "My Timetable"
+              ? t?.timetableManagement?.myTimetable ||
+                "My Timetable (Only Subjects I Teach)"
               : isStudent
                 ? t?.timetableManagement?.myTimetable || "My Timetable"
                 : isParent
@@ -1048,8 +1122,12 @@ export default function TimetableManagement() {
                                   ? t?.timetableManagement
                                       ?.selectTeacherFirst ||
                                     "Please select a teacher to view their timetable"
-                                  : t?.timetableManagement?.noEntries ||
-                                    "No timetable entries found for the selected criteria"}
+                                  : isTeacher
+                                    ? t?.timetableManagement
+                                        ?.noTeacherEntries ||
+                                      "No timetable entries found for your assigned subjects"
+                                    : t?.timetableManagement?.noEntries ||
+                                      "No timetable entries found for the selected criteria"}
                         </p>
                       </td>
                     </tr>
