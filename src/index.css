@@ -1,150 +1,246 @@
 /* src/index.css */
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+:root {
+  /* Light theme variables */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-muted: #6c757d;
+  --border-color: #dee2e6;
+  --card-bg: #ffffff;
+  --navbar-bg: #f8f9fa;
+  --footer-bg: #f8f9fa;
+  --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --transition: all 0.3s ease;
 }
 
-html, body, #root {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-  margin: 0;
-  padding: 0;
+[data-bs-theme="dark"] {
+  --bg-primary: #212529;
+  --bg-secondary: #2c3034;
+  --bg-tertiary: #343a40;
+  --text-primary: #f8f9fa;
+  --text-secondary: #adb5bd;
+  --text-muted: #6c757d;
+  --border-color: #495057;
+  --card-bg: #2c3034;
+  --navbar-bg: #1a1d20;
+  --footer-bg: #1a1d20;
+  --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
 }
 
+/* Global Styles */
 body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #f8f9fa;
-  min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: var(--transition);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+/* Dark Mode Switch Styling */
+.dark-mode-switch .form-check-input {
+  cursor: pointer;
+  width: 2.5rem;
+  height: 1.25rem;
 }
 
-/* Ensure root takes full width */
-#root {
+.dark-mode-switch .form-check-label {
+  margin-left: 0.5rem;
+  cursor: pointer;
   display: flex;
-  flex-direction: column;
-  min-height: 100vh;
+  align-items: center;
 }
 
-/* Fix for images and media */
-img, svg, video, iframe {
-  max-width: 100%;
-  height: auto;
+/* Card Styling */
+.card {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
 }
 
-/* Fix for Bootstrap modal */
-.modal-open {
-  padding-right: 0 !important;
+.card:hover {
+  box-shadow: var(--shadow-md);
 }
 
-.modal-open #root {
-  overflow: hidden;
+/* Form Controls */
+.form-control, .form-select {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+  transition: var(--transition);
 }
 
-/* Custom scrollbar (optional) */
+.form-control:focus, .form-select:focus {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.form-control::placeholder {
+  color: var(--text-muted);
+}
+
+/* Navbar */
+.navbar {
+  background-color: var(--navbar-bg) !important;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.navbar-brand, .nav-link {
+  color: var(--text-primary) !important;
+  transition: var(--transition);
+}
+
+.nav-link:hover {
+  color: #0d6efd !important;
+}
+
+/* Buttons */
+.btn-outline-secondary {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-outline-secondary:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Tables */
+.table {
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) {
+  background-color: var(--bg-secondary);
+}
+
+.table-hover > tbody > tr:hover {
+  background-color: var(--bg-tertiary);
+}
+
+/* Modals */
+.modal-content {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.modal-header, .modal-footer {
+  border-color: var(--border-color);
+}
+
+/* Dropdowns */
+.dropdown-menu {
+  background-color: var(--bg-primary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.dropdown-item {
+  color: var(--text-primary);
+}
+
+.dropdown-item:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Icons and spacing fixes */
+.input-group .form-control {
+  z-index: 0;
+}
+
+.input-group .input-group-text {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+/* Prevent icon overlap */
+.position-relative .form-control {
+  padding-right: 2.5rem;
+}
+
+.position-relative .icon-left {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.position-relative .icon-right {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.position-relative .form-control {
+  padding-left: 2.5rem;
+}
+
+/* Responsive fixes */
+@media (max-width: 768px) {
+  .table-responsive {
+    border-radius: 0.5rem;
+    overflow-x: auto;
+  }
+  
+  .card {
+    margin-bottom: 1rem;
+  }
+  
+  .modal-dialog {
+    margin: 0.5rem;
+  }
+}
+
+/* Loading states */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+/* Toast notifications */
+.Toastify__toast {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.Toastify__toast-body {
+  color: var(--text-primary);
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--nigerian-green, #008753);
+  background: var(--text-muted);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--school-navy, #003366);
-}
-/* Add these styles to your main CSS file */
-
-.spinner {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.attendance-manager .btn-group-sm .btn {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
-}
-
-.attendance-manager .table th {
-  background-color: #f8f9fa;
-  font-weight: 600;
-}
-
-.attendance-manager .badge {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-}
-
-.attendance-manager .badge svg {
-  margin-right: 0.25rem;
-}
-
-/* Progress bar styles */
-.progress {
-  height: 30px;
-  border-radius: 15px;
-  overflow: hidden;
-}
-
-.progress-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-/* Card hover effects */
-.attendance-manager .card {
-  transition: box-shadow 0.3s ease;
-  border: none;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.attendance-manager .card:hover {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-/* Statistics cards */
-.attendance-manager .border.rounded {
-  transition: transform 0.3s ease;
-}
-
-.attendance-manager .border.rounded:hover {
-  transform: translateY(-3px);
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .attendance-manager .btn-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  
-  .attendance-manager .btn-group .btn {
-    border-radius: 0.25rem !important;
-    margin: 0;
-  }
+  background: var(--text-secondary);
 }

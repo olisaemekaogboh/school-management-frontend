@@ -9,6 +9,7 @@ import {
 } from "../services/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import {
   FaCalendarAlt,
   FaCheckCircle,
@@ -33,7 +34,98 @@ import jsPDF from "jspdf";
 
 function AttendanceManager() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
+
+  const ui = {
+    loadingActiveSession:
+      t?.attendanceManager?.loadingActiveSession || "Loading active session...",
+    refreshSessions:
+      t?.attendanceManager?.refreshSessions || "Refresh Sessions",
+    activeSession: t?.attendanceManager?.activeSession || "Active Session",
+    noActiveSession:
+      t?.attendanceManager?.noActiveSession || "No active session",
+    currentBackendTerm:
+      t?.attendanceManager?.currentBackendTerm || "Current Backend Term",
+    wardAttendance: t?.attendanceManager?.wardAttendance || "Ward Attendance",
+    attendanceManagement:
+      t?.attendanceManager?.attendanceManagement || "Attendance Management",
+    wardAttendanceControls:
+      t?.attendanceManager?.wardAttendanceControls ||
+      "Ward Attendance Controls",
+    attendanceControls:
+      t?.attendanceManager?.attendanceControls || "Attendance Controls",
+    viewMode: t?.attendanceManager?.viewMode || "View Mode",
+    markAttendance: t?.attendanceManager?.markAttendance || "Mark Attendance",
+    classStatistics:
+      t?.attendanceManager?.classStatistics || "Class Statistics",
+    myAttendanceReport:
+      t?.attendanceManager?.myAttendanceReport || "My Attendance Report",
+    wardAttendanceReport:
+      t?.attendanceManager?.wardAttendanceReport || "Ward Attendance Report",
+    studentReport: t?.attendanceManager?.studentReport || "Student Report",
+    selectWard: t?.attendanceManager?.selectWard || "Select Ward",
+    selectWardPlaceholder:
+      t?.attendanceManager?.selectWardPlaceholder || "Select Ward",
+    classLabel: t?.attendanceManager?.classLabel || "Class",
+    selectClass: t?.attendanceManager?.selectClass || "Select Class",
+    arm: t?.attendanceManager?.arm || "Arm",
+    selectArm: t?.attendanceManager?.selectArm || "Select Arm",
+    date: t?.attendanceManager?.date || "Date",
+    firstTerm: t?.attendanceManager?.firstTerm || "First Term",
+    secondTerm: t?.attendanceManager?.secondTerm || "Second Term",
+    thirdTerm: t?.attendanceManager?.thirdTerm || "Third Term",
+    failedSessionInfo:
+      t?.attendanceManager?.failedSessionInfo ||
+      "Failed to load session information",
+    failedStudentProfile:
+      t?.attendanceManager?.failedStudentProfile ||
+      "Failed to load your student profile",
+    failedWards: t?.attendanceManager?.failedWards || "Failed to load wards",
+    failedAssignments:
+      t?.attendanceManager?.failedAssignments ||
+      "Failed to load teacher class assignments",
+    teacherClassRestriction:
+      t?.attendanceManager?.teacherClassRestriction ||
+      "You can only access your assigned class arm",
+    failedStudents:
+      t?.attendanceManager?.failedStudents || "Failed to load students",
+    failedClassStats:
+      t?.attendanceManager?.failedClassStats ||
+      "Failed to load class statistics",
+    failedStudentAttendance:
+      t?.attendanceManager?.failedStudentAttendance ||
+      "Failed to load student attendance",
+    failedWardAttendance:
+      t?.attendanceManager?.failedWardAttendance ||
+      "Failed to load ward attendance",
+    failedMarkAttendance:
+      t?.attendanceManager?.failedMarkAttendance || "Failed to mark attendance",
+    failedExportPdf:
+      t?.attendanceManager?.failedExportPdf || "Failed to export PDF",
+    exportedCsv:
+      t?.attendanceManager?.exportedCsv ||
+      "Attendance statistics exported to CSV",
+    exportedPdf:
+      t?.attendanceManager?.exportedPdf ||
+      "Attendance statistics exported to PDF",
+    noStatsToExport:
+      t?.attendanceManager?.noStatsToExport ||
+      "No attendance statistics to export",
+    selectClassFirst:
+      t?.attendanceManager?.selectClassFirst || "Please select a class first",
+    sessionTermRequired:
+      t?.attendanceManager?.sessionTermRequired ||
+      "Session and term are required",
+    selectClassArmSessionTerm:
+      t?.attendanceManager?.selectClassArmSessionTerm ||
+      "Please select class, arm, session and term first",
+    present: t?.attendanceManager?.present || "Present",
+    absent: t?.attendanceManager?.absent || "Absent",
+    late: t?.attendanceManager?.late || "Late",
+    excused: t?.attendanceManager?.excused || "Excused",
+    holiday: t?.attendanceManager?.holiday || "Holiday",
+  };
 
   const isAdmin = user?.role === "ADMIN";
   const isTeacher = user?.role === "TEACHER";
@@ -93,11 +185,10 @@ function AttendanceManager() {
   ];
 
   const terms = [
-    { value: "FIRST", label: "First Term" },
-    { value: "SECOND", label: "Second Term" },
-    { value: "THIRD", label: "Third Term" },
+    { value: "FIRST", label: ui.firstTerm },
+    { value: "SECOND", label: ui.secondTerm },
+    { value: "THIRD", label: ui.thirdTerm },
   ];
-
   useEffect(() => {
     loadSessionData();
   }, []);
@@ -869,7 +960,7 @@ function AttendanceManager() {
     return (
       <div className="text-center py-5">
         <FaSpinner className="spin" size={40} />
-        <p className="mt-3">Loading active session...</p>
+        <p className="mt-3">{ui.loadingActiveSession}</p>
 
         <style>{`
           .spin {
@@ -889,36 +980,36 @@ function AttendanceManager() {
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h2 className="mb-0">
           <FaCalendarAlt className="me-2" />{" "}
-          {isParent ? "Ward Attendance" : "Attendance Management"}
+          {isParent ? ui.wardAttendance : ui.attendanceManagement}
         </h2>
 
         <button className="btn btn-outline-primary" onClick={loadSessionData}>
           <FaSyncAlt className="me-2" />
-          Refresh Sessions
+          {ui.refreshSessions}
         </button>
       </div>
 
       <div className="mb-3 text-muted">
-        Active Session:{" "}
+        {ui.activeSession}:{" "}
         <strong>
           {activeSessionObj
             ? getSessionName(activeSessionObj)
-            : "No active session"}
+            : ui.noActiveSession}
         </strong>{" "}
-        | Current Backend Term:{" "}
+        | {ui.currentBackendTerm}:{" "}
         <strong>{activeSessionObj?.currentTerm || "-"}</strong>
       </div>
 
       <div className="card mb-4">
         <div className="card-header bg-primary text-white">
           <h5 className="mb-0">
-            {isParent ? "Ward Attendance Controls" : "Attendance Controls"}
+            {isParent ? ui.wardAttendanceControls : ui.attendanceControls}
           </h5>
         </div>
         <div className="card-body">
           <div className="row">
             <div className="col-md-2 mb-3">
-              <label className="form-label">View Mode</label>
+              <label className="form-label">{ui.viewMode}</label>
               <select
                 className="form-select"
                 value={viewMode}
@@ -926,30 +1017,30 @@ function AttendanceManager() {
                 disabled={isStudent || isParent}
               >
                 {!isStudent && !isParent && (
-                  <option value="mark">Mark Attendance</option>
+                  <option value="mark">{ui.markAttendance}</option>
                 )}
                 {!isStudent && !isParent && (
-                  <option value="stats">Class Statistics</option>
+                  <option value="stats">{ui.classStatistics}</option>
                 )}
                 <option value="report">
                   {isStudent
-                    ? "My Attendance Report"
+                    ? ui.myAttendanceReport
                     : isParent
-                      ? "Ward Attendance Report"
-                      : "Student Report"}
+                      ? ui.wardAttendanceReport
+                      : ui.studentReport}
                 </option>
               </select>
             </div>
 
             {isParent && (
               <div className="col-md-3 mb-3">
-                <label className="form-label">Select Ward</label>
+                <label className="form-label">{ui.selectWard}</label>
                 <select
                   className="form-select"
                   value={selectedWardId}
                   onChange={(e) => setSelectedWardId(e.target.value)}
                 >
-                  <option value="">Select Ward</option>
+                  <option value="">{ui.selectWardPlaceholder}</option>
                   {parentWards.map((ward) => (
                     <option key={ward.id} value={ward.id}>
                       {ward.fullName || `${ward.firstName} ${ward.lastName}`} (
@@ -963,7 +1054,7 @@ function AttendanceManager() {
             {!isStudent && !isParent && (
               <>
                 <div className="col-md-2 mb-3">
-                  <label className="form-label">Class</label>
+                  <label className="form-label">{ui.classLabel}</label>
                   <select
                     className="form-select"
                     value={selectedClass}
@@ -975,7 +1066,7 @@ function AttendanceManager() {
                     }}
                     disabled={isTeacher && mineFromQuery}
                   >
-                    <option value="">Select Class</option>
+                    <option value="">{ui.selectClass}</option>
                     {allowedClassOptions.map((c) => (
                       <option key={c.name} value={c.name}>
                         {c.name}
@@ -985,7 +1076,7 @@ function AttendanceManager() {
                 </div>
 
                 <div className="col-md-2 mb-3">
-                  <label className="form-label">Arm</label>
+                  <label className="form-label">{ui.arm}</label>
                   <select
                     className="form-select"
                     value={selectedArm}
@@ -996,7 +1087,7 @@ function AttendanceManager() {
                     }}
                     disabled={!selectedClass || (isTeacher && mineFromQuery)}
                   >
-                    <option value="">Select Arm</option>
+                    <option value="">{ui.selectArm}</option>
                     {selectedClass &&
                       allowedClassOptions
                         .find((c) => c.name === selectedClass)
@@ -1013,7 +1104,8 @@ function AttendanceManager() {
             {(viewMode === "mark" ||
               (!isStudent && !isParent && viewMode === "report")) && (
               <div className="col-md-2 mb-3">
-                <label className="form-label">Date</label>
+                <label className="form-label">{ui.date}</label>
+
                 <input
                   type="date"
                   className="form-control"

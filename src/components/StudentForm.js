@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { studentAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import {
   NIGERIAN_STATES,
   STUDENT_CLASSES,
@@ -19,12 +21,15 @@ import {
   FaTrash,
   FaSave,
   FaArrowLeft,
+  FaSpinner,
 } from "react-icons/fa";
 import moment from "moment";
 
 function StudentForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const isEditMode = !!id;
 
   const [formData, setFormData] = useState({
@@ -35,27 +40,21 @@ function StudentForm() {
     dateOfBirth: "",
     religion: "",
     nationality: "Nigerian",
-
     studentClass: "",
     classArm: "",
     status: "ACTIVE",
     previousSchool: "",
-
     parentName: "",
     parentPhone: "",
     parentEmail: "",
-
     address: "",
     localGovtArea: "",
     stateOfOrigin: "",
-
     emergencyContactName: "",
     emergencyContactPhone: "",
     emergencyContactRelationship: "",
-
     excludeFromPromotion: false,
     promotionHoldReason: "",
-
     profilePicture: null,
     profilePictureUrl: "",
   });
@@ -165,7 +164,6 @@ function StudentForm() {
     } else {
       generateAdmissionNumber();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -228,7 +226,7 @@ function StudentForm() {
       }
     } catch (error) {
       console.error("Error fetching student:", error);
-      toast.error("Failed to load student data");
+      toast.error(t?.studentForm?.loadFailed || "Failed to load student data");
     } finally {
       setLoading(false);
     }
@@ -271,14 +269,19 @@ function StudentForm() {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size should be less than 5MB");
+      toast.error(
+        t?.studentForm?.fileTooLarge || "File size should be less than 5MB",
+      );
       return;
     }
 
     const validTypes = ["image/jpeg", "image/png", "image/gif", "image/jpg"];
 
     if (!validTypes.includes(file.type)) {
-      toast.error("Please upload a valid image file (JPEG, PNG, GIF)");
+      toast.error(
+        t?.studentForm?.invalidFileType ||
+          "Please upload a valid image file (JPEG, PNG, GIF)",
+      );
       return;
     }
 
@@ -319,40 +322,58 @@ function StudentForm() {
     const newErrors = {};
 
     if (!formData.firstName?.trim())
-      newErrors.firstName = "First name is required";
+      newErrors.firstName =
+        t?.studentForm?.firstNameRequired || "First name is required";
     if (!formData.lastName?.trim())
-      newErrors.lastName = "Last name is required";
-    if (!formData.studentClass) newErrors.studentClass = "Class is required";
-    if (!formData.classArm) newErrors.classArm = "Class arm is required";
-    if (!formData.gender) newErrors.gender = "Gender is required";
+      newErrors.lastName =
+        t?.studentForm?.lastNameRequired || "Last name is required";
+    if (!formData.studentClass)
+      newErrors.studentClass =
+        t?.studentForm?.classRequired || "Class is required";
+    if (!formData.classArm)
+      newErrors.classArm =
+        t?.studentForm?.classArmRequired || "Class arm is required";
+    if (!formData.gender)
+      newErrors.gender = t?.studentForm?.genderRequired || "Gender is required";
     if (!formData.dateOfBirth)
-      newErrors.dateOfBirth = "Date of birth is required";
+      newErrors.dateOfBirth =
+        t?.studentForm?.dobRequired || "Date of birth is required";
     if (!formData.parentName?.trim())
-      newErrors.parentName = "Parent name is required";
+      newErrors.parentName =
+        t?.studentForm?.parentNameRequired || "Parent name is required";
     if (!formData.parentPhone?.trim())
-      newErrors.parentPhone = "Parent phone is required";
-    if (!formData.address?.trim()) newErrors.address = "Address is required";
+      newErrors.parentPhone =
+        t?.studentForm?.parentPhoneRequired || "Parent phone is required";
+    if (!formData.address?.trim())
+      newErrors.address =
+        t?.studentForm?.addressRequired || "Address is required";
     if (!formData.localGovtArea)
-      newErrors.localGovtArea = "Local Government Area is required";
+      newErrors.localGovtArea =
+        t?.studentForm?.lgaRequired || "Local Government Area is required";
     if (!formData.stateOfOrigin)
-      newErrors.stateOfOrigin = "State of Origin is required";
+      newErrors.stateOfOrigin =
+        t?.studentForm?.stateRequired || "State of Origin is required";
 
     if (formData.parentPhone && !/^\d{11}$/.test(formData.parentPhone)) {
-      newErrors.parentPhone = "Phone number must be 11 digits";
+      newErrors.parentPhone =
+        t?.studentForm?.phoneInvalid || "Phone number must be 11 digits";
     }
 
     if (
       formData.emergencyContactPhone &&
       !/^\d{11}$/.test(formData.emergencyContactPhone)
     ) {
-      newErrors.emergencyContactPhone = "Emergency phone must be 11 digits";
+      newErrors.emergencyContactPhone =
+        t?.studentForm?.emergencyPhoneInvalid ||
+        "Emergency phone must be 11 digits";
     }
 
     if (
       formData.parentEmail &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.parentEmail)
     ) {
-      newErrors.parentEmail = "Invalid email format";
+      newErrors.parentEmail =
+        t?.studentForm?.emailInvalid || "Invalid email format";
     }
 
     const normalizedClass = normalizeClassValue(formData.studentClass);
@@ -361,14 +382,17 @@ function StudentForm() {
     );
 
     if (normalizedClass && !isKnownClass) {
-      newErrors.studentClass = "Please select a valid class";
+      newErrors.studentClass =
+        t?.studentForm?.validClassRequired || "Please select a valid class";
     }
 
     if (
       formData.classArm &&
       !CLASS_ARMS.includes(normalizeArmValue(formData.classArm))
     ) {
-      newErrors.classArm = "Please select a valid class arm";
+      newErrors.classArm =
+        t?.studentForm?.validClassArmRequired ||
+        "Please select a valid class arm";
     }
 
     setErrors(newErrors);
@@ -379,7 +403,10 @@ function StudentForm() {
     e.preventDefault();
 
     if (!validateForm()) {
-      toast.error("Please fill in all required fields correctly");
+      toast.error(
+        t?.studentForm?.fillRequiredFields ||
+          "Please fill in all required fields correctly",
+      );
       return;
     }
 
@@ -441,8 +468,8 @@ function StudentForm() {
 
       toast.success(
         isEditMode
-          ? "Student updated successfully"
-          : "Student registered successfully",
+          ? t?.studentForm?.updateSuccess || "Student updated successfully"
+          : t?.studentForm?.createSuccess || "Student registered successfully",
       );
 
       navigate(isEditMode ? `/students/view/${id}` : "/students");
@@ -458,6 +485,7 @@ function StudentForm() {
         toast.error(
           error.response?.data?.message ||
             error.message ||
+            t?.studentForm?.saveFailed ||
             "Failed to save student",
         );
       }
@@ -480,20 +508,28 @@ function StudentForm() {
     <div className="form-container">
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="mb-0">
-          {isEditMode ? "Edit Student" : "Register New Student"}
+          {isEditMode
+            ? t?.studentForm?.editStudent || "Edit Student"
+            : t?.studentForm?.registerNewStudent || "Register New Student"}
         </h2>
         <button
           type="button"
           className="btn btn-secondary"
           onClick={() => navigate("/students")}
         >
-          <FaArrowLeft className="me-2" /> Back to List
+          <FaArrowLeft className="me-2" />{" "}
+          {t?.common?.backToList || "Back to List"}
         </button>
       </div>
 
       {!isEditMode && generatedAdmissionNo && (
         <div className="alert alert-info">
-          <strong>Generated Admission Number:</strong> {generatedAdmissionNo}
+          <strong>
+            {t?.studentForm?.generatedAdmissionNo ||
+              "Generated Admission Number"}
+            :
+          </strong>{" "}
+          {generatedAdmissionNo}
         </div>
       )}
 
@@ -503,7 +539,8 @@ function StudentForm() {
             <div className="card">
               <div className="card-header bg-primary text-white">
                 <h5 className="mb-0">
-                  <FaCamera className="me-2" /> Student Photograph
+                  <FaCamera className="me-2" />{" "}
+                  {t?.studentForm?.studentPhotograph || "Student Photograph"}
                 </h5>
               </div>
               <div className="card-body">
@@ -559,7 +596,8 @@ function StudentForm() {
                           <div className="text-center">
                             <FaCamera size={40} color="#008753" />
                             <p className="mt-2 text-muted small">
-                              Click to upload
+                              {t?.studentForm?.clickToUpload ||
+                                "Click to upload"}
                             </p>
                           </div>
                         </div>
@@ -593,7 +631,7 @@ function StudentForm() {
                         }
                       >
                         <FaUpload className="me-2" />
-                        Choose Photo
+                        {t?.studentForm?.choosePhoto || "Choose Photo"}
                       </button>
                     )}
 
@@ -620,21 +658,30 @@ function StudentForm() {
 
                   <div className="col-md-9">
                     <div className="alert alert-info">
-                      <h6 className="mb-2">Photo Requirements:</h6>
+                      <h6 className="mb-2">
+                        {t?.studentForm?.photoRequirements ||
+                          "Photo Requirements:"}
+                      </h6>
                       <ul className="mb-0 small">
                         <li>
-                          Maximum file size: <strong>5MB</strong>
+                          {t?.studentForm?.maxFileSize || "Maximum file size"}:{" "}
+                          <strong>5MB</strong>
                         </li>
                         <li>
-                          Accepted formats: <strong>JPEG, PNG, GIF</strong>
+                          {t?.studentForm?.acceptedFormats ||
+                            "Accepted formats"}
+                          : <strong>JPEG, PNG, GIF</strong>
                         </li>
                         <li>
-                          Recommended:{" "}
-                          <strong>Passport photograph (200x200 pixels)</strong>
+                          {t?.studentForm?.recommended || "Recommended"}:{" "}
+                          <strong>
+                            {t?.studentForm?.passportPhoto ||
+                              "Passport photograph (200x200 pixels)"}
+                          </strong>
                         </li>
                         <li>
-                          The photo will appear on student&apos;s profile,
-                          result sheets, and ID card
+                          {t?.studentForm?.photoUsage ||
+                            "The photo will appear on student's profile, result sheets, and ID card"}
                         </li>
                       </ul>
                     </div>
@@ -647,13 +694,16 @@ function StudentForm() {
 
         <div className="card mb-4">
           <div className="card-header bg-success text-white">
-            <h5 className="mb-0">Personal Information</h5>
+            <h5 className="mb-0">
+              {t?.studentForm?.personalInformation || "Personal Information"}
+            </h5>
           </div>
           <div className="card-body">
             <div className="row">
               <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  First Name <span className="text-danger">*</span>
+                  {t?.studentForm?.firstName || "First Name"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <input
                   type="text"
@@ -669,7 +719,8 @@ function StudentForm() {
 
               <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  Last Name <span className="text-danger">*</span>
+                  {t?.studentForm?.lastName || "Last Name"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <input
                   type="text"
@@ -684,7 +735,9 @@ function StudentForm() {
               </div>
 
               <div className="col-md-4 mb-3">
-                <label className="form-label">Middle Name</label>
+                <label className="form-label">
+                  {t?.studentForm?.middleName || "Middle Name"}
+                </label>
                 <input
                   type="text"
                   className="form-control"
@@ -696,7 +749,8 @@ function StudentForm() {
 
               <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  Gender <span className="text-danger">*</span>
+                  {t?.studentForm?.gender || "Gender"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <select
                   className={`form-select ${errors.gender ? "is-invalid" : ""}`}
@@ -704,7 +758,9 @@ function StudentForm() {
                   value={formData.gender}
                   onChange={handleChange}
                 >
-                  <option value="">Select Gender</option>
+                  <option value="">
+                    {t?.common?.select || "Select Gender"}
+                  </option>
                   {GENDERS.map((gender) => (
                     <option key={gender} value={gender}>
                       {gender}
@@ -718,7 +774,8 @@ function StudentForm() {
 
               <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  Date of Birth <span className="text-danger">*</span>
+                  {t?.studentForm?.dateOfBirth || "Date of Birth"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <input
                   type="date"
@@ -734,14 +791,18 @@ function StudentForm() {
               </div>
 
               <div className="col-md-4 mb-3">
-                <label className="form-label">Religion</label>
+                <label className="form-label">
+                  {t?.studentForm?.religion || "Religion"}
+                </label>
                 <select
                   className="form-select"
                   name="religion"
                   value={formData.religion}
                   onChange={handleChange}
                 >
-                  <option value="">Select Religion</option>
+                  <option value="">
+                    {t?.common?.select || "Select Religion"}
+                  </option>
                   {RELIGIONS.map((religion) => (
                     <option key={religion} value={religion}>
                       {religion}
@@ -751,7 +812,9 @@ function StudentForm() {
               </div>
 
               <div className="col-md-4 mb-3">
-                <label className="form-label">Nationality</label>
+                <label className="form-label">
+                  {t?.studentForm?.nationality || "Nationality"}
+                </label>
                 <select
                   className="form-select"
                   name="nationality"
@@ -771,13 +834,16 @@ function StudentForm() {
 
         <div className="card mb-4">
           <div className="card-header bg-success text-white">
-            <h5 className="mb-0">Academic Information</h5>
+            <h5 className="mb-0">
+              {t?.studentForm?.academicInformation || "Academic Information"}
+            </h5>
           </div>
           <div className="card-body">
             <div className="row">
               <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  Class <span className="text-danger">*</span>
+                  {t?.studentForm?.class || "Class"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <select
                   className={`form-select ${errors.studentClass ? "is-invalid" : ""}`}
@@ -785,7 +851,9 @@ function StudentForm() {
                   value={formData.studentClass}
                   onChange={handleChange}
                 >
-                  <option value="">Select Class</option>
+                  <option value="">
+                    {t?.common?.select || "Select Class"}
+                  </option>
                   {CANONICAL_CLASS_OPTIONS.map((cls) => (
                     <option key={cls.value} value={cls.value}>
                       {cls.label}
@@ -799,7 +867,8 @@ function StudentForm() {
 
               <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  Class Arm <span className="text-danger">*</span>
+                  {t?.studentForm?.classArm || "Class Arm"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <select
                   className={`form-select ${errors.classArm ? "is-invalid" : ""}`}
@@ -807,7 +876,7 @@ function StudentForm() {
                   value={formData.classArm}
                   onChange={handleChange}
                 >
-                  <option value="">Select Arm</option>
+                  <option value="">{t?.common?.select || "Select Arm"}</option>
                   {CLASS_ARMS.map((arm) => (
                     <option key={arm} value={arm}>
                       {arm}
@@ -820,7 +889,9 @@ function StudentForm() {
               </div>
 
               <div className="col-md-4 mb-3">
-                <label className="form-label">Status</label>
+                <label className="form-label">
+                  {t?.studentForm?.status || "Status"}
+                </label>
                 <select
                   className="form-select"
                   name="status"
@@ -836,17 +907,23 @@ function StudentForm() {
               </div>
 
               <div className="col-md-6 mb-3">
-                <label className="form-label">Previous School Attended</label>
+                <label className="form-label">
+                  {t?.studentForm?.previousSchool || "Previous School Attended"}
+                </label>
                 <input
                   type="text"
                   className="form-control"
                   name="previousSchool"
                   value={formData.previousSchool}
                   onChange={handleChange}
-                  placeholder="Enter previous school name"
+                  placeholder={
+                    t?.studentForm?.previousSchoolPlaceholder ||
+                    "Enter previous school name"
+                  }
                 />
                 <small className="text-muted">
-                  Leave blank if this is their first school
+                  {t?.studentForm?.firstSchoolHint ||
+                    "Leave blank if this is their first school"}
                 </small>
               </div>
             </div>
@@ -855,13 +932,17 @@ function StudentForm() {
 
         <div className="card mb-4">
           <div className="card-header bg-success text-white">
-            <h5 className="mb-0">Parent/Guardian Information</h5>
+            <h5 className="mb-0">
+              {t?.studentForm?.parentGuardianInfo ||
+                "Parent/Guardian Information"}
+            </h5>
           </div>
           <div className="card-body">
             <div className="row">
               <div className="col-md-6 mb-3">
                 <label className="form-label">
-                  Parent/Guardian Name <span className="text-danger">*</span>
+                  {t?.studentForm?.parentName || "Parent/Guardian Name"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <input
                   type="text"
@@ -877,7 +958,8 @@ function StudentForm() {
 
               <div className="col-md-3 mb-3">
                 <label className="form-label">
-                  Phone Number <span className="text-danger">*</span>
+                  {t?.studentForm?.phoneNumber || "Phone Number"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <input
                   type="tel"
@@ -894,7 +976,9 @@ function StudentForm() {
               </div>
 
               <div className="col-md-3 mb-3">
-                <label className="form-label">Email</label>
+                <label className="form-label">
+                  {t?.studentForm?.email || "Email"}
+                </label>
                 <input
                   type="email"
                   className={`form-control ${errors.parentEmail ? "is-invalid" : ""}`}
@@ -913,13 +997,16 @@ function StudentForm() {
 
         <div className="card mb-4">
           <div className="card-header bg-success text-white">
-            <h5 className="mb-0">Address Information</h5>
+            <h5 className="mb-0">
+              {t?.studentForm?.addressInformation || "Address Information"}
+            </h5>
           </div>
           <div className="card-body">
             <div className="row">
               <div className="col-md-6 mb-3">
                 <label className="form-label">
-                  Address <span className="text-danger">*</span>
+                  {t?.studentForm?.address || "Address"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <textarea
                   className={`form-control ${errors.address ? "is-invalid" : ""}`}
@@ -935,7 +1022,8 @@ function StudentForm() {
 
               <div className="col-md-6 mb-3">
                 <label className="form-label">
-                  State of Origin <span className="text-danger">*</span>
+                  {t?.studentForm?.stateOfOrigin || "State of Origin"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <select
                   className={`form-select ${errors.stateOfOrigin ? "is-invalid" : ""}`}
@@ -943,7 +1031,9 @@ function StudentForm() {
                   value={formData.stateOfOrigin}
                   onChange={handleChange}
                 >
-                  <option value="">Select State</option>
+                  <option value="">
+                    {t?.common?.select || "Select State"}
+                  </option>
                   {NIGERIAN_STATES.map((state) => (
                     <option key={state} value={state}>
                       {state}
@@ -957,7 +1047,9 @@ function StudentForm() {
 
               <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  Local Government Area <span className="text-danger">*</span>
+                  {t?.studentForm?.localGovernmentArea ||
+                    "Local Government Area"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <select
                   className={`form-select ${errors.localGovtArea ? "is-invalid" : ""}`}
@@ -966,7 +1058,7 @@ function StudentForm() {
                   onChange={handleChange}
                   disabled={!formData.stateOfOrigin}
                 >
-                  <option value="">Select LGA</option>
+                  <option value="">{t?.common?.select || "Select LGA"}</option>
                   {availableLGAs.map((lga) => (
                     <option key={lga} value={lga}>
                       {lga}
@@ -983,12 +1075,17 @@ function StudentForm() {
 
         <div className="card mb-4">
           <div className="card-header bg-success text-white">
-            <h5 className="mb-0">Emergency Contact</h5>
+            <h5 className="mb-0">
+              {t?.studentForm?.emergencyContact || "Emergency Contact"}
+            </h5>
           </div>
           <div className="card-body">
             <div className="row">
               <div className="col-md-4 mb-3">
-                <label className="form-label">Emergency Contact Name</label>
+                <label className="form-label">
+                  {t?.studentForm?.emergencyContactName ||
+                    "Emergency Contact Name"}
+                </label>
                 <input
                   type="text"
                   className="form-control"
@@ -999,7 +1096,10 @@ function StudentForm() {
               </div>
 
               <div className="col-md-4 mb-3">
-                <label className="form-label">Emergency Contact Phone</label>
+                <label className="form-label">
+                  {t?.studentForm?.emergencyContactPhone ||
+                    "Emergency Contact Phone"}
+                </label>
                 <input
                   type="tel"
                   className={`form-control ${errors.emergencyContactPhone ? "is-invalid" : ""}`}
@@ -1017,19 +1117,33 @@ function StudentForm() {
               </div>
 
               <div className="col-md-4 mb-3">
-                <label className="form-label">Relationship</label>
+                <label className="form-label">
+                  {t?.studentForm?.relationship || "Relationship"}
+                </label>
                 <select
                   className="form-select"
                   name="emergencyContactRelationship"
                   value={formData.emergencyContactRelationship}
                   onChange={handleChange}
                 >
-                  <option value="">Select Relationship</option>
-                  <option value="Parent">Parent</option>
-                  <option value="Guardian">Guardian</option>
-                  <option value="Sibling">Sibling</option>
-                  <option value="Relative">Relative</option>
-                  <option value="Other">Other</option>
+                  <option value="">
+                    {t?.common?.select || "Select Relationship"}
+                  </option>
+                  <option value="Parent">
+                    {t?.studentForm?.parent || "Parent"}
+                  </option>
+                  <option value="Guardian">
+                    {t?.studentForm?.guardian || "Guardian"}
+                  </option>
+                  <option value="Sibling">
+                    {t?.studentForm?.sibling || "Sibling"}
+                  </option>
+                  <option value="Relative">
+                    {t?.studentForm?.relative || "Relative"}
+                  </option>
+                  <option value="Other">
+                    {t?.studentForm?.other || "Other"}
+                  </option>
                 </select>
               </div>
             </div>
@@ -1038,7 +1152,9 @@ function StudentForm() {
 
         <div className="card mb-4">
           <div className="card-header bg-warning">
-            <h5 className="mb-0">Promotion Settings</h5>
+            <h5 className="mb-0">
+              {t?.studentForm?.promotionSettings || "Promotion Settings"}
+            </h5>
           </div>
           <div className="card-body">
             <div className="row">
@@ -1056,21 +1172,27 @@ function StudentForm() {
                     className="form-check-label"
                     htmlFor="excludeFromPromotion"
                   >
-                    Exclude from automatic promotion
+                    {t?.studentForm?.excludeFromPromotion ||
+                      "Exclude from automatic promotion"}
                   </label>
                 </div>
               </div>
 
               {formData.excludeFromPromotion && (
                 <div className="col-md-8 mb-3">
-                  <label className="form-label">Reason for exclusion</label>
+                  <label className="form-label">
+                    {t?.studentForm?.exclusionReason || "Reason for exclusion"}
+                  </label>
                   <input
                     type="text"
                     className="form-control"
                     name="promotionHoldReason"
                     value={formData.promotionHoldReason}
                     onChange={handleChange}
-                    placeholder="Enter reason for holding student back"
+                    placeholder={
+                      t?.studentForm?.exclusionReasonPlaceholder ||
+                      "Enter reason for holding student back"
+                    }
                   />
                 </div>
               )}
@@ -1082,13 +1204,15 @@ function StudentForm() {
           <button type="submit" className="btn btn-nigerian" disabled={loading}>
             {loading ? (
               <>
-                <span className="spinner-border spinner-border-sm me-2" />
-                Saving...
+                <FaSpinner className="me-2 spin" />
+                {t?.common?.saving || "Saving..."}
               </>
             ) : (
               <>
                 <FaSave className="me-2" />
-                {isEditMode ? "Update Student" : "Register Student"}
+                {isEditMode
+                  ? t?.studentForm?.updateStudent || "Update Student"
+                  : t?.studentForm?.registerStudent || "Register Student"}
               </>
             )}
           </button>
@@ -1098,7 +1222,7 @@ function StudentForm() {
             className="btn btn-secondary"
             onClick={() => navigate("/students")}
           >
-            Cancel
+            {t?.common?.cancel || "Cancel"}
           </button>
         </div>
       </form>

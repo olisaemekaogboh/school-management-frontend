@@ -1,7 +1,10 @@
+// src/components/StudentManagement.js
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { studentAPI, teacherAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaSearch,
@@ -15,10 +18,13 @@ import {
   FaUserCheck,
   FaSchool,
   FaUserPlus,
+  FaSpinner,
 } from "react-icons/fa";
 
 function StudentManagement() {
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [searchParams] = useSearchParams();
 
   const mine = searchParams.get("mine");
@@ -32,7 +38,9 @@ function StudentManagement() {
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [pageTitle, setPageTitle] = useState("Student Management");
+  const [pageTitle, setPageTitle] = useState(
+    t?.studentManagement?.title || "Student Management",
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     class: "",
@@ -80,7 +88,6 @@ function StudentManagement() {
     } else {
       setStatistics(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mine, classId, user?.role]);
 
   const fetchStudents = async () => {
@@ -97,8 +104,11 @@ function StudentManagement() {
 
         if (!myClass) {
           setStudents([]);
-          setPageTitle("My Students");
-          toast.error("You are not assigned to this class");
+          setPageTitle(t?.studentManagement?.myStudents || "My Students");
+          toast.error(
+            t?.studentManagement?.notAssigned ||
+              "You are not assigned to this class",
+          );
           return;
         }
 
@@ -106,17 +116,23 @@ function StudentManagement() {
         const teacherStudents = studentsRes.data || [];
 
         setStudents(teacherStudents);
-        setPageTitle(`My Students - ${myClass.className} ${myClass.arm}`);
+        setPageTitle(
+          `${t?.studentManagement?.myStudents || "My Students"} - ${myClass.className} ${myClass.arm}`,
+        );
         return;
       }
 
       const response = await studentAPI.getAllStudents();
       setStudents(response.data || []);
-      setPageTitle("Student Management");
+      setPageTitle(t?.studentManagement?.title || "Student Management");
     } catch (error) {
       console.error("Error fetching students:", error);
       setStudents([]);
-      toast.error(error?.response?.data?.message || "Failed to load students");
+      toast.error(
+        error?.response?.data?.message ||
+          t?.studentManagement?.loadFailed ||
+          "Failed to load students",
+      );
     } finally {
       setLoading(false);
     }
@@ -131,7 +147,9 @@ function StudentManagement() {
       console.error("Error fetching student statistics:", error);
       setStatistics(null);
       toast.error(
-        error?.response?.data?.message || "Failed to load student statistics",
+        error?.response?.data?.message ||
+          t?.studentManagement?.statsFailed ||
+          "Failed to load student statistics",
       );
     } finally {
       setStatsLoading(false);
@@ -206,20 +224,29 @@ function StudentManagement() {
   const handleDelete = async (id) => {
     if (!isAdmin) return;
 
-    if (!window.confirm("Are you sure you want to delete this student?")) {
+    if (
+      !window.confirm(
+        t?.studentManagement?.confirmDelete ||
+          "Are you sure you want to delete this student?",
+      )
+    ) {
       return;
     }
 
     try {
       await studentAPI.deleteStudent(id);
-      toast.success("Student deleted successfully");
+      toast.success(
+        t?.studentManagement?.deleteSuccess || "Student deleted successfully",
+      );
       fetchStudents();
       if (isAdmin && !teacherScoped) {
         fetchStatistics();
       }
     } catch (error) {
       console.error("Error deleting student:", error);
-      toast.error("Failed to delete student");
+      toast.error(
+        t?.studentManagement?.deleteFailed || "Failed to delete student",
+      );
     }
   };
 
@@ -263,7 +290,7 @@ function StudentManagement() {
         {isAdmin && (
           <Link to="/students/new" className="btn btn-primary">
             <FaPlus className="me-2" />
-            Register New Student
+            {t?.studentManagement?.registerNew || "Register New Student"}
           </Link>
         )}
       </div>
@@ -278,9 +305,15 @@ function StudentManagement() {
                 </div>
                 <div>
                   <h4 className="mb-0">
-                    {statsLoading ? "..." : (statistics?.totalStudents ?? 0)}
+                    {statsLoading ? (
+                      <FaSpinner className="spin" />
+                    ) : (
+                      (statistics?.totalStudents ?? 0)
+                    )}
                   </h4>
-                  <small className="text-muted">Total Students</small>
+                  <small className="text-muted">
+                    {t?.studentManagement?.totalStudents || "Total Students"}
+                  </small>
                 </div>
               </div>
             </div>
@@ -294,9 +327,15 @@ function StudentManagement() {
                 </div>
                 <div>
                   <h4 className="mb-0">
-                    {statsLoading ? "..." : (statistics?.activeStudents ?? 0)}
+                    {statsLoading ? (
+                      <FaSpinner className="spin" />
+                    ) : (
+                      (statistics?.activeStudents ?? 0)
+                    )}
                   </h4>
-                  <small className="text-muted">Active Students</small>
+                  <small className="text-muted">
+                    {t?.studentManagement?.activeStudents || "Active Students"}
+                  </small>
                 </div>
               </div>
             </div>
@@ -310,9 +349,15 @@ function StudentManagement() {
                 </div>
                 <div>
                   <h4 className="mb-0">
-                    {statsLoading ? "..." : classBreakdownCount}
+                    {statsLoading ? (
+                      <FaSpinner className="spin" />
+                    ) : (
+                      classBreakdownCount
+                    )}
                   </h4>
-                  <small className="text-muted">Class Groups</small>
+                  <small className="text-muted">
+                    {t?.studentManagement?.classGroups || "Class Groups"}
+                  </small>
                 </div>
               </div>
             </div>
@@ -326,9 +371,16 @@ function StudentManagement() {
                 </div>
                 <div>
                   <h4 className="mb-0">
-                    {statsLoading ? "..." : recentAdmissionsCount}
+                    {statsLoading ? (
+                      <FaSpinner className="spin" />
+                    ) : (
+                      recentAdmissionsCount
+                    )}
                   </h4>
-                  <small className="text-muted">Recent Admissions</small>
+                  <small className="text-muted">
+                    {t?.studentManagement?.recentAdmissions ||
+                      "Recent Admissions"}
+                  </small>
                 </div>
               </div>
             </div>
@@ -340,7 +392,9 @@ function StudentManagement() {
         <div className="card-body">
           <div className="row g-3">
             <div className="col-md-4">
-              <label className="form-label">Search</label>
+              <label className="form-label">
+                {t?.common?.search || "Search"}
+              </label>
               <div className="input-group">
                 <span className="input-group-text">
                   <FaSearch />
@@ -348,7 +402,10 @@ function StudentManagement() {
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Search by name, admission no, parent..."
+                  placeholder={
+                    t?.studentManagement?.searchPlaceholder ||
+                    "Search by name, admission no, parent..."
+                  }
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -356,7 +413,9 @@ function StudentManagement() {
             </div>
 
             <div className="col-md-2">
-              <label className="form-label">Class</label>
+              <label className="form-label">
+                {t?.studentManagement?.class || "Class"}
+              </label>
               <select
                 className="form-select"
                 value={filters.class}
@@ -365,7 +424,7 @@ function StudentManagement() {
                 }
                 disabled={teacherScoped}
               >
-                <option value="">All Classes</option>
+                <option value="">{t?.common?.all || "All Classes"}</option>
                 {classes.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -375,7 +434,9 @@ function StudentManagement() {
             </div>
 
             <div className="col-md-2">
-              <label className="form-label">Status</label>
+              <label className="form-label">
+                {t?.studentManagement?.status || "Status"}
+              </label>
               <select
                 className="form-select"
                 value={filters.status}
@@ -383,7 +444,7 @@ function StudentManagement() {
                   setFilters({ ...filters, status: e.target.value })
                 }
               >
-                <option value="">All Status</option>
+                <option value="">{t?.common?.allStatus || "All Status"}</option>
                 {statuses.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -393,7 +454,9 @@ function StudentManagement() {
             </div>
 
             <div className="col-md-2">
-              <label className="form-label">Gender</label>
+              <label className="form-label">
+                {t?.studentManagement?.gender || "Gender"}
+              </label>
               <select
                 className="form-select"
                 value={filters.gender}
@@ -401,7 +464,9 @@ function StudentManagement() {
                   setFilters({ ...filters, gender: e.target.value })
                 }
               >
-                <option value="">All Genders</option>
+                <option value="">
+                  {t?.common?.allGenders || "All Genders"}
+                </option>
                 {genders.map((g) => (
                   <option key={g} value={g}>
                     {g}
@@ -415,7 +480,7 @@ function StudentManagement() {
                 className="btn btn-outline-secondary w-100"
                 onClick={clearFilters}
               >
-                Clear Filters
+                {t?.common?.clearFilters || "Clear Filters"}
               </button>
             </div>
           </div>
@@ -425,7 +490,10 @@ function StudentManagement() {
       <div className="card">
         <div className="card-body">
           {loading ? (
-            <div className="text-center py-5">Loading...</div>
+            <div className="text-center py-5">
+              <FaSpinner className="spin" size={30} />
+              <p className="mt-2">{t?.common?.loading || "Loading..."}</p>
+            </div>
           ) : (
             <>
               <div className="table-responsive">
@@ -436,7 +504,7 @@ function StudentManagement() {
                         onClick={() => handleSort("admissionNumber")}
                         style={{ cursor: "pointer" }}
                       >
-                        Admission No.{" "}
+                        {t?.studentManagement?.admissionNo || "Admission No."}{" "}
                         {sortConfig.key === "admissionNumber" &&
                           (sortConfig.direction === "asc" ? (
                             <FaArrowUp />
@@ -448,7 +516,7 @@ function StudentManagement() {
                         onClick={() => handleSort("fullName")}
                         style={{ cursor: "pointer" }}
                       >
-                        Student Name{" "}
+                        {t?.studentManagement?.studentName || "Student Name"}{" "}
                         {sortConfig.key === "fullName" &&
                           (sortConfig.direction === "asc" ? (
                             <FaArrowUp />
@@ -460,7 +528,7 @@ function StudentManagement() {
                         onClick={() => handleSort("studentClass")}
                         style={{ cursor: "pointer" }}
                       >
-                        Class{" "}
+                        {t?.studentManagement?.class || "Class"}{" "}
                         {sortConfig.key === "studentClass" &&
                           (sortConfig.direction === "asc" ? (
                             <FaArrowUp />
@@ -468,12 +536,16 @@ function StudentManagement() {
                             <FaArrowDown />
                           ))}
                       </th>
-                      <th>Arm</th>
-                      <th>Gender</th>
-                      <th>Parent Name</th>
-                      <th>Parent Phone</th>
-                      <th>Status</th>
-                      <th>Actions</th>
+                      <th>{t?.studentManagement?.arm || "Arm"}</th>
+                      <th>{t?.studentManagement?.gender || "Gender"}</th>
+                      <th>
+                        {t?.studentManagement?.parentName || "Parent Name"}
+                      </th>
+                      <th>
+                        {t?.studentManagement?.parentPhone || "Parent Phone"}
+                      </th>
+                      <th>{t?.studentManagement?.status || "Status"}</th>
+                      <th>{t?.common?.actions || "Actions"}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -502,7 +574,7 @@ function StudentManagement() {
                                 from: `/students${window.location.search}`,
                               }}
                               className="btn btn-outline-info"
-                              title="View"
+                              title={t?.common?.view || "View"}
                             >
                               <FaEye />
                             </Link>
@@ -515,14 +587,14 @@ function StudentManagement() {
                                     from: `/students${window.location.search}`,
                                   }}
                                   className="btn btn-outline-primary"
-                                  title="Edit"
+                                  title={t?.common?.edit || "Edit"}
                                 >
                                   <FaEdit />
                                 </Link>
                                 <button
                                   className="btn btn-outline-danger"
                                   onClick={() => handleDelete(student.id)}
-                                  title="Delete"
+                                  title={t?.common?.delete || "Delete"}
                                 >
                                   <FaTrash />
                                 </button>
@@ -536,7 +608,8 @@ function StudentManagement() {
                     {filteredStudents.length === 0 && (
                       <tr>
                         <td colSpan="9" className="text-center py-4">
-                          No students found
+                          {t?.studentManagement?.noStudents ||
+                            "No students found"}
                         </td>
                       </tr>
                     )}
@@ -555,7 +628,7 @@ function StudentManagement() {
                         onClick={() => setCurrentPage(currentPage - 1)}
                         disabled={currentPage === 1}
                       >
-                        Previous
+                        {t?.common?.previous || "Previous"}
                       </button>
                     </li>
 
@@ -581,7 +654,7 @@ function StudentManagement() {
                         onClick={() => setCurrentPage(currentPage + 1)}
                         disabled={currentPage === totalPages}
                       >
-                        Next
+                        {t?.common?.next || "Next"}
                       </button>
                     </li>
                   </ul>
@@ -589,10 +662,11 @@ function StudentManagement() {
               )}
 
               <div className="text-muted mt-2">
-                Showing{" "}
+                {t?.studentManagement?.showing || "Showing"}{" "}
                 {filteredStudents.length === 0 ? 0 : indexOfFirstItem + 1} to{" "}
                 {Math.min(indexOfLastItem, filteredStudents.length)} of{" "}
-                {filteredStudents.length} students
+                {filteredStudents.length}{" "}
+                {t?.studentManagement?.students || "students"}
               </div>
             </>
           )}

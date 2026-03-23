@@ -1,7 +1,9 @@
-// SessionResultSheet.js
+// src/components/SessionResultSheet.js
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, sessionResultAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaPrint,
@@ -25,6 +27,8 @@ function SessionResultSheet() {
   const { studentId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
 
   const query = new URLSearchParams(location.search);
   const session = query.get("session") || "";
@@ -51,6 +55,7 @@ function SessionResultSheet() {
       resultData?.studentInfo?.name ||
       student?.fullName ||
       `${student?.firstName || ""} ${student?.lastName || ""}`.trim() ||
+      t?.sessionResultSheet?.student ||
       "Student"
     );
   };
@@ -59,7 +64,9 @@ function SessionResultSheet() {
     if (studentId && session) {
       fetchResultData();
     } else {
-      setError("Missing required parameters");
+      setError(
+        t?.sessionResultSheet?.missingParams || "Missing required parameters",
+      );
       setLoading(false);
     }
   }, [studentId, session]);
@@ -78,15 +85,20 @@ function SessionResultSheet() {
       setResultData(resultResponse.data || null);
     } catch (error) {
       console.error("Error fetching session result sheet:", error);
-
       if (error.response?.status === 404) {
-        setError("No session result found for this student");
+        setError(
+          t?.sessionResultSheet?.noResult ||
+            "No session result found for this student",
+        );
       } else if (error.response?.status === 403) {
-        setError("You are not allowed to view this result");
+        setError(
+          t?.sessionResultSheet?.accessDenied ||
+            "You are not allowed to view this result",
+        );
       } else {
         setError(
           error.response?.data?.message ||
-            error.message ||
+            t?.sessionResultSheet?.loadFailed ||
             "Failed to load session result sheet",
         );
       }
@@ -95,9 +107,8 @@ function SessionResultSheet() {
     }
   };
 
-  const formatDate = (date) => {
-    return date ? moment(date).format("DD/MM/YYYY") : "N/A";
-  };
+  const formatDate = (date) =>
+    date ? moment(date).format("DD/MM/YYYY") : "N/A";
 
   const getGradeBadgeClass = (grade) => {
     const gradeMap = {
@@ -121,25 +132,24 @@ function SessionResultSheet() {
     return { grade: "F", class: "danger" };
   };
 
-  const buildFileName = () => {
-    const cleanName = getStudentName().replace(/\s+/g, "_");
-    const cleanSession = session.replace(/[\/\\]/g, "_");
-    return `${cleanName}_SESSION_${cleanSession}`;
-  };
+  const buildFileName = () =>
+    `${getStudentName().replace(/\s+/g, "_")}_SESSION_${session.replace(/[\/\\]/g, "_")}`;
 
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
     documentTitle: buildFileName(),
     onAfterPrint: () =>
-      toast.success("Session result sheet printed successfully"),
+      toast.success(
+        t?.sessionResultSheet?.printSuccess ||
+          "Session result sheet printed successfully",
+      ),
   });
 
   const handleDownloadPDF = async () => {
     if (!componentRef.current) {
-      toast.error("Result sheet not ready");
+      toast.error(t?.sessionResultSheet?.notReady || "Result sheet not ready");
       return;
     }
-
     setDownloading(true);
     try {
       const element = componentRef.current;
@@ -150,14 +160,12 @@ function SessionResultSheet() {
         allowTaint: true,
         useCORS: true,
       });
-
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "px",
         format: [canvas.width * 0.75, canvas.height * 0.75],
       });
-
       pdf.addImage(
         imgData,
         "PNG",
@@ -167,11 +175,14 @@ function SessionResultSheet() {
         canvas.height * 0.75,
       );
       pdf.save(`${buildFileName()}.pdf`);
-
-      toast.success("PDF downloaded successfully");
+      toast.success(
+        t?.sessionResultSheet?.downloadSuccess || "PDF downloaded successfully",
+      );
     } catch (error) {
       console.error("Error generating PDF:", error);
-      toast.error("Failed to download PDF");
+      toast.error(
+        t?.sessionResultSheet?.downloadFailed || "Failed to download PDF",
+      );
     } finally {
       setDownloading(false);
     }
@@ -191,7 +202,10 @@ function SessionResultSheet() {
       >
         <div className="text-center">
           <FaSpinner className="spinner mb-3" size={40} />
-          <h5>Loading session result sheet...</h5>
+          <h5>
+            {t?.sessionResultSheet?.loading ||
+              "Loading session result sheet..."}
+          </h5>
         </div>
       </div>
     );
@@ -201,13 +215,14 @@ function SessionResultSheet() {
     return (
       <div className="container mt-5">
         <div className="alert alert-danger">
-          <h4>Error Loading Result</h4>
+          <h4>{t?.sessionResultSheet?.errorTitle || "Error Loading Result"}</h4>
           <p>{error}</p>
           <button
             className="btn btn-primary mt-3"
             onClick={() => navigate("/session-results")}
           >
-            <FaArrowLeft className="me-2" /> Back to Session Results
+            <FaArrowLeft className="me-2" />{" "}
+            {t?.sessionResultSheet?.back || "Back to Session Results"}
           </button>
         </div>
       </div>
@@ -218,13 +233,20 @@ function SessionResultSheet() {
     return (
       <div className="container mt-5">
         <div className="alert alert-warning">
-          <h4>No Session Result Found</h4>
-          <p>No session result found for this student in {session} session.</p>
+          <h4>
+            {t?.sessionResultSheet?.noResultTitle || "No Session Result Found"}
+          </h4>
+          <p>
+            {t?.sessionResultSheet?.noResultMessage ||
+              "No session result found for this student in"}{" "}
+            {session} {t?.sessionResultSheet?.session || "session"}.
+          </p>
           <button
             className="btn btn-primary mt-3"
             onClick={() => navigate("/session-results")}
           >
-            <FaArrowLeft className="me-2" /> Back to Session Results
+            <FaArrowLeft className="me-2" />{" "}
+            {t?.sessionResultSheet?.back || "Back to Session Results"}
           </button>
         </div>
       </div>
@@ -238,18 +260,16 @@ function SessionResultSheet() {
           className="btn btn-outline-secondary"
           onClick={() => navigate(-1)}
         >
-          <FaArrowLeft className="me-2" /> Back
+          <FaArrowLeft className="me-2" /> {t?.common?.back || "Back"}
         </button>
-
         <div>
           <button
             className="btn btn-outline-success me-2"
             onClick={handlePrint}
             disabled={downloading}
           >
-            <FaPrint className="me-2" /> Print
+            <FaPrint className="me-2" /> {t?.common?.print || "Print"}
           </button>
-
           <button
             className="btn btn-outline-primary"
             onClick={handleDownloadPDF}
@@ -257,11 +277,13 @@ function SessionResultSheet() {
           >
             {downloading ? (
               <>
-                <FaSpinner className="spinner me-2" /> Generating...
+                <FaSpinner className="spinner me-2" />{" "}
+                {t?.common?.generating || "Generating..."}
               </>
             ) : (
               <>
-                <FaDownload className="me-2" /> Download PDF
+                <FaDownload className="me-2" />{" "}
+                {t?.common?.downloadPDF || "Download PDF"}
               </>
             )}
           </button>
@@ -270,7 +292,6 @@ function SessionResultSheet() {
 
       <div className="result-sheet-container" ref={componentRef}>
         <div className="result-sheet-content">
-          {/* School Header */}
           <div className="school-header">
             <div className="school-name">
               FAITH FOUNDATION INTERNATIONAL SCHOOL
@@ -283,23 +304,27 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Title */}
           <div
             className="result-title"
             style={{ background: "#9C27B0", color: "white" }}
           >
-            <FaGraduationCap className="me-2" /> ANNUAL SESSION RESULT SHEET -{" "}
-            {session} SESSION
+            <FaGraduationCap className="me-2" />{" "}
+            {t?.sessionResultSheet?.annualResult ||
+              "ANNUAL SESSION RESULT SHEET"}{" "}
+            - {session} {t?.sessionResultSheet?.session || "SESSION"}
           </div>
 
-          {/* Student Information */}
           <div className="student-info-section">
             <table className="student-info-table">
               <tbody>
                 <tr>
-                  <td className="label">Student Name:</td>
+                  <td className="label">
+                    {t?.studentDetails?.fullName || "Student Name"}:
+                  </td>
                   <td className="value">{getStudentName()}</td>
-                  <td className="label">Admission No:</td>
+                  <td className="label">
+                    {t?.studentDetails?.admissionNumber || "Admission No"}:
+                  </td>
                   <td className="value">
                     {resultData?.studentInfo?.admissionNumber ||
                       student?.admissionNumber ||
@@ -307,24 +332,34 @@ function SessionResultSheet() {
                   </td>
                 </tr>
                 <tr>
-                  <td className="label">Class:</td>
+                  <td className="label">
+                    {t?.studentDetails?.class || "Class"}:
+                  </td>
                   <td className="value">
                     {resultData?.studentInfo?.class ||
                       student?.studentClass ||
                       "N/A"}{" "}
                     {resultData?.studentInfo?.arm || student?.classArm || ""}
                   </td>
-                  <td className="label">Date of Birth:</td>
+                  <td className="label">
+                    {t?.studentDetails?.dob || "Date of Birth"}:
+                  </td>
                   <td className="value">{formatDate(student?.dateOfBirth)}</td>
                 </tr>
                 <tr>
-                  <td className="label">Parent/Guardian:</td>
+                  <td className="label">
+                    {t?.studentDetails?.parentGuardian || "Parent/Guardian"}:
+                  </td>
                   <td className="value">{student?.parentName || "N/A"}</td>
-                  <td className="label">Parent Phone:</td>
+                  <td className="label">
+                    {t?.studentDetails?.parentPhone || "Parent Phone"}:
+                  </td>
                   <td className="value">{student?.parentPhone || "N/A"}</td>
                 </tr>
                 <tr>
-                  <td className="label">Address:</td>
+                  <td className="label">
+                    {t?.studentDetails?.address || "Address"}:
+                  </td>
                   <td className="value" colSpan="3">
                     {student?.address || "N/A"}
                   </td>
@@ -350,7 +385,6 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Promotion Status */}
           <div className="promotion-status mb-4">
             <div
               className={`alert ${resultData.promoted ? "alert-success" : "alert-danger"}`}
@@ -363,8 +397,12 @@ function SessionResultSheet() {
                 )}
                 <div>
                   <h5 className="mb-1">
-                    Promotion Status:{" "}
-                    {resultData.promoted ? "PROMOTED" : "RETAINED"}
+                    {t?.sessionResultSheet?.promotionStatus ||
+                      "Promotion Status"}
+                    :{" "}
+                    {resultData.promoted
+                      ? t?.sessionResultSheet?.promoted || "PROMOTED"
+                      : t?.sessionResultSheet?.retained || "RETAINED"}
                   </h5>
                   <p className="mb-0">{resultData.promotionRemark || "N/A"}</p>
                 </div>
@@ -372,58 +410,77 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Term Averages */}
           <div className="term-averages mb-4">
-            <h5 className="section-subtitle">Term Performance</h5>
+            <h5 className="section-subtitle">
+              {t?.sessionResultSheet?.termPerformance || "Term Performance"}
+            </h5>
             <div className="row">
               <div className="col-md-4 mb-3">
                 <div className="term-card first-term">
-                  <h6>First Term</h6>
+                  <h6>{t?.sessionResultSheet?.firstTerm || "First Term"}</h6>
                   <h3>{safeFixed(resultData.firstTermAverage)}%</h3>
-                  <p>Position: {resultData.firstTermPosition || "N/A"}</p>
+                  <p>
+                    {t?.sessionResultSheet?.position || "Position"}:{" "}
+                    {resultData.firstTermPosition || "N/A"}
+                  </p>
                 </div>
               </div>
               <div className="col-md-4 mb-3">
                 <div className="term-card second-term">
-                  <h6>Second Term</h6>
+                  <h6>{t?.sessionResultSheet?.secondTerm || "Second Term"}</h6>
                   <h3>{safeFixed(resultData.secondTermAverage)}%</h3>
-                  <p>Position: {resultData.secondTermPosition || "N/A"}</p>
+                  <p>
+                    {t?.sessionResultSheet?.position || "Position"}:{" "}
+                    {resultData.secondTermPosition || "N/A"}
+                  </p>
                 </div>
               </div>
               <div className="col-md-4 mb-3">
                 <div className="term-card third-term">
-                  <h6>Third Term</h6>
+                  <h6>{t?.sessionResultSheet?.thirdTerm || "Third Term"}</h6>
                   <h3>{safeFixed(resultData.thirdTermAverage)}%</h3>
-                  <p>Position: {resultData.thirdTermPosition || "N/A"}</p>
+                  <p>
+                    {t?.sessionResultSheet?.position || "Position"}:{" "}
+                    {resultData.thirdTermPosition || "N/A"}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Annual Summary */}
           <div className="annual-summary mb-4">
-            <h5 className="section-subtitle">Annual Summary</h5>
+            <h5 className="section-subtitle">
+              {t?.sessionResultSheet?.annualSummary || "Annual Summary"}
+            </h5>
             <div className="summary-row">
               <div className="summary-item">
-                <span className="summary-label">Annual Total:</span>
+                <span className="summary-label">
+                  {t?.sessionResultSheet?.annualTotal || "Annual Total"}:
+                </span>
                 <span className="summary-value">
                   {safeNumber(resultData.annualTotal)}
                 </span>
               </div>
               <div className="summary-item">
-                <span className="summary-label">Annual Average:</span>
+                <span className="summary-label">
+                  {t?.sessionResultSheet?.annualAverage || "Annual Average"}:
+                </span>
                 <span className="summary-value text-success">
                   {safeFixed(resultData.annualAverage)}%
                 </span>
               </div>
               <div className="summary-item">
-                <span className="summary-label">Class Position:</span>
+                <span className="summary-label">
+                  {t?.sessionResultSheet?.classPosition || "Class Position"}:
+                </span>
                 <span className="summary-value text-warning">
                   {resultData.annualPositionInClass || "N/A"}
                 </span>
               </div>
               <div className="summary-item">
-                <span className="summary-label">Attendance:</span>
+                <span className="summary-label">
+                  {t?.studentDashboard?.attendance || "Attendance"}:
+                </span>
                 <span className="summary-value text-info">
                   {safeFixed(resultData.attendancePercentage)}%
                 </span>
@@ -431,21 +488,24 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Subject Averages */}
           {resultData.subjectAverages &&
             Object.keys(resultData.subjectAverages).length > 0 && (
               <div className="subject-averages mb-4">
                 <h5 className="section-subtitle">
-                  Subject Performance (Annual Averages)
+                  {t?.sessionResultSheet?.subjectPerformance ||
+                    "Subject Performance (Annual Averages)"}
                 </h5>
                 <div className="table-responsive">
                   <table className="results-table">
                     <thead>
                       <tr>
                         <th>S/N</th>
-                        <th>SUBJECT</th>
-                        <th>ANNUAL AVERAGE</th>
-                        <th>GRADE</th>
+                        <th>{t?.studentDashboard?.subject || "SUBJECT"}</th>
+                        <th>
+                          {t?.sessionResultSheet?.annualAverage ||
+                            "ANNUAL AVERAGE"}
+                        </th>
+                        <th>{t?.studentDashboard?.grade || "GRADE"}</th>
                         <th>REMARK</th>
                       </tr>
                     </thead>
@@ -490,30 +550,37 @@ function SessionResultSheet() {
               </div>
             )}
 
-          {/* Signatures */}
           <div className="signatures-section">
             <div className="signature-item">
               <div className="signature-line"></div>
-              <div className="signature-label">Class Teacher's Signature</div>
+              <div className="signature-label">
+                {t?.sessionResultSheet?.classTeacherSignature ||
+                  "Class Teacher's Signature"}
+              </div>
             </div>
             <div className="signature-item">
               <div className="signature-line"></div>
-              <div className="signature-label">Principal's Signature</div>
+              <div className="signature-label">
+                {t?.sessionResultSheet?.principalSignature ||
+                  "Principal's Signature"}
+              </div>
             </div>
             <div className="signature-item">
               <div className="signature-line"></div>
-              <div className="signature-label">Parent's Signature</div>
+              <div className="signature-label">
+                {t?.sessionResultSheet?.parentSignature || "Parent's Signature"}
+              </div>
             </div>
           </div>
 
-          {/* Footer */}
           <div className="result-footer">
             <div className="footer-note">
-              This is a computer-generated annual session result. Valid without
-              signature.
+              {t?.sessionResultSheet?.footerNote ||
+                "This is a computer-generated annual session result. Valid without signature."}
             </div>
             <div className="footer-date">
-              Generated on: {moment().format("DD/MM/YYYY h:mm A")}
+              {t?.sessionResultSheet?.generatedOn || "Generated on"}:{" "}
+              {moment().format("DD/MM/YYYY h:mm A")}
             </div>
           </div>
         </div>

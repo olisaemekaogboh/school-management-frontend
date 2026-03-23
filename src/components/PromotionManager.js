@@ -1,10 +1,21 @@
 // src/components/PromotionManager.js
 import React, { useState, useEffect } from "react";
 import { studentAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
-import { FaArrowUp, FaEye, FaCheck, FaBan, FaInfoCircle } from "react-icons/fa";
+import {
+  FaArrowUp,
+  FaEye,
+  FaBan,
+  FaInfoCircle,
+  FaSpinner,
+} from "react-icons/fa";
 
 function PromotionManager() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [promoting, setPromoting] = useState(false);
@@ -13,7 +24,7 @@ function PromotionManager() {
   const [showExclusionModal, setShowExclusionModal] = useState(false);
   const [currentStudent, setCurrentStudent] = useState(null);
   const [exclusionReason, setExclusionReason] = useState("");
-  const [promotionMode, setPromotionMode] = useState("all"); // 'all' or 'selected'
+  const [promotionMode, setPromotionMode] = useState("all");
 
   useEffect(() => {
     loadPreview();
@@ -27,7 +38,10 @@ function PromotionManager() {
       setPreview(response.data);
     } catch (error) {
       console.error("Error loading preview:", error);
-      toast.error("Failed to load promotion preview");
+      toast.error(
+        t?.promotionManager?.failedPreview ||
+          "Failed to load promotion preview",
+      );
     } finally {
       setLoading(false);
     }
@@ -36,7 +50,7 @@ function PromotionManager() {
   const loadExcludedStudents = async () => {
     try {
       const response = await studentAPI.getExcludedStudents();
-      setExcludedStudents(response.data);
+      setExcludedStudents(response.data || []);
     } catch (error) {
       console.error("Error loading excluded students:", error);
     }
@@ -58,15 +72,18 @@ function PromotionManager() {
       );
       toast.success(
         exclude
-          ? `${currentStudent.fullName} excluded from promotion`
-          : `${currentStudent.fullName} included in promotion`,
+          ? `${currentStudent.fullName} ${t?.promotionManager?.excludedSuccess || "excluded from promotion"}`
+          : `${currentStudent.fullName} ${t?.promotionManager?.includedSuccess || "included in promotion"}`,
       );
       loadPreview();
       loadExcludedStudents();
       setShowExclusionModal(false);
     } catch (error) {
       console.error("Error toggling exclusion:", error);
-      toast.error("Failed to update exclusion status");
+      toast.error(
+        t?.promotionManager?.failedExclusion ||
+          "Failed to update exclusion status",
+      );
     }
   };
 
@@ -74,15 +91,18 @@ function PromotionManager() {
     let message = "";
     if (promotionMode === "all") {
       message =
+        t?.promotionManager?.allConfirmMessage ||
         "Are you sure you want to promote ALL students? Excluded students will not be promoted.";
     } else {
       if (selectedStudents.length === 0) {
-        toast.warning("Please select at least one student to promote");
+        toast.warning(
+          t?.promotionManager?.noSelection ||
+            "Please select at least one student to promote",
+        );
         return;
       }
-      message = `Promote ${selectedStudents.length} selected student(s)?`;
+      message = `${t?.promotionManager?.selectedConfirmPrefix || "Promote"} ${selectedStudents.length} ${t?.promotionManager?.selectedConfirmSuffix || "selected student(s)?"}`;
     }
-
     if (!window.confirm(message)) return;
 
     setPromoting(true);
@@ -93,16 +113,17 @@ function PromotionManager() {
       } else {
         response = await studentAPI.promoteSelectedStudents(selectedStudents);
       }
-
       toast.success(
-        `Promotion complete! ${response.data.promoted} promoted, ${response.data.graduated} graduated`,
+        `${t?.promotionManager?.promotionCompletePrefix || "Promotion complete!"} ${response.data.promoted} ${t?.promotionManager?.promotedLabel || "promoted"}, ${response.data.graduated} ${t?.promotionManager?.graduatedLabel || "graduated"}`,
       );
       setSelectedStudents([]);
       loadPreview();
       loadExcludedStudents();
     } catch (error) {
       console.error("Error promoting students:", error);
-      toast.error("Failed to promote students");
+      toast.error(
+        t?.promotionManager?.failedPromote || "Failed to promote students",
+      );
     } finally {
       setPromoting(false);
     }
@@ -118,24 +139,27 @@ function PromotionManager() {
 
   const selectAll = () => {
     if (preview?.promotions) {
-      const allIds = preview.promotions.map((p) => p.studentId);
-      setSelectedStudents(allIds);
+      setSelectedStudents(preview.promotions.map((p) => p.studentId));
     }
   };
 
-  const clearSelection = () => {
-    setSelectedStudents([]);
-  };
+  const clearSelection = () => setSelectedStudents([]);
 
   if (loading) {
-    return <div className="text-center py-5">Loading preview...</div>;
+    return (
+      <div className={`text-center py-5 ${darkMode ? "dark-mode" : ""}`}>
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{t?.common?.loading || "Loading..."}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="promotion-manager">
-      <h2 className="mb-4">End of Session Promotion</h2>
+    <div className={`promotion-manager ${darkMode ? "dark-mode" : ""}`}>
+      <h2 className="mb-4">
+        {t?.promotionManager?.title || "End of Session Promotion"}
+      </h2>
 
-      {/* Mode Selection */}
       <div className="row mb-4">
         <div className="col-12">
           <div className="btn-group" role="group">
@@ -143,13 +167,13 @@ function PromotionManager() {
               className={`btn ${promotionMode === "all" ? "btn-nigerian" : "btn-outline-nigerian"}`}
               onClick={() => setPromotionMode("all")}
             >
-              Promote All
+              {t?.promotionManager?.promoteAll || "Promote All"}
             </button>
             <button
               className={`btn ${promotionMode === "selected" ? "btn-nigerian" : "btn-outline-nigerian"}`}
               onClick={() => setPromotionMode("selected")}
             >
-              Promote Selected
+              {t?.promotionManager?.promoteSelected || "Promote Selected"}
             </button>
           </div>
         </div>
@@ -157,67 +181,89 @@ function PromotionManager() {
 
       {preview && (
         <>
-          {/* Summary Cards */}
           <div className="row mb-4">
             <div className="col-md-3">
-              <div className="stat-card">
+              <div
+                className={`stat-card ${darkMode ? "bg-dark text-white" : ""}`}
+              >
                 <h3>{preview.totalStudents}</h3>
-                <p>Total Active Students</p>
+                <p>
+                  {t?.promotionManager?.totalActiveStudents ||
+                    "Total Active Students"}
+                </p>
               </div>
             </div>
             <div className="col-md-3">
-              <div className="stat-card" style={{ background: "#28a745" }}>
+              <div
+                className={`stat-card ${darkMode ? "bg-success-dark" : ""}`}
+                style={{ background: darkMode ? "#1e7e34" : "#28a745" }}
+              >
                 <h3>{preview.promotions?.length || 0}</h3>
-                <p>Will Be Promoted</p>
+                <p>
+                  {t?.promotionManager?.willBePromoted || "Will Be Promoted"}
+                </p>
               </div>
             </div>
             <div className="col-md-3">
-              <div className="stat-card" style={{ background: "#dc3545" }}>
+              <div
+                className={`stat-card ${darkMode ? "bg-danger-dark" : ""}`}
+                style={{ background: darkMode ? "#a71d2a" : "#dc3545" }}
+              >
                 <h3>{excludedStudents.length}</h3>
-                <p>Excluded</p>
+                <p>{t?.promotionManager?.excluded || "Excluded"}</p>
               </div>
             </div>
           </div>
 
-          {/* Promotion List */}
-          <div className="school-card p-3 mb-4">
+          <div
+            className={`school-card p-3 mb-4 ${darkMode ? "bg-dark text-white" : ""}`}
+          >
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <h5 className="mb-0">Student Promotion Status</h5>
+              <h5 className="mb-0">
+                {t?.promotionManager?.studentPromotionStatus ||
+                  "Student Promotion Status"}
+              </h5>
               {promotionMode === "selected" && (
                 <div>
                   <button
-                    className="btn btn-sm btn-outline-primary me-2"
+                    className={`btn btn-sm btn-outline-primary me-2 ${darkMode ? "text-white" : ""}`}
                     onClick={selectAll}
                   >
-                    Select All
+                    {t?.promotionManager?.selectAll || "Select All"}
                   </button>
                   <button
-                    className="btn btn-sm btn-outline-secondary"
+                    className={`btn btn-sm btn-outline-secondary ${darkMode ? "text-white" : ""}`}
                     onClick={clearSelection}
                   >
-                    Clear
+                    {t?.promotionManager?.clear || "Clear"}
                   </button>
                 </div>
               )}
             </div>
             <div className="table-responsive">
-              <table className="table table-striped">
+              <table
+                className={`table ${darkMode ? "table-dark" : "table-striped"}`}
+              >
                 <thead>
                   <tr>
-                    {promotionMode === "selected" && <th>Select</th>}
-                    <th>Student</th>
-                    <th>Current Class</th>
-                    <th>Next Class</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                    {promotionMode === "selected" && (
+                      <th>{t?.promotionManager?.select || "Select"}</th>
+                    )}
+                    <th>{t?.promotionManager?.student || "Student"}</th>
+                    <th>
+                      {t?.promotionManager?.currentClass || "Current Class"}
+                    </th>
+                    <th>{t?.promotionManager?.nextClass || "Next Class"}</th>
+                    <th>{t?.promotionManager?.status || "Status"}</th>
+                    <th>{t?.common?.actions || "Action"}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {preview.promotions?.map((promo) => {
-                    const isExcluded = excludedStudents.some(
+                    const excludedStudent = excludedStudents.find(
                       (e) => e.id === promo.studentId,
                     );
-
+                    const isExcluded = !!excludedStudent;
                     return (
                       <tr key={promo.studentId}>
                         {promotionMode === "selected" && (
@@ -239,7 +285,8 @@ function PromotionManager() {
                         <td>
                           {isExcluded ? (
                             <span className="badge bg-secondary">
-                              <FaBan className="me-1" /> EXCLUDED
+                              <FaBan className="me-1" />{" "}
+                              {t?.promotionManager?.excludedBadge || "EXCLUDED"}
                             </span>
                           ) : (
                             <span className="badge bg-success">
@@ -251,12 +298,14 @@ function PromotionManager() {
                           {isExcluded ? (
                             <span className="text-danger">
                               <FaInfoCircle className="me-1" />
-                              {excludedStudents.find(
-                                (e) => e.id === promo.studentId,
-                              )?.promotionHoldReason || "On hold"}
+                              {excludedStudent?.promotionHoldReason ||
+                                t?.promotionManager?.onHold ||
+                                "On hold"}
                             </span>
                           ) : (
-                            <span className="text-success">Ready</span>
+                            <span className="text-success">
+                              {t?.promotionManager?.ready || "Ready"}
+                            </span>
                           )}
                         </td>
                         <td>
@@ -267,13 +316,14 @@ function PromotionManager() {
                                 id: promo.studentId,
                                 fullName: promo.student,
                                 excludeFromPromotion: isExcluded,
-                                promotionHoldReason: excludedStudents.find(
-                                  (e) => e.id === promo.studentId,
-                                )?.promotionHoldReason,
+                                promotionHoldReason:
+                                  excludedStudent?.promotionHoldReason,
                               })
                             }
                           >
-                            {isExcluded ? "Include" : "Exclude"}
+                            {isExcluded
+                              ? t?.promotionManager?.include || "Include"
+                              : t?.promotionManager?.exclude || "Exclude"}
                           </button>
                         </td>
                       </tr>
@@ -284,7 +334,6 @@ function PromotionManager() {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="d-flex gap-2">
             <button
               onClick={handlePromote}
@@ -295,57 +344,68 @@ function PromotionManager() {
               }
             >
               {promoting
-                ? "Promoting..."
+                ? t?.promotionManager?.promotingText || "Promoting..."
                 : promotionMode === "all"
-                  ? "Promote All Students"
-                  : `Promote Selected (${selectedStudents.length})`}
+                  ? t?.promotionManager?.promoteAllStudents ||
+                    "Promote All Students"
+                  : `${t?.promotionManager?.promoteSelectedCount || "Promote Selected"} (${selectedStudents.length})`}
             </button>
             <button
               onClick={loadPreview}
               className="btn btn-outline-nigerian"
               disabled={loading}
             >
-              <FaEye className="me-2" /> Refresh Preview
+              <FaEye className="me-2" />{" "}
+              {t?.promotionManager?.refreshPreview || "Refresh Preview"}
             </button>
           </div>
         </>
       )}
 
-      {/* Exclusion Modal */}
       {showExclusionModal && currentStudent && (
         <div
           className="modal show d-block"
           style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
         >
-          <div className="modal-dialog">
-            <div className="modal-content">
+          <div className={`modal-dialog ${darkMode ? "modal-dark" : ""}`}>
+            <div
+              className={`modal-content ${darkMode ? "bg-dark text-white" : ""}`}
+            >
               <div className="modal-header">
                 <h5 className="modal-title">
                   {currentStudent.excludeFromPromotion
-                    ? "Include in Promotion"
-                    : "Exclude from Promotion"}
+                    ? t?.promotionManager?.includeInPromotion ||
+                      "Include in Promotion"
+                    : t?.promotionManager?.excludeFromPromotion ||
+                      "Exclude from Promotion"}
                 </h5>
                 <button
                   type="button"
-                  className="btn-close"
+                  className={`btn-close ${darkMode ? "btn-close-white" : ""}`}
                   onClick={() => setShowExclusionModal(false)}
                 ></button>
               </div>
               <div className="modal-body">
                 <p>
                   {currentStudent.excludeFromPromotion
-                    ? `Are you sure you want to include ${currentStudent.fullName} in promotion?`
-                    : `Are you sure you want to exclude ${currentStudent.fullName} from promotion?`}
+                    ? `${t?.promotionManager?.confirmIncludeMessage || "Are you sure you want to include"} ${currentStudent.fullName} ${t?.promotionManager?.inPromotion || "in promotion?"}`
+                    : `${t?.promotionManager?.confirmExcludeMessage || "Are you sure you want to exclude"} ${currentStudent.fullName} ${t?.promotionManager?.fromPromotion || "from promotion?"}`}
                 </p>
                 {!currentStudent.excludeFromPromotion && (
                   <div className="mb-3">
-                    <label className="form-label">Reason for exclusion:</label>
+                    <label className="form-label">
+                      {t?.promotionManager?.reasonForExclusion ||
+                        "Reason for exclusion:"}
+                    </label>
                     <textarea
-                      className="form-control"
+                      className={`form-control ${darkMode ? "bg-dark text-white border-secondary" : ""}`}
                       value={exclusionReason}
                       onChange={(e) => setExclusionReason(e.target.value)}
                       rows="3"
-                      placeholder="Enter reason for holding this student back..."
+                      placeholder={
+                        t?.promotionManager?.reasonPlaceholder ||
+                        "Enter reason for holding this student back..."
+                      }
                     />
                   </div>
                 )}
@@ -353,17 +413,17 @@ function PromotionManager() {
               <div className="modal-footer">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className={`btn btn-secondary ${darkMode ? "btn-outline-light" : ""}`}
                   onClick={() => setShowExclusionModal(false)}
                 >
-                  Cancel
+                  {t?.common?.cancel || "Cancel"}
                 </button>
                 <button
                   type="button"
                   className="btn btn-primary"
                   onClick={confirmExclusion}
                 >
-                  Confirm
+                  {t?.common?.confirm || "Confirm"}
                 </button>
               </div>
             </div>

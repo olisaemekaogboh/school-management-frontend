@@ -47,7 +47,7 @@ import TeacherForm from "./components/TeacherForm";
 
 import ClassManagement from "./components/ClassManagement";
 import ClassManager from "./components/ClassManager";
-import ClassDetails from "./components/ClassDetails";
+
 import ClassView from "./components/ClassView";
 
 import SubjectManagement from "./components/SubjectManagement";
@@ -57,8 +57,6 @@ import AttendanceManager from "./components/AttendanceManager";
 import ResultSheet from "./components/ResultSheet";
 
 import FeeManagement from "./components/FeeManagement";
-import FeePayments from "./components/FeePayments";
-import FeeDefaulters from "./components/FeeDefaulters";
 
 import AnnouncementManager from "./components/AnnouncementManager";
 import AnnouncementForm from "./components/AnnouncementForm";
@@ -252,14 +250,7 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route
-                    path="/classes/:id"
-                    element={
-                      <ProtectedRoute requiredRole={["ADMIN", "TEACHER"]}>
-                        <ClassDetails />
-                      </ProtectedRoute>
-                    }
-                  />
+
                   <Route
                     path="/classes/view/:className"
                     element={

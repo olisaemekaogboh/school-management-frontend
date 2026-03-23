@@ -1,6 +1,8 @@
 // src/components/Dashboard.js
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import {
   studentAPI,
   announcementAPI,
@@ -28,6 +30,7 @@ import {
   FaMoneyCheck,
   FaClipboardList,
   FaChartBar,
+  FaSpinner,
 } from "react-icons/fa";
 import { Bar } from "react-chartjs-2";
 import {
@@ -42,6 +45,7 @@ import {
 } from "chart.js";
 import ReportModal from "./ReportModal";
 import moment from "moment";
+import "./Dashboard.css";
 
 ChartJS.register(
   CategoryScale,
@@ -54,6 +58,9 @@ ChartJS.register(
 );
 
 function Dashboard() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recentStudents, setRecentStudents] = useState([]);
@@ -86,19 +93,13 @@ function Dashboard() {
 
   const getStudentDisplayName = (student) => {
     if (!student) return "N/A";
-
-    if (student.fullName && student.fullName.trim()) {
-      return student.fullName;
-    }
-
+    if (student.fullName && student.fullName.trim()) return student.fullName;
     const firstName = student.firstName || "";
     const lastName = student.lastName || "";
     const otherName = student.otherName || "";
-
     const combined = `${firstName} ${otherName} ${lastName}`
       .replace(/\s+/g, " ")
       .trim();
-
     return combined || student.admissionNumber || "N/A";
   };
 
@@ -111,24 +112,18 @@ function Dashboard() {
       const allStudents = Array.isArray(studentsResponse.data)
         ? studentsResponse.data
         : [];
-
       setRecentStudents(allStudents.slice(0, 5));
-
       const totalStudents = allStudents.length;
 
       try {
         const today = moment().format("YYYY-MM-DD");
-
-        // Build real class/arm combinations from actual students
         const uniqueClassArms = [];
         const seen = new Set();
 
         allStudents.forEach((student) => {
           const className = student?.studentClass?.trim();
           const arm = student?.classArm?.trim();
-
           if (!className || !arm) return;
-
           const key = `${className}__${arm}`;
           if (!seen.has(key)) {
             seen.add(key);
@@ -155,7 +150,6 @@ function Dashboard() {
 
         const results = await Promise.all(attendancePromises);
         const allAttendance = results.flat();
-
         setTodayAttendance(allAttendance);
 
         const presentCount = allAttendance.filter(
@@ -183,14 +177,11 @@ function Dashboard() {
           totalStudents: allAttendance.length,
         });
       } catch (error) {
-        console.log("Using fallback attendance data");
-
         const presentCount = Math.floor(totalStudents * 0.75);
         const lateCount = Math.floor(totalStudents * 0.1);
         const absentCount = Math.floor(totalStudents * 0.1);
         const excusedCount =
           totalStudents - (presentCount + lateCount + absentCount);
-
         setAttendanceStats({
           totalPresent: presentCount,
           totalAbsent: absentCount,
@@ -206,7 +197,6 @@ function Dashboard() {
           currentSession,
           currentTerm,
         );
-
         if (feeResponse.data) {
           setFeeSummary({
             totalCollected: feeResponse.data.totalCollected || 0,
@@ -225,15 +215,12 @@ function Dashboard() {
       try {
         const announcementsResponse =
           await announcementAPI.getAllAnnouncements();
-
         const allAnnouncements = Array.isArray(announcementsResponse.data)
           ? announcementsResponse.data
           : [];
-
         const activeAnnouncements = allAnnouncements
           .filter((a) => a.active !== false)
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
         setAnnouncements(activeAnnouncements.slice(0, 5));
       } catch (error) {
         console.error("Error fetching announcements:", error);
@@ -248,10 +235,9 @@ function Dashboard() {
 
   if (loading) {
     return (
-      <div className="spinner-container">
-        <div className="spinner-border spinner-border-nigerian" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+      <div className="spinner-container text-center py-5">
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{t?.common?.loading || "Loading..."}</p>
       </div>
     );
   }
@@ -262,22 +248,27 @@ function Dashboard() {
       : [],
     datasets: [
       {
-        label: "Number of Students",
+        label: t?.dashboard?.numberOfStudents || "Number of Students",
         data: statistics?.studentsByClass
           ? Object.values(statistics.studentsByClass)
           : [],
-        backgroundColor: "#008753",
-        borderColor: "#003366",
+        backgroundColor: darkMode ? "#60a5fa" : "#008753",
+        borderColor: darkMode ? "#3b82f6" : "#003366",
         borderWidth: 1,
       },
     ],
   };
 
   const attendanceDistributionData = {
-    labels: ["Present", "Late", "Absent", "Excused"],
+    labels: [
+      t?.dashboard?.present || "Present",
+      t?.dashboard?.late || "Late",
+      t?.dashboard?.absent || "Absent",
+      t?.dashboard?.excused || "Excused",
+    ],
     datasets: [
       {
-        label: "Today's Attendance",
+        label: t?.dashboard?.todaysAttendance || "Today's Attendance",
         data: [
           attendanceStats.totalPresent,
           attendanceStats.totalLate,
@@ -285,7 +276,7 @@ function Dashboard() {
           attendanceStats.totalExcused,
         ],
         backgroundColor: ["#28a745", "#ffc107", "#dc3545", "#17a2b8"],
-        borderColor: "#003366",
+        borderColor: darkMode ? "#374151" : "#003366",
         borderWidth: 1,
       },
     ],
@@ -293,26 +284,38 @@ function Dashboard() {
 
   const chartOptions = {
     responsive: true,
+    maintainAspectRatio: true,
     plugins: {
       legend: {
         position: "top",
+        labels: {
+          color: darkMode ? "#f9fafb" : "#1f2937",
+        },
       },
       title: {
         display: true,
-        text: "Class Distribution",
+        text: t?.dashboard?.classDistribution || "Class Distribution",
+        color: darkMode ? "#f9fafb" : "#1f2937",
       },
     },
   };
 
   const attendanceOptions = {
     responsive: true,
+    maintainAspectRatio: true,
     plugins: {
       legend: {
         position: "top",
+        labels: {
+          color: darkMode ? "#f9fafb" : "#1f2937",
+        },
       },
       title: {
         display: true,
-        text: "Today's Attendance Distribution",
+        text:
+          t?.dashboard?.attendanceDistribution ||
+          "Today's Attendance Distribution",
+        color: darkMode ? "#f9fafb" : "#1f2937",
       },
     },
   };
@@ -320,24 +323,34 @@ function Dashboard() {
   const getPriorityBadge = (priority) => {
     const badges = {
       HIGH: {
-        class: "bg-danger",
-        label: "High",
+        class: "badge-danger",
+        label: t?.dashboard?.high || "High",
         icon: <FaExclamationTriangle />,
       },
-      MEDIUM: { class: "bg-warning", label: "Medium", icon: <FaClock /> },
-      LOW: { class: "bg-info", label: "Low", icon: <FaInfoCircle /> },
+      MEDIUM: {
+        class: "badge-warning",
+        label: t?.dashboard?.medium || "Medium",
+        icon: <FaClock />,
+      },
+      LOW: {
+        class: "badge-info",
+        label: t?.dashboard?.low || "Low",
+        icon: <FaInfoCircle />,
+      },
       URGENT: {
-        class: "bg-danger",
-        label: "Urgent",
+        class: "badge-danger",
+        label: t?.dashboard?.urgent || "Urgent",
         icon: <FaExclamationTriangle />,
       },
-      NORMAL: { class: "bg-primary", label: "Normal", icon: <FaInfoCircle /> },
+      NORMAL: {
+        class: "badge-primary",
+        label: t?.dashboard?.normal || "Normal",
+        icon: <FaInfoCircle />,
+      },
     };
-
     const badge = badges[priority] || badges.NORMAL;
-
     return (
-      <span className={`badge ${badge.class} d-flex align-items-center gap-1`}>
+      <span className={`announcement-badge ${badge.class}`}>
         {badge.icon} {badge.label}
       </span>
     );
@@ -345,76 +358,77 @@ function Dashboard() {
 
   const getAnnouncementTypeIcon = (type) => {
     const icons = {
-      RESUMPTION: { icon: "📚", color: "#28a745", label: "Resumption" },
-      HOLIDAY: { icon: "🏖️", color: "#17a2b8", label: "Holiday" },
-      MIDTERM_BREAK: { icon: "🌴", color: "#ffc107", label: "Midterm Break" },
-      FEE: { icon: "💰", color: "#dc3545", label: "Fee" },
-      RESULT: { icon: "📊", color: "#6610f2", label: "Result" },
-      EVENT: { icon: "🎉", color: "#fd7e14", label: "Event" },
-      EXAM: { icon: "📝", color: "#6f42c1", label: "Exam" },
-      GENERAL: { icon: "📢", color: "#6c757d", label: "General" },
+      RESUMPTION: {
+        icon: "📚",
+        label: t?.dashboard?.resumption || "Resumption",
+      },
+      HOLIDAY: { icon: "🏖️", label: t?.dashboard?.holiday || "Holiday" },
+      MIDTERM_BREAK: {
+        icon: "🌴",
+        label: t?.dashboard?.midtermBreak || "Midterm Break",
+      },
+      FEE: { icon: "💰", label: t?.dashboard?.fee || "Fee" },
+      RESULT: { icon: "📊", label: t?.dashboard?.result || "Result" },
+      EVENT: { icon: "🎉", label: t?.dashboard?.event || "Event" },
+      EXAM: { icon: "📝", label: t?.dashboard?.exam || "Exam" },
+      GENERAL: { icon: "📢", label: t?.dashboard?.general || "General" },
     };
-
-    return icons[type] || { icon: "📢", color: "#6c757d", label: "General" };
+    return (
+      icons[type] || { icon: "📢", label: t?.dashboard?.general || "General" }
+    );
   };
 
   return (
-    <div className="dashboard">
-      <div className="hero-section text-center">
+    <div className={`dashboard ${darkMode ? "dark-mode" : ""}`}>
+      <div className="hero-section">
         <div className="container">
           <h1 className="display-4">
-            Welcome to Faith Foundation International School
+            {t?.dashboard?.welcomeTitle ||
+              "Welcome to Faith Foundation International School"}
           </h1>
-          <p className="lead">Excellence in Education, Pride in Heritage</p>
-          <span className="nigeria-flag-badge mt-3">Proudly Nigerian</span>
+          <p className="lead">
+            {t?.dashboard?.welcomeSubtitle ||
+              "Excellence in Education, Pride in Heritage"}
+          </p>
+          <span className="nigeria-flag-badge">
+            {t?.dashboard?.proudlyNigerian || "Proudly Nigerian"}
+          </span>
         </div>
       </div>
 
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
-          <div className="stat-card">
-            <FaUsers size={40} className="mb-2" />
+          <div className="stat-card stat-primary">
+            <FaUsers size={40} />
             <h3>{statistics?.totalStudents || 0}</h3>
-            <p>Total Students</p>
+            <p>{t?.dashboard?.totalStudents || "Total Students"}</p>
           </div>
         </div>
-
         <div className="col-md-3 mb-3">
-          <div
-            className="stat-card"
-            style={{ background: "linear-gradient(135deg, #FFD700, #003366)" }}
-          >
-            <FaUserGraduate size={40} className="mb-2" />
+          <div className="stat-card stat-gold">
+            <FaUserGraduate size={40} />
             <h3>{statistics?.activeStudents || 0}</h3>
-            <p>Active Students</p>
+            <p>{t?.dashboard?.activeStudents || "Active Students"}</p>
           </div>
         </div>
-
         <div className="col-md-3 mb-3">
-          <div
-            className="stat-card"
-            style={{ background: "linear-gradient(135deg, #800000, #008753)" }}
-          >
-            <FaChartLine size={40} className="mb-2" />
+          <div className="stat-card stat-maroon">
+            <FaChartLine size={40} />
             <h3>
               {statistics?.studentsByClass
                 ? Object.keys(statistics.studentsByClass).length
                 : 0}
             </h3>
-            <p>Classes</p>
+            <p>{t?.dashboard?.classes || "Classes"}</p>
           </div>
         </div>
-
         <div className="col-md-3 mb-3">
-          <div
-            className="stat-card"
-            style={{ background: "linear-gradient(135deg, #003366, #FFD700)" }}
-          >
-            <FaSchool size={40} className="mb-2" />
+          <div className="stat-card stat-blue">
+            <FaSchool size={40} />
             <h3>
               {attendanceStats.totalStudents || statistics?.totalStudents || 0}
             </h3>
-            <p>Total Enrolled</p>
+            <p>{t?.dashboard?.totalEnrolled || "Total Enrolled"}</p>
           </div>
         </div>
       </div>
@@ -422,126 +436,72 @@ function Dashboard() {
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
           <div
-            className="stat-card"
-            style={{
-              background: "linear-gradient(135deg, #28a745, #20c997)",
-              cursor: "pointer",
-              transition: "transform 0.3s",
-            }}
+            className="stat-card stat-success clickable"
             onClick={() => (window.location.href = "/attendance?tab=daily")}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.transform = "translateY(-5px)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.transform = "translateY(0)")
-            }
           >
-            <FaCheckCircle size={40} className="mb-2" />
+            <FaCheckCircle size={40} />
             <h3>{attendanceStats.totalPresent}</h3>
-            <p>Present Today</p>
-            <small className="text-white-50">Click to view details</small>
+            <p>{t?.dashboard?.presentToday || "Present Today"}</p>
+            <small>
+              {t?.dashboard?.clickToView || "Click to view details"}
+            </small>
           </div>
         </div>
-
         <div className="col-md-3 mb-3">
           <div
-            className="stat-card"
-            style={{
-              background: "linear-gradient(135deg, #ffc107, #fd7e14)",
-              color: "#333",
-              cursor: "pointer",
-              transition: "transform 0.3s",
-            }}
+            className="stat-card stat-warning clickable"
             onClick={() =>
               (window.location.href = "/attendance?tab=daily&filter=late")
             }
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.transform = "translateY(-5px)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.transform = "translateY(0)")
-            }
           >
-            <FaClock size={40} className="mb-2" />
+            <FaClock size={40} />
             <h3>{attendanceStats.totalLate}</h3>
-            <p>Late Today</p>
-            <small>Click to view details</small>
+            <p>{t?.dashboard?.lateToday || "Late Today"}</p>
+            <small>
+              {t?.dashboard?.clickToView || "Click to view details"}
+            </small>
           </div>
         </div>
-
         <div className="col-md-3 mb-3">
           <div
-            className="stat-card"
-            style={{
-              background: "linear-gradient(135deg, #dc3545, #c82333)",
-              cursor: "pointer",
-              transition: "transform 0.3s",
-            }}
+            className="stat-card stat-danger clickable"
             onClick={() =>
               (window.location.href = "/attendance?tab=daily&filter=absent")
             }
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.transform = "translateY(-5px)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.transform = "translateY(0)")
-            }
           >
-            <FaTimesCircle size={40} className="mb-2" />
+            <FaTimesCircle size={40} />
             <h3>{attendanceStats.totalAbsent}</h3>
-            <p>Absent Today</p>
-            <small className="text-white-50">Click to view details</small>
+            <p>{t?.dashboard?.absentToday || "Absent Today"}</p>
+            <small>
+              {t?.dashboard?.clickToView || "Click to view details"}
+            </small>
           </div>
         </div>
-
         <div className="col-md-3 mb-3">
           <div
-            className="stat-card"
-            style={{
-              background: "linear-gradient(135deg, #17a2b8, #138496)",
-              cursor: "pointer",
-              transition: "transform 0.3s",
-            }}
+            className="stat-card stat-cyan clickable"
             onClick={() =>
               (window.location.href = "/attendance?tab=daily&filter=excused")
             }
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.transform = "translateY(-5px)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.transform = "translateY(0)")
-            }
           >
-            <FaUmbrella size={40} className="mb-2" />
+            <FaUmbrella size={40} />
             <h3>{attendanceStats.totalExcused}</h3>
-            <p>Excused Today</p>
-            <small className="text-white-50">Click to view details</small>
+            <p>{t?.dashboard?.excusedToday || "Excused Today"}</p>
+            <small>
+              {t?.dashboard?.clickToView || "Click to view details"}
+            </small>
           </div>
         </div>
       </div>
 
-      <div
-        className="alert alert-info mb-4"
-        style={{
-          backgroundColor: "#d1ecf1",
-          color: "#0c5460",
-          padding: "0.75rem 1.25rem",
-          borderRadius: "5px",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-        }}
-      >
+      <div className="info-alert">
         <FaInfoCircle />
         <span>
-          Click on any attendance card above to view detailed daily reports
+          {t?.dashboard?.attendanceCardHint ||
+            "Click on any attendance card above to view detailed daily reports"}
         </span>
-        <Link
-          to="/attendance"
-          className="btn btn-sm btn-info ms-auto"
-          style={{ color: "#0c5460", borderColor: "#0c5460" }}
-        >
-          Go to Attendance Management
+        <Link to="/attendance" className="info-link">
+          {t?.dashboard?.goToAttendance || "Go to Attendance Management"}
         </Link>
       </div>
 
@@ -551,29 +511,28 @@ function Dashboard() {
             <div className="school-card">
               <div className="card-header d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">
-                  <FaClipboardList
-                    className="me-2"
-                    style={{ color: "#28a745" }}
-                  />
-                  Today's Attendance Preview
+                  <FaClipboardList className="me-2" />
+                  {t?.dashboard?.todaysAttendancePreview ||
+                    "Today's Attendance Preview"}
                 </h5>
                 <button
-                  className="btn btn-sm btn-outline-success"
+                  className="btn-toggle-preview"
                   onClick={() => setShowDailyPreview(!showDailyPreview)}
                 >
                   {showDailyPreview ? "Hide" : "Show"} Preview
                 </button>
               </div>
-
               {showDailyPreview && (
                 <div className="card-body">
                   <div className="table-responsive">
-                    <table className="table table-sm table-striped">
+                    <table className="attendance-table">
                       <thead>
                         <tr>
-                          <th>Student</th>
-                          <th>Class</th>
-                          <th>Status</th>
+                          <th>
+                            {t?.studentManagement?.studentName || "Student"}
+                          </th>
+                          <th>{t?.studentManagement?.class || "Class"}</th>
+                          <th>{t?.attendanceManager?.status || "Status"}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -586,24 +545,15 @@ function Dashboard() {
                             </td>
                             <td>
                               <span
-                                className={`badge ${
-                                  record.status === "PRESENT"
-                                    ? "bg-success"
-                                    : record.status === "LATE"
-                                      ? "bg-warning"
-                                      : record.status === "ABSENT"
-                                        ? "bg-danger"
-                                        : "bg-info"
-                                }`}
+                                className={`status-badge status-${record.status?.toLowerCase() || "unknown"}`}
                               >
-                                {record.status}
+                                {record.status || "Unknown"}
                               </span>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-
                     {todayAttendance.length > 10 && (
                       <p className="text-muted mt-2">
                         Showing 10 of {todayAttendance.length} records
@@ -623,7 +573,6 @@ function Dashboard() {
             <Bar data={classDistributionData} options={chartOptions} />
           </div>
         </div>
-
         <div className="col-md-6 mb-4">
           <div className="school-card p-3">
             <Bar
@@ -639,66 +588,41 @@ function Dashboard() {
           <div className="school-card">
             <div className="card-header d-flex justify-content-between align-items-center">
               <h5 className="mb-0">
-                <FaBullhorn className="me-2" style={{ color: "#ffc107" }} />
-                Latest Announcements
+                <FaBullhorn className="me-2" />
+                {t?.dashboard?.latestAnnouncements || "Latest Announcements"}
                 {announcements.length > 0 && (
-                  <span className="ms-2 badge bg-danger">
-                    {announcements.length} New
-                  </span>
+                  <span className="new-badge">{announcements.length} New</span>
                 )}
               </h5>
-              <Link
-                to="/announcements"
-                className="btn btn-sm btn-outline-light"
-              >
-                <FaEye className="me-1" /> View All
+              <Link to="/announcements" className="view-link">
+                <FaEye className="me-1" /> {t?.dashboard?.viewAll || "View All"}
               </Link>
             </div>
-
             <div className="announcements-list">
               {announcements.length > 0 ? (
                 announcements.map((announcement) => {
                   const typeInfo = getAnnouncementTypeIcon(announcement.type);
-
                   return (
                     <div key={announcement.id} className="announcement-item">
-                      <div
-                        className="announcement-icon"
-                        style={{
-                          backgroundColor: `${typeInfo.color}20`,
-                          color: typeInfo.color,
-                        }}
-                      >
-                        <span className="announcement-emoji">
-                          {typeInfo.icon}
-                        </span>
+                      <div className="announcement-icon">
+                        <span>{typeInfo.icon}</span>
                       </div>
-
                       <div className="announcement-content">
                         <div className="announcement-header">
                           <h6 className="announcement-title">
                             {announcement.title}
                           </h6>
-
                           <div className="announcement-badges">
                             {getPriorityBadge(announcement.priority)}
-                            <span
-                              className="announcement-type"
-                              style={{
-                                backgroundColor: `${typeInfo.color}20`,
-                                color: typeInfo.color,
-                              }}
-                            >
+                            <span className="announcement-type">
                               {typeInfo.label}
                             </span>
                           </div>
                         </div>
-
                         <p className="announcement-text">
                           {announcement.content?.substring(0, 120)}
                           {announcement.content?.length > 120 ? "..." : ""}
                         </p>
-
                         <div className="announcement-meta">
                           <span>
                             <FaCalendarAlt className="me-1" />
@@ -721,10 +645,10 @@ function Dashboard() {
                   );
                 })
               ) : (
-                <div className="text-center py-5">
-                  <FaBullhorn size={40} className="text-muted mb-3" />
-                  <h5 className="text-muted">No Announcements Yet</h5>
-                  <p className="text-muted">Check back later for updates</p>
+                <div className="empty-announcements">
+                  <FaBullhorn size={40} />
+                  <h5>No Announcements Yet</h5>
+                  <p>Check back later for updates</p>
                 </div>
               )}
             </div>
@@ -735,37 +659,31 @@ function Dashboard() {
           <div className="school-card">
             <div className="card-header">
               <h5 className="mb-0">
-                <FaUserGraduate className="me-2" style={{ color: "#28a745" }} />
-                Recent Admissions
+                <FaUserGraduate className="me-2" />
+                {t?.dashboard?.recentAdmissions || "Recent Admissions"}
               </h5>
             </div>
-
-            <div className="list-group list-group-flush">
+            <div className="recent-list">
               {recentStudents.length > 0 ? (
                 recentStudents.map((student) => (
                   <Link
                     key={student.id}
                     to={`/students/view/${student.id}`}
-                    className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                    className="recent-item"
                   >
                     <div>
                       <strong>{getStudentDisplayName(student)}</strong>
                       <br />
-                      <small className="text-muted">
-                        {student.admissionNumber}
-                      </small>
+                      <small>{student.admissionNumber}</small>
                     </div>
-                    <span
-                      className="badge"
-                      style={{ backgroundColor: "#008753", color: "white" }}
-                    >
+                    <span className="class-badge">
                       {student.studentClass} {student.classArm}
                     </span>
                   </Link>
                 ))
               ) : (
-                <div className="text-center py-4">
-                  <p className="text-muted">No recent admissions</p>
+                <div className="empty-state">
+                  <p>No recent admissions</p>
                 </div>
               )}
             </div>
@@ -776,156 +694,53 @@ function Dashboard() {
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-4">
-            <h4 className="mb-3">Quick Actions</h4>
-            <div className="row g-3">
-              <div className="col-md-3">
-                <Link
-                  to="/attendance"
-                  className="btn btn-lg w-100 d-flex flex-column align-items-center py-3"
-                  style={{
-                    background: "linear-gradient(135deg, #28a745, #20c997)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "10px",
-                    transition: "transform 0.3s, box-shadow 0.3s",
-                    textDecoration: "none",
-                  }}
-                >
-                  <FaClipboardList size={32} className="mb-2" />
-                  <span className="fw-bold">Mark Attendance</span>
-                  <small>Take today's attendance</small>
-                </Link>
-              </div>
-
-              <div className="col-md-3">
-                <Link
-                  to="/attendance?tab=daily"
-                  className="btn btn-lg w-100 d-flex flex-column align-items-center py-3"
-                  style={{
-                    background: "linear-gradient(135deg, #17a2b8, #0d6efd)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "10px",
-                    transition: "transform 0.3s, box-shadow 0.3s",
-                    textDecoration: "none",
-                  }}
-                >
-                  <FaChartBar size={32} className="mb-2" />
-                  <span className="fw-bold">Daily Report</span>
-                  <small>View today's attendance</small>
-                </Link>
-              </div>
-
-              <div className="col-md-3">
-                <Link
-                  to="/fees"
-                  className="btn btn-lg w-100 d-flex flex-column align-items-center py-3"
-                  style={{
-                    background: "linear-gradient(135deg, #fd7e14, #dc3545)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "10px",
-                    transition: "transform 0.3s, box-shadow 0.3s",
-                    textDecoration: "none",
-                  }}
-                >
-                  <FaMoneyCheck size={32} className="mb-2" />
-                  <span className="fw-bold">Fee Management</span>
-                  <small>Track payments & dues</small>
-                </Link>
-              </div>
-
-              <div className="col-md-3">
-                <Link
-                  to="/students/new"
-                  className="btn btn-lg w-100 d-flex flex-column align-items-center py-3"
-                  style={{
-                    background: "linear-gradient(135deg, #6610f2, #6f42c1)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "10px",
-                    transition: "transform 0.3s, box-shadow 0.3s",
-                    textDecoration: "none",
-                  }}
-                >
-                  <FaPlusCircle size={32} className="mb-2" />
-                  <span className="fw-bold">Register Student</span>
-                  <small>Add new student</small>
-                </Link>
-              </div>
-
-              <div className="col-md-3">
-                <Link
-                  to="/students"
-                  className="btn btn-lg w-100 d-flex flex-column align-items-center py-3"
-                  style={{
-                    background: "linear-gradient(135deg, #6c757d, #495057)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "10px",
-                    transition: "transform 0.3s, box-shadow 0.3s",
-                    textDecoration: "none",
-                  }}
-                >
-                  <FaUsers size={32} className="mb-2" />
-                  <span className="fw-bold">All Students</span>
-                  <small>View student list</small>
-                </Link>
-              </div>
-
-              <div className="col-md-3">
-                <Link
-                  to="/search"
-                  className="btn btn-lg w-100 d-flex flex-column align-items-center py-3"
-                  style={{
-                    background: "linear-gradient(135deg, #17a2b8, #0d6efd)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "10px",
-                    transition: "transform 0.3s, box-shadow 0.3s",
-                    textDecoration: "none",
-                  }}
-                >
-                  <FaSearch size={32} className="mb-2" />
-                  <span className="fw-bold">Search</span>
-                  <small>Find students</small>
-                </Link>
-              </div>
-
-              <div className="col-md-3">
-                <button
-                  className="btn btn-lg w-100 d-flex flex-column align-items-center py-3"
-                  onClick={() => setShowReportModal(true)}
-                  style={{
-                    background: "linear-gradient(135deg, #6f42c1, #6610f2)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "10px",
-                  }}
-                >
-                  <FaFileAlt size={32} className="mb-2" />
-                  <span className="fw-bold">Generate Report</span>
-                  <small>Export data</small>
-                </button>
-              </div>
-
-              <div className="col-md-3">
-                <Link
-                  to="/announcements"
-                  className="btn btn-lg w-100 d-flex flex-column align-items-center py-3"
-                  style={{
-                    background: "linear-gradient(135deg, #fd7e14, #ffc107)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "10px",
-                    textDecoration: "none",
-                  }}
-                >
-                  <FaBell size={32} className="mb-2" />
-                  <span className="fw-bold">All Announcements</span>
-                  <small>View all news</small>
-                </Link>
-              </div>
+            <h4 className="mb-3">
+              {t?.dashboard?.quickActions || "Quick Actions"}
+            </h4>
+            <div className="quick-actions-grid">
+              <Link to="/attendance" className="quick-action">
+                <FaClipboardList className="quick-icon" />
+                <span className="quick-label">Mark Attendance</span>
+                <small>Take today's attendance</small>
+              </Link>
+              <Link to="/attendance?tab=daily" className="quick-action">
+                <FaChartBar className="quick-icon" />
+                <span className="quick-label">Daily Report</span>
+                <small>View today's attendance</small>
+              </Link>
+              <Link to="/fees" className="quick-action">
+                <FaMoneyCheck className="quick-icon" />
+                <span className="quick-label">Fee Management</span>
+                <small>Track payments & dues</small>
+              </Link>
+              <Link to="/students/new" className="quick-action">
+                <FaPlusCircle className="quick-icon" />
+                <span className="quick-label">Register Student</span>
+                <small>Add new student</small>
+              </Link>
+              <Link to="/students" className="quick-action">
+                <FaUsers className="quick-icon" />
+                <span className="quick-label">All Students</span>
+                <small>View student list</small>
+              </Link>
+              <Link to="/search" className="quick-action">
+                <FaSearch className="quick-icon" />
+                <span className="quick-label">Search</span>
+                <small>Find students</small>
+              </Link>
+              <button
+                className="quick-action"
+                onClick={() => setShowReportModal(true)}
+              >
+                <FaFileAlt className="quick-icon" />
+                <span className="quick-label">Generate Report</span>
+                <small>Export data</small>
+              </button>
+              <Link to="/announcements" className="quick-action">
+                <FaBell className="quick-icon" />
+                <span className="quick-label">All Announcements</span>
+                <small>View all news</small>
+              </Link>
             </div>
           </div>
         </div>
@@ -934,59 +749,33 @@ function Dashboard() {
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-3">
-            <h5 className="mb-3">Today's Attendance Summary</h5>
-            <div className="row">
-              <div className="col-md-3">
-                <div
-                  className="text-center p-3"
-                  style={{ background: "#f8f9fa", borderRadius: "8px" }}
-                >
-                  <h3 className="text-success mb-0">
-                    {attendanceStats.totalPresent}
-                  </h3>
-                  <p className="mb-0 text-muted">Present</p>
-                </div>
+            <h5 className="mb-3">
+              {t?.dashboard?.todaysAttendanceSummary ||
+                "Today's Attendance Summary"}
+            </h5>
+            <div className="summary-grid">
+              <div className="summary-item success">
+                <h3>{attendanceStats.totalPresent}</h3>
+                <p>{t?.dashboard?.present || "Present"}</p>
               </div>
-              <div className="col-md-3">
-                <div
-                  className="text-center p-3"
-                  style={{ background: "#f8f9fa", borderRadius: "8px" }}
-                >
-                  <h3 className="text-warning mb-0">
-                    {attendanceStats.totalLate}
-                  </h3>
-                  <p className="mb-0 text-muted">Late</p>
-                </div>
+              <div className="summary-item warning">
+                <h3>{attendanceStats.totalLate}</h3>
+                <p>{t?.dashboard?.late || "Late"}</p>
               </div>
-              <div className="col-md-3">
-                <div
-                  className="text-center p-3"
-                  style={{ background: "#f8f9fa", borderRadius: "8px" }}
-                >
-                  <h3 className="text-danger mb-0">
-                    {attendanceStats.totalAbsent}
-                  </h3>
-                  <p className="mb-0 text-muted">Absent</p>
-                </div>
+              <div className="summary-item danger">
+                <h3>{attendanceStats.totalAbsent}</h3>
+                <p>{t?.dashboard?.absent || "Absent"}</p>
               </div>
-              <div className="col-md-3">
-                <div
-                  className="text-center p-3"
-                  style={{ background: "#f8f9fa", borderRadius: "8px" }}
-                >
-                  <h3 className="text-info mb-0">
-                    {attendanceStats.totalExcused}
-                  </h3>
-                  <p className="mb-0 text-muted">Excused</p>
-                </div>
+              <div className="summary-item info">
+                <h3>{attendanceStats.totalExcused}</h3>
+                <p>{t?.dashboard?.excused || "Excused"}</p>
               </div>
             </div>
-
-            <div className="mt-3 text-center">
-              <p className="text-muted">
+            <div className="attendance-footer">
+              <p>
                 <strong>Total Students Tracked:</strong>{" "}
-                {attendanceStats.totalStudents} |
-                <strong> Attendance Rate:</strong>{" "}
+                {attendanceStats.totalStudents} |{" "}
+                <strong>Attendance Rate:</strong>{" "}
                 {attendanceStats.totalStudents > 0
                   ? (
                       ((attendanceStats.totalPresent +
@@ -998,19 +787,11 @@ function Dashboard() {
                 %
               </p>
             </div>
-
-            <div className="progress mt-2" style={{ height: "25px" }}>
+            <div className="progress-bar-custom">
               <div
-                className="progress-bar bg-success"
+                className="progress-fill"
                 style={{
-                  width: `${
-                    attendanceStats.totalStudents > 0
-                      ? ((attendanceStats.totalPresent +
-                          attendanceStats.totalLate) /
-                          attendanceStats.totalStudents) *
-                        100
-                      : 0
-                  }%`,
+                  width: `${attendanceStats.totalStudents > 0 ? ((attendanceStats.totalPresent + attendanceStats.totalLate) / attendanceStats.totalStudents) * 100 : 0}%`,
                 }}
               >
                 {attendanceStats.totalStudents > 0
@@ -1029,8 +810,10 @@ function Dashboard() {
       </div>
 
       {feeSummary.totalCollected > 0 && (
-        <div className="fee-structure mt-4">
-          <h4 className="mb-3">💰 Fee Summary</h4>
+        <div className="fee-summary mt-4">
+          <h4 className="mb-3">
+            💰 {t?.dashboard?.feeSummary || "Fee Summary"}
+          </h4>
           <div className="row">
             <div className="col-md-3">
               <h6 className="text-success">Total Collected</h6>

@@ -1,10 +1,18 @@
 /* src/components/Auth.css */
 
+/* ===== THEME VARIABLES ===== */
 :root {
   --school-navy: #003366;
   --nigerian-green: #008753;
   --gradient-start: #667eea;
   --gradient-end: #764ba2;
+}
+
+[data-theme="dark"] {
+  --school-navy: #1e40af;
+  --nigerian-green: #10b981;
+  --gradient-start: #818cf8;
+  --gradient-end: #a78bfa;
 }
 
 .auth-container {
@@ -128,6 +136,11 @@
   animation: slideUp 0.5s ease;
 }
 
+[data-theme="dark"] .auth-card {
+  background: rgba(17, 24, 39, 0.95);
+  border: 1px solid rgba(55, 65, 81, 0.5);
+}
+
 .auth-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 30px 70px rgba(0, 0, 0, 0.4);
@@ -159,9 +172,17 @@
   margin-bottom: 0.5rem;
 }
 
+[data-theme="dark"] .auth-header h2 {
+  color: var(--nigerian-green);
+}
+
 .auth-header p {
   color: #666;
   font-size: 0.95rem;
+}
+
+[data-theme="dark"] .auth-header p {
+  color: #9ca3af;
 }
 
 /* Alert styling */
@@ -179,6 +200,12 @@
   background: #fee;
   color: #c33;
   border: 1px solid #fcc;
+}
+
+[data-theme="dark"] .alert-error {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+  border: 1px solid #ef4444;
 }
 
 .alert-icon {
@@ -207,6 +234,10 @@
   font-size: 0.9rem;
 }
 
+[data-theme="dark"] .auth-form .form-group label {
+  color: #e5e7eb;
+}
+
 .auth-form .form-group label svg {
   color: var(--nigerian-green);
 }
@@ -223,6 +254,13 @@
   font-size: 1rem;
   transition: all 0.3s ease;
   background: white;
+  color: #333;
+}
+
+[data-theme="dark"] .auth-form .form-group input {
+  background: #1f2937;
+  border-color: #374151;
+  color: #f9fafb;
 }
 
 .auth-form .form-group input:focus {
@@ -244,6 +282,13 @@
   background: white;
   cursor: pointer;
   transition: all 0.3s ease;
+  color: #333;
+}
+
+[data-theme="dark"] .auth-form select {
+  background: #1f2937;
+  border-color: #374151;
+  color: #f9fafb;
 }
 
 .auth-form select:focus {
@@ -257,6 +302,10 @@
   margin-top: 0.25rem;
   color: #666;
   font-size: 0.8rem;
+}
+
+[data-theme="dark"] .form-group small {
+  color: #9ca3af;
 }
 
 .form-group small a {
@@ -275,12 +324,23 @@
   color: #666;
 }
 
+[data-theme="dark"] .readonly-field {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+  color: #9ca3af;
+}
+
 .verified-detail {
   font-size: 0.85rem;
   color: #155724;
   margin-left: 0.5rem;
   padding-left: 0.5rem;
   border-left: 1px solid #155724;
+}
+
+[data-theme="dark"] .verified-detail {
+  color: #10b981;
+  border-left-color: #10b981;
 }
 
 /* Password input */
@@ -315,6 +375,10 @@
   transition: color 0.3s ease;
 }
 
+[data-theme="dark"] .password-toggle {
+  color: #9ca3af;
+}
+
 .password-toggle:hover {
   color: var(--school-navy);
 }
@@ -335,6 +399,10 @@
   color: #555;
   cursor: pointer;
   position: relative;
+}
+
+[data-theme="dark"] .remember-me {
+  color: #e5e7eb;
 }
 
 .remember-me input[type="checkbox"] {
@@ -452,6 +520,11 @@
   background: linear-gradient(90deg, transparent, #ddd, transparent);
 }
 
+[data-theme="dark"] .auth-divider::before,
+[data-theme="dark"] .auth-divider::after {
+  background: linear-gradient(90deg, transparent, #374151, transparent);
+}
+
 .auth-divider::before {
   left: 0;
 }
@@ -465,6 +538,11 @@
   padding: 0 1rem;
   color: #666;
   font-size: 0.9rem;
+}
+
+[data-theme="dark"] .auth-divider span {
+  background: #1f2937;
+  color: #9ca3af;
 }
 
 /* Register button - Enhanced */
@@ -570,6 +648,11 @@
   border: 1px dashed var(--nigerian-green);
 }
 
+[data-theme="dark"] .demo-credentials,
+[data-theme="dark"] .auth-demo-hint {
+  background: rgba(96, 165, 250, 0.1);
+}
+
 .demo-credentials p,
 .auth-demo-hint p {
   color: var(--nigerian-green);
@@ -584,6 +667,12 @@
   color: #666;
   font-size: 0.8rem;
   font-family: monospace;
+}
+
+[data-theme="dark"] .demo-credentials small,
+[data-theme="dark"] .auth-demo-hint small,
+[data-theme="dark"] .demo-row {
+  color: #9ca3af;
 }
 
 .demo-row {
@@ -608,14 +697,26 @@
   animation: scaleIn 0.5s ease;
 }
 
+[data-theme="dark"] .success-icon {
+  color: #10b981;
+}
+
 .success-message h3 {
   color: #28a745;
   margin-bottom: 1rem;
 }
 
+[data-theme="dark"] .success-message h3 {
+  color: #10b981;
+}
+
 .success-message p {
   color: #666;
   margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .success-message p {
+  color: #9ca3af;
 }
 
 .back-to-login {
@@ -655,6 +756,10 @@
   color: var(--school-navy);
 }
 
+[data-theme="dark"] .role-selection h3 {
+  color: var(--nigerian-green);
+}
+
 .role-buttons {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -675,10 +780,15 @@
   transition: all 0.3s ease;
 }
 
+[data-theme="dark"] .role-button {
+  background: #1f2937;
+  border-color: #374151;
+}
+
 .role-button:hover {
   transform: translateY(-5px);
   border-color: var(--school-navy);
-  box-shadow: 0 5px 15px rgba(0,51,102,0.1);
+  box-shadow: 0 5px 15px rgba(0, 51, 102, 0.1);
 }
 
 .role-icon {
@@ -686,10 +796,18 @@
   color: var(--school-navy);
 }
 
+[data-theme="dark"] .role-icon {
+  color: var(--nigerian-green);
+}
+
 .role-label {
   font-size: 1.1rem;
   font-weight: 500;
   color: #333;
+}
+
+[data-theme="dark"] .role-label {
+  color: #e5e7eb;
 }
 
 /* Form utilities */
@@ -725,6 +843,14 @@
   background: #002244;
 }
 
+[data-theme="dark"] .verify-button {
+  background: var(--nigerian-green);
+}
+
+[data-theme="dark"] .verify-button:hover {
+  filter: brightness(1.1);
+}
+
 .back-button {
   padding: 0.75rem;
   background: none;
@@ -737,8 +863,17 @@
   width: 100%;
 }
 
+[data-theme="dark"] .back-button {
+  border-color: #374151;
+  color: #9ca3af;
+}
+
 .back-button:hover {
   background: #f5f5f5;
+}
+
+[data-theme="dark"] .back-button:hover {
+  background: #374151;
 }
 
 .verified-badge {
@@ -753,12 +888,22 @@
   font-weight: 500;
 }
 
+[data-theme="dark"] .verified-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
 .info-message {
   text-align: center;
   padding: 2rem;
   background: #e3f2fd;
   border-radius: 10px;
   color: #0c5460;
+}
+
+[data-theme="dark"] .info-message {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
 }
 
 .info-message svg {
@@ -779,6 +924,10 @@
   font-size: 0.9rem;
   margin-bottom: 1.5rem;
   text-align: center;
+}
+
+[data-theme="dark"] .text-muted {
+  color: #9ca3af;
 }
 
 .form-actions {

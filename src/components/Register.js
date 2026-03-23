@@ -1,8 +1,8 @@
-// src/components/Register.js
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { authAPI, setAuthToken } from "../services/api";
+import { useNavigate } from "react-router-dom";
+import { authAPI } from "../services/api";
 import { toast } from "react-toastify";
+import { useLanguage } from "../contexts/LanguageContext";
 import {
   FaUser,
   FaEnvelope,
@@ -43,11 +43,12 @@ function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const roles = [
-    { value: "STUDENT", label: "Student", icon: <FaGraduationCap /> },
-    { value: "PARENT", label: "Parent", icon: <FaUsers /> },
-    { value: "TEACHER", label: "Teacher", icon: <FaUser /> },
+    { value: "STUDENT", label: t.register.student, icon: <FaGraduationCap /> },
+    { value: "PARENT", label: t.register.parent, icon: <FaUsers /> },
+    { value: "TEACHER", label: t.register.teacher, icon: <FaUser /> },
   ];
 
   const handleRoleSelect = (selectedRole) => {
@@ -56,15 +57,15 @@ function Register() {
   };
 
   const handleVerificationChange = (e) => {
-    setVerificationData({
-      ...verificationData,
+    setVerificationData((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
 
   const verifyStudent = async () => {
     if (!verificationData.admissionNumber) {
-      toast.error("Please enter your admission number");
+      toast.error(t.register.enterAdmissionNumber);
       return;
     }
 
@@ -76,11 +77,9 @@ function Register() {
         )}`,
       );
 
-      if (!response.ok) {
-        throw new Error("Student not found");
-      }
+      if (!response.ok) throw new Error("Student not found");
 
-      const student = await response.json(); // ✅ backend returns the student object directly
+      const student = await response.json();
 
       setVerifiedData({
         id: student.id,
@@ -95,7 +94,7 @@ function Register() {
         ...prev,
         firstName: student.firstName || "",
         lastName: student.lastName || "",
-        email: student.email || "", // may be undefined (fine)
+        email: student.email || "",
         phoneNumber: student.phoneNumber || "",
         username: (
           student.admissionNumber || verificationData.admissionNumber
@@ -104,18 +103,19 @@ function Register() {
 
       setStep(3);
       toast.success(
-        `Student ${student.firstName} ${student.lastName} verified successfully!`,
+        `Student ${student.firstName} ${student.lastName} ${t.register.studentVerified}`,
       );
     } catch (error) {
       console.error("Verification error:", error);
-      toast.error("Student not found with this admission number");
+      toast.error(t.register.studentNotFound);
     } finally {
       setVerifying(false);
     }
   };
+
   const verifyParent = async () => {
     if (!verificationData.parentEmail && !verificationData.parentPhone) {
-      toast.error("Please enter either email or phone number");
+      toast.error(t.register.enterEmailOrPhone);
       return;
     }
 
@@ -124,20 +124,23 @@ function Register() {
       let response;
       if (verificationData.parentEmail) {
         response = await fetch(
-          `http://localhost:8080/api/public/verify-parent/email?email=${encodeURIComponent(verificationData.parentEmail)}`,
+          `http://localhost:8080/api/public/verify-parent/email?email=${encodeURIComponent(
+            verificationData.parentEmail,
+          )}`,
         );
       } else {
         response = await fetch(
-          `http://localhost:8080/api/public/verify-parent/phone?phone=${encodeURIComponent(verificationData.parentPhone)}`,
+          `http://localhost:8080/api/public/verify-parent/phone?phone=${encodeURIComponent(
+            verificationData.parentPhone,
+          )}`,
         );
       }
 
       const data = await response.json();
-      console.log("Parent verification response:", data);
 
-      // FIXED: Check for data.parent instead of data.data
       if (data.success && data.parent) {
         const parent = data.parent;
+
         setVerifiedData({
           id: parent.id,
           firstName: parent.firstName,
@@ -146,8 +149,8 @@ function Register() {
           phoneNumber: parent.phoneNumber,
         });
 
-        setFormData({
-          ...formData,
+        setFormData((prev) => ({
+          ...prev,
           firstName: parent.firstName || "",
           lastName: parent.lastName || "",
           email: parent.email || "",
@@ -155,61 +158,53 @@ function Register() {
           username: parent.email
             ? parent.email.split("@")[0]
             : `parent_${parent.id}`,
-        });
+        }));
 
         setStep(3);
         toast.success(
-          `Parent ${parent.firstName} ${parent.lastName} verified successfully!`,
+          `Parent ${parent.firstName} ${parent.lastName} ${t.register.parentVerified}`,
         );
       } else {
-        toast.error(data.message || "Parent not found");
+        toast.error(data.message || t.register.parentNotFound);
       }
     } catch (error) {
       console.error("Verification error:", error);
-      toast.error("Parent not found with the provided information");
+      toast.error(t.register.parentNotFound);
     } finally {
       setVerifying(false);
     }
   };
 
   const verifyTeacher = () => {
-    toast.info(
-      "Teacher registration requires admin approval. Please contact the school administration.",
-    );
+    toast.info(t.register.teacherApproval);
     setRole("");
     setStep(1);
   };
 
   const handleVerificationSubmit = (e) => {
     e.preventDefault();
-    if (role === "STUDENT") {
-      verifyStudent();
-    } else if (role === "PARENT") {
-      verifyParent();
-    } else if (role === "TEACHER") {
-      verifyTeacher();
-    }
+    if (role === "STUDENT") verifyStudent();
+    else if (role === "PARENT") verifyParent();
+    else if (role === "TEACHER") verifyTeacher();
   };
 
   const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
   };
-
-  // In Register.js, replace the handleSubmit function with this:
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error(t.register.passwordsMismatch);
       return;
     }
 
     if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+      toast.error(t.register.passwordTooShort);
       return;
     }
 
@@ -223,23 +218,17 @@ function Register() {
         email: formData.email,
         password: formData.password,
         phoneNumber: formData.phoneNumber,
-        role: role,
+        role,
       };
 
-      if (role === "STUDENT" && verifiedData) {
+      if (role === "STUDENT" && verifiedData)
         registerData.studentId = verifiedData.id;
-      } else if (role === "PARENT" && verifiedData) {
+      else if (role === "PARENT" && verifiedData)
         registerData.parentId = verifiedData.id;
-      }
-
-      console.log("Registering with data:", registerData);
 
       const response = await authAPI.register(registerData);
 
-      console.log("Registration response:", response.data);
-
       if (response.data.accessToken) {
-        // Set the token in localStorage
         localStorage.setItem("accessToken", response.data.accessToken);
         if (response.data.refreshToken) {
           localStorage.setItem("refreshToken", response.data.refreshToken);
@@ -248,26 +237,14 @@ function Register() {
           localStorage.setItem("user", JSON.stringify(response.data.user));
         }
 
-        // Also set in axios defaults
-        import("../services/api").then((module) => {
-          module.setAuthToken(
-            response.data.accessToken,
-            response.data.refreshToken,
-            response.data.user,
-          );
-        });
-
-        toast.success(
-          "Registration successful! Welcome to Faith Foundation School.",
-        );
-
-        // Force a hard reload to home page
-        // This ensures the AuthContext re-initializes with the new token
+        toast.success(t.register.registrationSuccess);
         window.location.href = "/";
       }
     } catch (error) {
       console.error("Registration error:", error);
-      toast.error(error.response?.data?.message || "Registration failed");
+      toast.error(
+        error.response?.data?.message || t.register.registrationFailed,
+      );
     } finally {
       setLoading(false);
     }
@@ -289,14 +266,14 @@ function Register() {
       <div className="auth-card register-card">
         <div className="auth-header">
           <h2>
-            <FaUserPlus /> Create Account
+            <FaUserPlus /> {t.register.createAccount}
           </h2>
-          <p>Join Faith Foundation School Community</p>
+          <p>{t.register.joinCommunity}</p>
         </div>
 
         {step === 1 && (
           <div className="role-selection">
-            <h3>I am a:</h3>
+            <h3>{t.register.iAmA}</h3>
             <div className="role-buttons">
               {roles.map((r) => (
                 <button
@@ -315,12 +292,12 @@ function Register() {
 
         {step === 2 && role === "STUDENT" && (
           <form onSubmit={handleVerificationSubmit} className="auth-form">
-            <h3>Verify Student Record</h3>
-            <p className="text-muted">Enter your admission number to verify</p>
+            <h3>{t.register.verifyStudentRecord}</h3>
+            <p className="text-muted">{t.register.verifyAdmissionPrompt}</p>
 
             <div className="form-group">
               <label>
-                <FaGraduationCap /> Admission Number
+                <FaGraduationCap /> {t.register.admissionNumber}
               </label>
               <div className="verification-input">
                 <input
@@ -342,50 +319,48 @@ function Register() {
             </div>
 
             <button type="button" className="back-button" onClick={goBack}>
-              <FaArrowLeft /> Back
+              <FaArrowLeft /> {t.common.back}
             </button>
           </form>
         )}
 
         {step === 2 && role === "PARENT" && (
           <form onSubmit={handleVerificationSubmit} className="auth-form">
-            <h3>Verify Parent Record</h3>
-            <p className="text-muted">
-              Enter your email or phone number to verify
-            </p>
+            <h3>{t.register.verifyParentRecord}</h3>
+            <p className="text-muted">{t.register.verifyParentPrompt}</p>
 
             <div className="form-group">
               <label>
-                <FaEnvelope /> Email
+                <FaEnvelope /> {t.register.email}
               </label>
               <input
                 type="email"
                 name="parentEmail"
                 value={verificationData.parentEmail}
                 onChange={handleVerificationChange}
-                placeholder="Enter your email"
+                placeholder={t.register.enterEmail}
               />
             </div>
 
             <div className="form-group">
               <label>
-                <FaPhone /> Phone Number
+                <FaPhone /> {t.register.phoneNumber}
               </label>
               <input
                 type="tel"
                 name="parentPhone"
                 value={verificationData.parentPhone}
                 onChange={handleVerificationChange}
-                placeholder="Enter your phone number"
+                placeholder={t.register.enterPhone}
               />
             </div>
 
             <button type="submit" className="auth-button" disabled={verifying}>
-              {verifying ? <FaSpinner className="spin" /> : "Verify"}
+              {verifying ? <FaSpinner className="spin" /> : t.common.verify}
             </button>
 
             <button type="button" className="back-button" onClick={goBack}>
-              <FaArrowLeft /> Back
+              <FaArrowLeft /> {t.common.back}
             </button>
           </form>
         )}
@@ -394,14 +369,12 @@ function Register() {
           <div className="auth-form">
             <div className="info-message">
               <FaUser size={40} />
-              <h3>Teacher Registration</h3>
-              <p>
-                Teacher accounts must be created by the school administration.
-              </p>
-              <p>Please contact the admin to create your account.</p>
+              <h3>{t.register.teacherRegistration}</h3>
+              <p>{t.register.teacherApprovalShort}</p>
+              <p>{t.register.contactAdmin}</p>
             </div>
             <button type="button" className="back-button" onClick={goBack}>
-              <FaArrowLeft /> Back
+              <FaArrowLeft /> {t.common.back}
             </button>
           </div>
         )}
@@ -409,7 +382,7 @@ function Register() {
         {step === 3 && verifiedData && (
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="verified-badge">
-              <FaCheckCircle /> Verified: {verifiedData.firstName}{" "}
+              <FaCheckCircle /> {t.register.verified}: {verifiedData.firstName}{" "}
               {verifiedData.lastName}
               {verifiedData.studentClass && (
                 <span className="verified-detail">
@@ -421,7 +394,7 @@ function Register() {
 
             <div className="form-row">
               <div className="form-group">
-                <label>First Name</label>
+                <label>{t.register.firstName}</label>
                 <input
                   type="text"
                   name="firstName"
@@ -433,7 +406,7 @@ function Register() {
                 />
               </div>
               <div className="form-group">
-                <label>Last Name</label>
+                <label>{t.register.lastName}</label>
                 <input
                   type="text"
                   name="lastName"
@@ -447,7 +420,7 @@ function Register() {
             </div>
 
             <div className="form-group">
-              <label>Username</label>
+              <label>{t.register.username}</label>
               <input
                 type="text"
                 name="username"
@@ -455,36 +428,38 @@ function Register() {
                 onChange={handleInputChange}
                 required
                 minLength="3"
-                placeholder="Choose a username"
+                placeholder={t.register.chooseUsername}
               />
             </div>
 
             <div className="form-group">
-              <label>Email</label>
+              <label>{t.register.email}</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
                 required
-                placeholder="Enter your email"
+                placeholder={t.register.enterEmail}
               />
             </div>
 
             <div className="form-group">
-              <label>Phone Number (Optional)</label>
+              <label>
+                {t.register.phoneNumber} ({t.register.optional})
+              </label>
               <input
                 type="tel"
                 name="phoneNumber"
                 value={formData.phoneNumber}
                 onChange={handleInputChange}
-                placeholder="Enter your phone number"
+                placeholder={t.register.enterPhone}
               />
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label>Password</label>
+                <label>{t.register.password}</label>
                 <div className="password-input">
                   <input
                     type={showPassword ? "text" : "password"}
@@ -493,7 +468,7 @@ function Register() {
                     onChange={handleInputChange}
                     required
                     minLength="6"
-                    placeholder="Enter password"
+                    placeholder={t.register.enterPassword}
                   />
                   <button
                     type="button"
@@ -506,7 +481,7 @@ function Register() {
               </div>
 
               <div className="form-group">
-                <label>Confirm Password</label>
+                <label>{t.register.confirmPassword}</label>
                 <div className="password-input">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
@@ -514,7 +489,7 @@ function Register() {
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
                     required
-                    placeholder="Confirm password"
+                    placeholder={t.register.confirmPasswordPlaceholder}
                   />
                   <button
                     type="button"
@@ -527,22 +502,23 @@ function Register() {
               </div>
             </div>
 
-            <div className="form-actions">
-              <button type="button" className="back-button" onClick={goBack}>
-                <FaArrowLeft /> Back
-              </button>
-              <button type="submit" className="auth-button" disabled={loading}>
-                {loading ? <FaSpinner className="spin" /> : "Register"}
-              </button>
-            </div>
+            <button type="submit" className="auth-button" disabled={loading}>
+              {loading ? (
+                <>
+                  <FaSpinner className="spin" /> {t.common.loading}
+                </>
+              ) : (
+                <>
+                  <FaUserPlus /> {t.register.createAccount}
+                </>
+              )}
+            </button>
+
+            <button type="button" className="back-button" onClick={goBack}>
+              <FaArrowLeft /> {t.common.back}
+            </button>
           </form>
         )}
-
-        <div className="auth-footer">
-          <p>
-            Already have an account? <Link to="/login">Sign In</Link>
-          </p>
-        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   FaHome,
@@ -27,14 +27,13 @@ import {
   FaLayerGroup,
   FaList,
   FaClock,
-  FaRoute,
   FaBook,
   FaUserGraduate,
   FaBullhorn,
-  FaCalendarCheck,
   FaEnvelope,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { teacherAPI } from "../services/api";
 import "./Navbar.css";
 
@@ -47,6 +46,7 @@ function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const { t } = useLanguage();
 
   const role = user?.role;
 
@@ -106,113 +106,130 @@ function Navbar() {
 
   const getTeacherScopedPath = (basePath) => {
     const firstClass = teacherClasses[0];
-
-    if (!firstClass?.id) {
-      return basePath;
-    }
-
+    if (!firstClass?.id) return basePath;
     return `${basePath}?classId=${firstClass.id}&mine=true`;
   };
 
   const publicNavItems = [
-    { type: "link", path: "/", icon: <FaHome />, label: "Home" },
-    { type: "link", path: "/about", icon: <FaBook />, label: "About" },
-    { type: "link", path: "/contact", icon: <FaEnvelope />, label: "Contact" },
-    { type: "link", path: "/login", icon: <FaSignInAlt />, label: "Login" },
+    { type: "link", path: "/", icon: <FaHome />, label: t.common.home },
+    { type: "link", path: "/about", icon: <FaBook />, label: t.common.about },
     {
       type: "link",
-      path: "/register",
-      icon: <FaUserPlus />,
-      label: "Register",
+      path: "/contact",
+      icon: <FaEnvelope />,
+      label: t.common.contact,
     },
+    // Removed login and register from here to prevent duplication
   ];
 
   const adminNavItems = [
-    { type: "link", path: "/dashboard", icon: <FaHome />, label: "Dashboard" },
+    {
+      type: "link",
+      path: "/dashboard",
+      icon: <FaHome />,
+      label: t.common.dashboard,
+    },
     {
       type: "dropdown",
-      label: "People",
+      label: t.navbar.people,
       icon: <FaUsers />,
       name: "people",
       items: [
-        { path: "/students", label: "Students", icon: <FaUserGraduate /> },
+        {
+          path: "/students",
+          label: t.navbar.students,
+          icon: <FaUserGraduate />,
+        },
         {
           path: "/students/new",
-          label: "Register Student",
+          label: t.navbar.registerStudent,
           icon: <FaPlusCircle />,
         },
         {
           path: "/students/promotion",
-          label: "Promotion",
+          label: t.navbar.promotion,
           icon: <FaArrowUp />,
         },
-        { path: "/teachers", label: "Teachers", icon: <FaChalkboardTeacher /> },
+        {
+          path: "/teachers",
+          label: t.navbar.teachers,
+          icon: <FaChalkboardTeacher />,
+        },
         {
           path: "/teachers/new",
-          label: "Add Teacher",
+          label: t.navbar.addTeacher,
           icon: <FaPlusCircle />,
         },
-        { path: "/parents", label: "Parents", icon: <FaUserTie /> },
+        { path: "/parents", label: t.navbar.parents, icon: <FaUserTie /> },
         {
           path: "/parents/register",
-          label: "Register Parent",
+          label: t.navbar.registerParent,
           icon: <FaPlusCircle />,
         },
       ],
     },
     {
       type: "dropdown",
-      label: "Academics",
+      label: t.navbar.academics,
       icon: <FaBookOpen />,
       name: "academics",
       items: [
-        { path: "/classes", label: "Classes", icon: <FaLayerGroup /> },
+        { path: "/classes", label: t.navbar.classes, icon: <FaLayerGroup /> },
         {
           path: "/classes/manage",
-          label: "Manage Classes",
+          label: t.navbar.manageClasses,
           icon: <FaList />,
         },
-        { path: "/subjects", label: "Subjects", icon: <FaBookOpen /> },
-        { path: "/timetable", label: "Timetable", icon: <FaCalendarAlt /> },
-        { path: "/results", label: "Results", icon: <FaChartBar /> },
+        { path: "/subjects", label: t.navbar.subjects, icon: <FaBookOpen /> },
+        {
+          path: "/timetable",
+          label: t.navbar.timetable,
+          icon: <FaCalendarAlt />,
+        },
+        { path: "/results", label: t.navbar.results, icon: <FaChartBar /> },
         {
           path: "/attendance",
-          label: "Attendance",
+          label: t.navbar.attendance,
           icon: <FaClipboardCheck />,
         },
         {
           path: "/session-results",
-          label: "Session Results",
+          label: t.navbar.sessionResults,
           icon: <FaGraduationCap />,
         },
-        { path: "/sessions", label: "Sessions", icon: <FaClock /> },
+        { path: "/sessions", label: t.navbar.sessions, icon: <FaClock /> },
       ],
     },
     {
       type: "dropdown",
-      label: "Finance",
+      label: t.navbar.finance,
       icon: <FaMoneyBill />,
       name: "finance",
-      items: [{ path: "/fees", label: "Fees", icon: <FaMoneyBill /> }],
+      items: [{ path: "/fees", label: t.navbar.fees, icon: <FaMoneyBill /> }],
     },
     {
       type: "dropdown",
-      label: "Operations",
+      label: t.navbar.operations,
       icon: <FaBus />,
       name: "operations",
       items: [
         {
           path: "/announcements",
-          label: "Announcements",
+          label: t.navbar.announcements,
           icon: <FaBullhorn />,
         },
-        { path: "/events", label: "Events", icon: <FaCalendarCheck /> },
-        { path: "/transport", label: "Transport", icon: <FaBus /> },
-        { path: "/transport/routes", label: "Routes", icon: <FaRoute /> },
-        { path: "/library", label: "Library", icon: <FaBook /> },
+        { path: "/events", label: t.navbar.events, icon: <FaCalendarAlt /> },
+        { path: "/transport/routes", label: t.navbar.routes, icon: <FaBus /> },
+
+        { path: "/library", label: t.navbar.library, icon: <FaBook /> },
       ],
     },
-    { type: "link", path: "/users", icon: <FaUserShield />, label: "Users" },
+    {
+      type: "link",
+      path: "/users",
+      icon: <FaUserShield />,
+      label: t.navbar.users,
+    },
   ];
 
   const teacherNavItems = [
@@ -220,40 +237,40 @@ function Navbar() {
       type: "link",
       path: "/teacher-dashboard",
       icon: <FaHome />,
-      label: "Dashboard",
+      label: t.common.dashboard,
     },
     {
       type: "link",
       path: getTeacherScopedPath("/students"),
       activePath: "/students",
       icon: <FaUsers />,
-      label: "My Students",
+      label: t.navbar.myStudents,
     },
     {
       type: "link",
       path: getTeacherScopedPath("/results"),
       activePath: "/results",
       icon: <FaChartBar />,
-      label: "Results",
+      label: t.navbar.results,
     },
     {
       type: "link",
       path: getTeacherScopedPath("/attendance"),
       activePath: "/attendance",
       icon: <FaClipboardCheck />,
-      label: "Attendance",
+      label: t.navbar.attendance,
     },
     {
       type: "link",
       path: "/session-results",
       icon: <FaGraduationCap />,
-      label: "Session Results",
+      label: t.navbar.sessionResults,
     },
     {
       type: "link",
       path: "/timetable",
       icon: <FaCalendarAlt />,
-      label: "My Timetable",
+      label: t.navbar.myTimetable,
     },
   ];
 
@@ -262,43 +279,43 @@ function Navbar() {
       type: "link",
       path: "/parent-dashboard",
       icon: <FaHome />,
-      label: "Dashboard",
+      label: t.common.dashboard,
     },
     {
       type: "link",
       path: "/fees",
       icon: <FaMoneyBill />,
-      label: "Ward Fees",
+      label: t.navbar.wardFees,
     },
     {
       type: "link",
       path: "/results",
       icon: <FaChartBar />,
-      label: "Ward Results",
+      label: t.navbar.wardResults,
     },
     {
       type: "link",
       path: "/attendance",
       icon: <FaClipboardCheck />,
-      label: "Ward Attendance",
+      label: t.navbar.wardAttendance,
     },
     {
       type: "link",
       path: "/session-results",
       icon: <FaGraduationCap />,
-      label: "Session Results",
+      label: t.navbar.sessionResults,
     },
     {
       type: "link",
       path: "/timetable",
       icon: <FaCalendarAlt />,
-      label: "Ward Timetable",
+      label: t.navbar.wardTimetable,
     },
     {
       type: "link",
       path: "/transport/tracking",
       icon: <FaBus />,
-      label: "Bus Tracking",
+      label: t.navbar.busTracking,
     },
   ];
 
@@ -307,48 +324,47 @@ function Navbar() {
       type: "link",
       path: "/student-dashboard",
       icon: <FaHome />,
-      label: "Dashboard",
+      label: t.common.dashboard,
     },
     {
       type: "link",
       path: "/results",
       icon: <FaChartBar />,
-      label: "My Results",
+      label: t.navbar.myResults,
     },
     {
       type: "link",
       path: "/attendance",
       icon: <FaClipboardCheck />,
-      label: "My Attendance",
+      label: t.navbar.myAttendance,
     },
     {
       type: "link",
       path: "/session-results",
       icon: <FaGraduationCap />,
-      label: "Session Results",
+      label: t.navbar.sessionResults,
     },
     {
       type: "link",
       path: "/fees",
       icon: <FaMoneyBill />,
-      label: "My Fees",
+      label: t.navbar.myFees,
     },
     {
       type: "link",
       path: "/timetable",
       icon: <FaCalendarAlt />,
-      label: "My Timetable",
+      label: t.navbar.myTimetable,
     },
     {
       type: "link",
       path: "/transport/tracking",
       icon: <FaBus />,
-      label: "Bus Tracking",
+      label: t.navbar.busTracking,
     },
   ];
 
   let navItems = publicNavItems;
-
   if (isAuthenticated) {
     if (role === "ADMIN") navItems = adminNavItems;
     else if (role === "TEACHER") navItems = teacherNavItems;
@@ -361,14 +377,29 @@ function Navbar() {
     if (role === "TEACHER") return "/teacher-dashboard";
     if (role === "PARENT") return "/parent-dashboard";
     if (role === "STUDENT") return "/student-dashboard";
+    if (role === "ADMIN") return "/dashboard";
+    return "/";
+  };
+
+  const getPortalTitle = () => {
+    if (role === "ADMIN") return t.navbar.adminPortal;
+    if (role === "TEACHER") return t.navbar.teacherPortal;
+    if (role === "PARENT") return t.navbar.parentPortal;
+    if (role === "STUDENT") return t.navbar.studentPortal;
+    return t.navbar.ffis;
+  };
+
+  const getDashboardPath = () => {
+    if (role === "TEACHER") return "/teacher-dashboard";
+    if (role === "PARENT") return "/parent-dashboard";
+    if (role === "STUDENT") return "/student-dashboard";
+    if (role === "ADMIN") return "/dashboard";
     return "/";
   };
 
   return (
     <nav
-      className={`navbar navbar-expand-lg navbar-dark navbar-school ${
-        scrolled ? "scrolled" : ""
-      }`}
+      className={`navbar navbar-expand-lg navbar-dark navbar-school ${scrolled ? "scrolled" : ""}`}
     >
       <div className="container-fluid">
         <Link
@@ -381,14 +412,7 @@ function Navbar() {
           {role === "PARENT" && <FaUserTie className="me-2" />}
           {role === "STUDENT" && <FaUserGraduate className="me-2" />}
           {!isAuthenticated && <FaSchool className="me-2" />}
-
-          <span className="brand-text">
-            {role === "ADMIN" && "Admin Portal"}
-            {role === "TEACHER" && "Teacher Portal"}
-            {role === "PARENT" && "Parent Portal"}
-            {role === "STUDENT" && "Student Portal"}
-            {!isAuthenticated && "FFIS"}
-          </span>
+          <span className="brand-text">{getPortalTitle()}</span>
         </Link>
 
         <button
@@ -397,7 +421,7 @@ function Navbar() {
           onClick={toggleMenu}
           aria-controls="navbarNav"
           aria-expanded={isOpen}
-          aria-label="Toggle navigation"
+          aria-label={t.navbar.toggleNavigation}
         >
           {isOpen ? <FaTimes /> : <FaBars />}
         </button>
@@ -412,29 +436,27 @@ function Navbar() {
                 {item.type === "dropdown" ? (
                   <div className="nav-dropdown">
                     <button
-                      className={`nav-link dropdown-toggle ${
+                      className={`nav-link dropdown-toggle-btn ${
                         isDropdownActive(item.items) ? "active" : ""
                       }`}
                       onClick={() => toggleDropdown(item.name)}
                       aria-expanded={openDropdown === item.name}
+                      type="button"
                     >
                       <span className="nav-icon">{item.icon}</span>
                       <span className="nav-label">{item.label}</span>
                       <FaChevronDown
-                        className={`dropdown-arrow ${
-                          openDropdown === item.name ? "rotated" : ""
-                        }`}
+                        className={`dropdown-arrow ${openDropdown === item.name ? "rotated" : ""}`}
                       />
                     </button>
+
                     <div
-                      className={`dropdown-menu ${
-                        openDropdown === item.name ? "show" : ""
-                      }`}
+                      className={`dropdown-menu-custom ${openDropdown === item.name ? "show" : ""}`}
                     >
                       {item.items.map((subItem, subIndex) => (
                         <Link
                           key={subIndex}
-                          className={`dropdown-item ${
+                          className={`dropdown-item-custom ${
                             isActive(subItem.path) ? "active" : ""
                           }`}
                           to={subItem.path}
@@ -448,9 +470,7 @@ function Navbar() {
                   </div>
                 ) : (
                   <Link
-                    className={`nav-link ${
-                      isActive(item.activePath || item.path) ? "active" : ""
-                    }`}
+                    className={`nav-link ${isActive(item.activePath || item.path) ? "active" : ""}`}
                     to={item.path}
                     onClick={closeMenu}
                   >
@@ -462,17 +482,19 @@ function Navbar() {
             ))}
           </ul>
 
+          {/* Authentication buttons - only shown when user is not logged in */}
           {!isAuthenticated && (
             <div className="auth-buttons ms-lg-3">
               <Link to="/login" className="btn btn-outline-light me-2">
-                <FaSignInAlt className="me-1" /> Login
+                <FaSignInAlt className="me-1" /> {t.common.login}
               </Link>
               <Link to="/register" className="btn btn-warning">
-                <FaUserPlus className="me-1" /> Register
+                <FaUserPlus className="me-1" /> {t.common.register}
               </Link>
             </div>
           )}
 
+          {/* User menu - only shown when user is logged in */}
           {isAuthenticated && (
             <div className="user-menu ms-lg-3">
               <div className="nav-dropdown">
@@ -480,6 +502,7 @@ function Navbar() {
                   className="user-menu-btn"
                   onClick={() => toggleDropdown("user")}
                   aria-expanded={openDropdown === "user"}
+                  type="button"
                 >
                   <div className="user-avatar">
                     {role === "ADMIN" && <FaUserShield />}
@@ -488,54 +511,44 @@ function Navbar() {
                     {role === "STUDENT" && <FaUserGraduate />}
                   </div>
                   <span className="user-name d-none d-lg-inline">
-                    {user?.firstName || "User"}
+                    {user?.firstName || t.navbar.user}
                   </span>
                   <FaChevronDown
-                    className={`user-arrow ${
-                      openDropdown === "user" ? "rotated" : ""
-                    }`}
+                    className={`user-arrow ${openDropdown === "user" ? "rotated" : ""}`}
                   />
                 </button>
+
                 <div
-                  className={`dropdown-menu user-dropdown-menu ${
-                    openDropdown === "user" ? "show" : ""
-                  }`}
+                  className={`dropdown-menu-custom user-dropdown-menu ${openDropdown === "user" ? "show" : ""}`}
                 >
                   <Link
-                    to={
-                      role === "TEACHER"
-                        ? "/teacher-dashboard"
-                        : role === "PARENT"
-                          ? "/parent-dashboard"
-                          : role === "STUDENT"
-                            ? "/student-dashboard"
-                            : "/"
-                    }
-                    className="dropdown-item"
+                    to={getDashboardPath()}
+                    className="dropdown-item-custom"
                     onClick={closeMenu}
                   >
-                    <FaUser /> Dashboard
+                    <FaUser /> {t.common.dashboard}
                   </Link>
                   <Link
                     to="/profile"
-                    className="dropdown-item"
+                    className="dropdown-item-custom"
                     onClick={closeMenu}
                   >
-                    <FaUser /> Profile
+                    <FaUser /> {t.common.profile}
                   </Link>
                   <Link
                     to="/settings"
-                    className="dropdown-item"
+                    className="dropdown-item-custom"
                     onClick={closeMenu}
                   >
-                    <FaCog /> Settings
+                    <FaCog /> {t.common.settings}
                   </Link>
-                  <div className="dropdown-divider"></div>
+                  <div className="dropdown-divider-custom"></div>
                   <button
-                    className="dropdown-item text-danger"
+                    type="button"
+                    className="dropdown-item-custom"
                     onClick={handleLogout}
                   >
-                    <FaSignOutAlt /> Logout
+                    <FaSignOutAlt /> {t.common.logout}
                   </button>
                 </div>
               </div>

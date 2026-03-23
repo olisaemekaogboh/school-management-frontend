@@ -1,6 +1,9 @@
+// src/components/ResultSheet.js
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, resultAPI, parentPortalAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaPrint,
@@ -21,6 +24,8 @@ function ResultSheet() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isStudent, isParent } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
 
   const query = new URLSearchParams(location.search);
   const session = query.get("session") || "";
@@ -199,12 +204,12 @@ function ResultSheet() {
       positionInClass: getFirstDefined(
         summary.positionInClass,
         summary.classPosition,
-        "N/A",
+        t?.resultSheet?.na || "N/A",
       ),
       positionInArm: getFirstDefined(
         summary.positionInArm,
         summary.armPosition,
-        "N/A",
+        t?.resultSheet?.na || "N/A",
       ),
       totalSchoolDays: safeNumber(summary.totalSchoolDays),
       daysPresent: safeNumber(summary.daysPresent),
@@ -229,6 +234,7 @@ function ResultSheet() {
       student?.fullName ||
       buildName(student?.firstName, student?.middleName, student?.lastName) ||
       buildName(user?.firstName, user?.middleName, user?.lastName) ||
+      t?.resultSheet?.student ||
       "Student"
     );
   };
@@ -237,10 +243,9 @@ function ResultSheet() {
     if (session && term) {
       fetchResultData();
     } else {
-      setError("Missing required parameters");
+      setError(t?.resultSheet?.missingParams || "Missing required parameters");
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, session, term]);
 
   const fetchStudentRecord = async (rawResult) => {
@@ -300,7 +305,7 @@ function ResultSheet() {
 
     if (isParent) {
       if (!studentId) {
-        throw new Error("Missing ward id");
+        throw new Error(t?.resultSheet?.missingWardId || "Missing ward id");
       }
       const response = await parentPortalAPI.getWardTermResult(
         studentId,
@@ -311,7 +316,7 @@ function ResultSheet() {
     }
 
     if (!studentId) {
-      throw new Error("Missing student id");
+      throw new Error(t?.resultSheet?.missingStudentId || "Missing student id");
     }
 
     const response = await resultAPI.getTermResult(studentId, session, term);
@@ -337,13 +342,20 @@ function ResultSheet() {
       console.error("Error fetching result sheet:", error);
 
       if (error.response?.status === 404) {
-        setError("No result found for this student in the selected term");
+        setError(
+          t?.resultSheet?.noResultFound ||
+            "No result found for this student in the selected term",
+        );
       } else if (error.response?.status === 403) {
-        setError("You are not allowed to view this result");
+        setError(
+          t?.resultSheet?.accessDenied ||
+            "You are not allowed to view this result",
+        );
       } else {
         setError(
           error.response?.data?.message ||
             error.message ||
+            t?.resultSheet?.loadFailed ||
             "Failed to load result sheet",
         );
       }
@@ -379,12 +391,15 @@ function ResultSheet() {
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
     documentTitle: buildFileName(),
-    onAfterPrint: () => toast.success("Result sheet printed successfully"),
+    onAfterPrint: () =>
+      toast.success(
+        t?.resultSheet?.printSuccess || "Result sheet printed successfully",
+      ),
   });
 
   const handleDownloadPDF = async () => {
     if (!componentRef.current) {
-      toast.error("Result sheet not ready");
+      toast.error(t?.resultSheet?.notReady || "Result sheet not ready");
       return;
     }
 
@@ -427,10 +442,12 @@ function ResultSheet() {
       }
 
       pdf.save(`${buildFileName()}.pdf`);
-      toast.success("PDF downloaded successfully");
+      toast.success(
+        t?.resultSheet?.downloadSuccess || "PDF downloaded successfully",
+      );
     } catch (error) {
       console.error("Error generating PDF:", error);
-      toast.error("Failed to download PDF");
+      toast.error(t?.resultSheet?.downloadFailed || "Failed to download PDF");
     } finally {
       setDownloading(false);
     }
@@ -528,7 +545,7 @@ function ResultSheet() {
       >
         <div className="text-center">
           <FaSpinner className="spinner mb-3" size={40} />
-          <h5>Loading result sheet...</h5>
+          <h5>{t?.common?.loading || "Loading result sheet..."}</h5>
         </div>
       </div>
     );
@@ -538,13 +555,14 @@ function ResultSheet() {
     return (
       <div className="container mt-5">
         <div className="alert alert-danger">
-          <h4>Error Loading Result</h4>
+          <h4>{t?.resultSheet?.errorTitle || "Error Loading Result"}</h4>
           <p>{error}</p>
           <button
             className="btn btn-primary mt-3"
             onClick={() => navigate("/results")}
           >
-            <FaArrowLeft className="me-2" /> Back to Results
+            <FaArrowLeft className="me-2" />{" "}
+            {t?.resultSheet?.backToResults || "Back to Results"}
           </button>
         </div>
       </div>
@@ -555,15 +573,19 @@ function ResultSheet() {
     return (
       <div className="container mt-5">
         <div className="alert alert-warning">
-          <h4>No Result Found</h4>
+          <h4>{t?.resultSheet?.noResultTitle || "No Result Found"}</h4>
           <p>
-            No result found for this student in {term} term, {session} session.
+            {t?.resultSheet?.noResultMessage ||
+              "No result found for this student in"}{" "}
+            {term} {t?.resultSheet?.term || "term"}, {session}{" "}
+            {t?.resultSheet?.session || "session"}.
           </p>
           <button
             className="btn btn-primary mt-3"
             onClick={() => navigate("/results")}
           >
-            <FaArrowLeft className="me-2" /> Back to Results
+            <FaArrowLeft className="me-2" />{" "}
+            {t?.resultSheet?.backToResults || "Back to Results"}
           </button>
         </div>
       </div>
@@ -577,7 +599,7 @@ function ResultSheet() {
           className="btn btn-outline-secondary"
           onClick={() => navigate(-1)}
         >
-          <FaArrowLeft className="me-2" /> Back
+          <FaArrowLeft className="me-2" /> {t?.common?.back || "Back"}
         </button>
 
         <div>
@@ -586,7 +608,7 @@ function ResultSheet() {
             onClick={handlePrint}
             disabled={downloading}
           >
-            <FaPrint className="me-2" /> Print
+            <FaPrint className="me-2" /> {t?.common?.print || "Print"}
           </button>
 
           <button
@@ -596,11 +618,13 @@ function ResultSheet() {
           >
             {downloading ? (
               <>
-                <FaSpinner className="spinner me-2" /> Generating...
+                <FaSpinner className="spinner me-2" />{" "}
+                {t?.common?.generating || "Generating..."}
               </>
             ) : (
               <>
-                <FaDownload className="me-2" /> Download PDF
+                <FaDownload className="me-2" />{" "}
+                {t?.common?.downloadPDF || "Download PDF"}
               </>
             )}
           </button>
@@ -622,16 +646,21 @@ function ResultSheet() {
           </div>
 
           <div className="result-title">
-            {term} TERM RESULT SHEET - {session} SESSION
+            {term} {t?.resultSheet?.termResult || "TERM RESULT SHEET"} -{" "}
+            {session} {t?.resultSheet?.session || "SESSION"}
           </div>
 
           <div className="student-info-section">
             <table className="student-info-table">
               <tbody>
                 <tr>
-                  <td className="label">Student Name:</td>
+                  <td className="label">
+                    {t?.studentDetails?.fullName || "Student Name"}:
+                  </td>
                   <td className="value">{getStudentName()}</td>
-                  <td className="label">Admission No:</td>
+                  <td className="label">
+                    {t?.studentDetails?.admissionNumber || "Admission No"}:
+                  </td>
                   <td className="value">
                     {resultData?.studentInfo?.admissionNumber ||
                       student?.admissionNumber ||
@@ -639,24 +668,34 @@ function ResultSheet() {
                   </td>
                 </tr>
                 <tr>
-                  <td className="label">Class:</td>
+                  <td className="label">
+                    {t?.studentDetails?.class || "Class"}:
+                  </td>
                   <td className="value">
                     {resultData?.studentInfo?.class ||
                       student?.studentClass ||
                       "N/A"}{" "}
                     {resultData?.studentInfo?.arm || student?.classArm || ""}
                   </td>
-                  <td className="label">Date of Birth:</td>
+                  <td className="label">
+                    {t?.studentDetails?.dob || "Date of Birth"}:
+                  </td>
                   <td className="value">{formatDate(student?.dateOfBirth)}</td>
                 </tr>
                 <tr>
-                  <td className="label">Parent/Guardian:</td>
+                  <td className="label">
+                    {t?.studentDetails?.parentGuardian || "Parent/Guardian"}:
+                  </td>
                   <td className="value">{student?.parentName || "N/A"}</td>
-                  <td className="label">Parent Phone:</td>
+                  <td className="label">
+                    {t?.studentDetails?.parentPhone || "Parent Phone"}:
+                  </td>
                   <td className="value">{student?.parentPhone || "N/A"}</td>
                 </tr>
                 <tr>
-                  <td className="label">Address:</td>
+                  <td className="label">
+                    {t?.studentDetails?.address || "Address"}:
+                  </td>
                   <td className="value" colSpan="3">
                     {student?.address || "N/A"}
                   </td>
@@ -687,7 +726,7 @@ function ResultSheet() {
                     S/N
                   </th>
                   <th rowSpan="2" className="subject">
-                    SUBJECT
+                    {t?.studentDashboard?.subject || "SUBJECT"}
                   </th>
                   <th colSpan={existingCaColumns.length} className="ca-section">
                     CONTINUOUS ASSESSMENT (CA)
@@ -708,7 +747,7 @@ function ResultSheet() {
                     (100)
                   </th>
                   <th rowSpan="2" className="grade">
-                    GRADE
+                    {t?.studentDashboard?.grade || "GRADE"}
                   </th>
                   <th rowSpan="2" className="remark">
                     REMARK
@@ -725,7 +764,6 @@ function ResultSheet() {
               <tbody>
                 {normalizedSubjects.map((subject, index) => {
                   const caTotal = calculateCATotal(subject);
-
                   return (
                     <tr key={subject.id}>
                       <td className="sn">{index + 1}</td>
@@ -753,14 +791,14 @@ function ResultSheet() {
                     </tr>
                   );
                 })}
-
                 {normalizedSubjects.length === 0 && (
                   <tr>
                     <td
                       colSpan={8 + existingCaColumns.length}
                       className="text-center"
                     >
-                      No subjects found for this result.
+                      {t?.resultSheet?.noSubjects ||
+                        "No subjects found for this result."}
                     </td>
                   </tr>
                 )}
@@ -770,25 +808,33 @@ function ResultSheet() {
 
           <div className="summary-row">
             <div className="summary-item">
-              <span className="summary-label">Total Score:</span>
+              <span className="summary-label">
+                {t?.studentDetails?.totalScore || "Total Score"}:
+              </span>
               <span className="summary-value">
                 {normalizedSummary.totalScore}
               </span>
             </div>
             <div className="summary-item">
-              <span className="summary-label">Average:</span>
+              <span className="summary-label">
+                {t?.studentDetails?.average || "Average"}:
+              </span>
               <span className="summary-value">
                 {safeFixed(normalizedSummary.average)}%
               </span>
             </div>
             <div className="summary-item">
-              <span className="summary-label">Class Position:</span>
+              <span className="summary-label">
+                {t?.studentDetails?.classPosition || "Class Position"}:
+              </span>
               <span className="summary-value">
                 {normalizedSummary.positionInClass}
               </span>
             </div>
             <div className="summary-item">
-              <span className="summary-label">Arm Position:</span>
+              <span className="summary-label">
+                {t?.studentDetails?.armPosition || "Arm Position"}:
+              </span>
               <span className="summary-value">
                 {normalizedSummary.positionInArm}
               </span>
@@ -796,22 +842,32 @@ function ResultSheet() {
           </div>
 
           <div className="attendance-section">
-            <div className="attendance-header">ATTENDANCE SUMMARY</div>
+            <div className="attendance-header">
+              {t?.attendanceManager?.attendanceSummary || "ATTENDANCE SUMMARY"}
+            </div>
             <div className="attendance-grid">
               <div className="attendance-item">
-                <span className="attendance-label">Total Days:</span>
+                <span className="attendance-label">
+                  {t?.attendanceManager?.totalDays || "Total Days"}:
+                </span>
                 <span className="attendance-value">{totalSchoolDays}</span>
               </div>
               <div className="attendance-item present">
-                <span className="attendance-label">Present:</span>
+                <span className="attendance-label">
+                  {t?.attendanceManager?.present || "Present"}:
+                </span>
                 <span className="attendance-value">{daysPresent}</span>
               </div>
               <div className="attendance-item absent">
-                <span className="attendance-label">Absent:</span>
+                <span className="attendance-label">
+                  {t?.attendanceManager?.absent || "Absent"}:
+                </span>
                 <span className="attendance-value">{daysAbsent}</span>
               </div>
               <div className="attendance-item">
-                <span className="attendance-label">Percentage:</span>
+                <span className="attendance-label">
+                  {t?.attendanceManager?.percentage || "Percentage"}:
+                </span>
                 <span className="attendance-value">
                   {attendancePercentage.toFixed(1)}%
                 </span>
@@ -822,24 +878,34 @@ function ResultSheet() {
           <div className="signatures-section">
             <div className="signature-item">
               <div className="signature-line"></div>
-              <div className="signature-label">Class Teacher's Signature</div>
+              <div className="signature-label">
+                {t?.sessionResultSheet?.classTeacherSignature ||
+                  "Class Teacher's Signature"}
+              </div>
             </div>
             <div className="signature-item">
               <div className="signature-line"></div>
-              <div className="signature-label">Principal's Signature</div>
+              <div className="signature-label">
+                {t?.sessionResultSheet?.principalSignature ||
+                  "Principal's Signature"}
+              </div>
             </div>
             <div className="signature-item">
               <div className="signature-line"></div>
-              <div className="signature-label">Parent's Signature</div>
+              <div className="signature-label">
+                {t?.sessionResultSheet?.parentSignature || "Parent's Signature"}
+              </div>
             </div>
           </div>
 
           <div className="result-footer">
             <div className="footer-note">
-              This is a computer-generated result. Valid without signature.
+              {t?.resultSheet?.footerNote ||
+                "This is a computer-generated result. Valid without signature."}
             </div>
             <div className="footer-date">
-              Generated on: {moment().format("DD/MM/YYYY h:mm A")}
+              {t?.resultSheet?.generatedOn || "Generated on"}:{" "}
+              {moment().format("DD/MM/YYYY h:mm A")}
             </div>
           </div>
         </div>

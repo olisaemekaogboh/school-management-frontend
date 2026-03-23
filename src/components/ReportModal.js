@@ -1,5 +1,7 @@
 // src/components/ReportModal.js
 import React, { useState, useEffect } from "react";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import {
   FaTimes,
   FaDownload,
@@ -19,6 +21,9 @@ import { toast } from "react-toastify";
 import moment from "moment";
 
 function ReportModal({ isOpen, onClose }) {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [reportType, setReportType] = useState("student");
   const [reportFormat, setReportFormat] = useState("pdf");
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -63,7 +68,7 @@ function ReportModal({ isOpen, onClose }) {
       setStudents(response.data);
     } catch (error) {
       console.error("Error fetching students:", error);
-      toast.error("Failed to load students");
+      toast.error(t?.reportModal?.loadFailed || "Failed to load students");
     } finally {
       setLoading(false);
     }
@@ -80,7 +85,9 @@ function ReportModal({ isOpen, onClose }) {
       switch (reportType) {
         case "student":
           if (!selectedStudent) {
-            toast.error("Please select a student");
+            toast.error(
+              t?.reportModal?.selectStudent || "Please select a student",
+            );
             setGenerating(false);
             return;
           }
@@ -90,7 +97,7 @@ function ReportModal({ isOpen, onClose }) {
             selectedTerm,
           );
           reportData = {
-            type: "Student Term Report",
+            type: t?.reportModal?.studentTermReport || "Student Term Report",
             student: selectedStudent,
             session: selectedSession,
             term: selectedTerm,
@@ -100,7 +107,7 @@ function ReportModal({ isOpen, onClose }) {
 
         case "class":
           if (!selectedClass) {
-            toast.error("Please select a class");
+            toast.error(t?.reportModal?.selectClass || "Please select a class");
             setGenerating(false);
             return;
           }
@@ -110,7 +117,7 @@ function ReportModal({ isOpen, onClose }) {
             selectedTerm,
           );
           reportData = {
-            type: "Class Report",
+            type: t?.reportModal?.classReport || "Class Report",
             className: selectedClass,
             session: selectedSession,
             term: selectedTerm,
@@ -120,7 +127,7 @@ function ReportModal({ isOpen, onClose }) {
 
         case "attendance":
           if (!selectedClass) {
-            toast.error("Please select a class");
+            toast.error(t?.reportModal?.selectClass || "Please select a class");
             setGenerating(false);
             return;
           }
@@ -130,7 +137,7 @@ function ReportModal({ isOpen, onClose }) {
             selectedTerm,
           );
           reportData = {
-            type: "Attendance Report",
+            type: t?.reportModal?.attendanceReport || "Attendance Report",
             className: selectedClass,
             session: selectedSession,
             term: selectedTerm,
@@ -141,7 +148,9 @@ function ReportModal({ isOpen, onClose }) {
 
         case "session":
           if (!selectedStudent) {
-            toast.error("Please select a student");
+            toast.error(
+              t?.reportModal?.selectStudent || "Please select a student",
+            );
             setGenerating(false);
             return;
           }
@@ -150,7 +159,8 @@ function ReportModal({ isOpen, onClose }) {
             selectedSession,
           );
           reportData = {
-            type: "Session Result Report",
+            type:
+              t?.reportModal?.sessionResultReport || "Session Result Report",
             student: selectedStudent,
             session: selectedSession,
             data: response.data,
@@ -160,7 +170,7 @@ function ReportModal({ isOpen, onClose }) {
         case "school":
           response = await sessionResultAPI.getSchoolRankings(selectedSession);
           reportData = {
-            type: "School Performance Report",
+            type: t?.reportModal?.schoolReport || "School Performance Report",
             session: selectedSession,
             data: response.data,
           };
@@ -171,9 +181,10 @@ function ReportModal({ isOpen, onClose }) {
       }
 
       setReportPreview(reportData);
-      toast.success("Report generated successfully");
+      toast.success(
+        t?.reportModal?.generated || "Report generated successfully",
+      );
 
-      // In a real implementation, you would generate PDF/Excel here
       if (reportFormat === "pdf") {
         generatePDF(reportData);
       } else if (reportFormat === "excel") {
@@ -181,26 +192,33 @@ function ReportModal({ isOpen, onClose }) {
       }
     } catch (error) {
       console.error("Error generating report:", error);
-      toast.error("Failed to generate report");
+      toast.error(
+        t?.reportModal?.generateFailed || "Failed to generate report",
+      );
     } finally {
       setGenerating(false);
     }
   };
 
   const generatePDF = (data) => {
-    // This would integrate with a PDF library like jsPDF
     console.log("Generating PDF:", data);
-    toast.info("PDF generation would happen here");
+    toast.info(
+      t?.reportModal?.pdfGeneration || "PDF generation would happen here",
+    );
   };
 
   const generateExcel = (data) => {
-    // This would integrate with an Excel library
     console.log("Generating Excel:", data);
-    toast.info("Excel generation would happen here");
+    toast.info(
+      t?.reportModal?.excelGeneration || "Excel generation would happen here",
+    );
   };
 
   const handleDownload = () => {
-    toast.success(`Report downloaded as ${reportFormat.toUpperCase()}`);
+    toast.success(
+      t?.reportModal?.downloaded ||
+        `Report downloaded as ${reportFormat.toUpperCase()}`,
+    );
   };
 
   const handlePrint = () => {
@@ -218,7 +236,8 @@ function ReportModal({ isOpen, onClose }) {
         <div className="modal-content">
           <div className="modal-header bg-primary text-white">
             <h5 className="modal-title">
-              <FaChartBar className="me-2" /> Generate Report
+              <FaChartBar className="me-2" />{" "}
+              {t?.reportModal?.title || "Generate Report"}
             </h5>
             <button
               type="button"
@@ -227,54 +246,56 @@ function ReportModal({ isOpen, onClose }) {
             ></button>
           </div>
           <div className="modal-body">
-            {/* Report Type Selection */}
             <div className="row mb-4">
               <div className="col-12">
-                <label className="form-label fw-bold">Report Type</label>
+                <label className="form-label fw-bold">
+                  {t?.reportModal?.reportType || "Report Type"}
+                </label>
                 <div className="btn-group d-flex flex-wrap" role="group">
                   <button
                     type="button"
                     className={`btn ${reportType === "student" ? "btn-nigerian" : "btn-outline-nigerian"}`}
                     onClick={() => setReportType("student")}
                   >
-                    Student Term Report
+                    {t?.reportModal?.studentTermReport || "Student Term Report"}
                   </button>
                   <button
                     type="button"
                     className={`btn ${reportType === "session" ? "btn-nigerian" : "btn-outline-nigerian"}`}
                     onClick={() => setReportType("session")}
                   >
-                    Session Report
+                    {t?.reportModal?.sessionReport || "Session Report"}
                   </button>
                   <button
                     type="button"
                     className={`btn ${reportType === "class" ? "btn-nigerian" : "btn-outline-nigerian"}`}
                     onClick={() => setReportType("class")}
                   >
-                    Class Report
+                    {t?.reportModal?.classReport || "Class Report"}
                   </button>
                   <button
                     type="button"
                     className={`btn ${reportType === "attendance" ? "btn-nigerian" : "btn-outline-nigerian"}`}
                     onClick={() => setReportType("attendance")}
                   >
-                    Attendance Report
+                    {t?.reportModal?.attendanceReport || "Attendance Report"}
                   </button>
                   <button
                     type="button"
                     className={`btn ${reportType === "school" ? "btn-nigerian" : "btn-outline-nigerian"}`}
                     onClick={() => setReportType("school")}
                   >
-                    School Report
+                    {t?.reportModal?.schoolReport || "School Report"}
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Report Parameters */}
             <div className="row mb-4">
               <div className="col-md-6 mb-3">
-                <label className="form-label">Session</label>
+                <label className="form-label">
+                  {t?.reportModal?.session || "Session"}
+                </label>
                 <select
                   className="form-select"
                   value={selectedSession}
@@ -292,7 +313,9 @@ function ReportModal({ isOpen, onClose }) {
                 reportType === "class" ||
                 reportType === "attendance") && (
                 <div className="col-md-6 mb-3">
-                  <label className="form-label">Term</label>
+                  <label className="form-label">
+                    {t?.reportModal?.term || "Term"}
+                  </label>
                   <select
                     className="form-select"
                     value={selectedTerm}
@@ -309,7 +332,9 @@ function ReportModal({ isOpen, onClose }) {
 
               {(reportType === "student" || reportType === "session") && (
                 <div className="col-md-6 mb-3">
-                  <label className="form-label">Student</label>
+                  <label className="form-label">
+                    {t?.reportModal?.student || "Student"}
+                  </label>
                   <select
                     className="form-select"
                     value={selectedStudent?.id || ""}
@@ -320,7 +345,9 @@ function ReportModal({ isOpen, onClose }) {
                       setSelectedStudent(student);
                     }}
                   >
-                    <option value="">Select Student</option>
+                    <option value="">
+                      {t?.common?.select || "Select Student"}
+                    </option>
                     {students.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.fullName} - {s.admissionNumber}
@@ -332,13 +359,17 @@ function ReportModal({ isOpen, onClose }) {
 
               {(reportType === "class" || reportType === "attendance") && (
                 <div className="col-md-6 mb-3">
-                  <label className="form-label">Class</label>
+                  <label className="form-label">
+                    {t?.reportModal?.class || "Class"}
+                  </label>
                   <select
                     className="form-select"
                     value={selectedClass}
                     onChange={(e) => setSelectedClass(e.target.value)}
                   >
-                    <option value="">Select Class</option>
+                    <option value="">
+                      {t?.common?.select || "Select Class"}
+                    </option>
                     {classes.map((c) => (
                       <option key={c} value={c}>
                         {c}
@@ -351,7 +382,9 @@ function ReportModal({ isOpen, onClose }) {
               {reportType === "attendance" && (
                 <>
                   <div className="col-md-6 mb-3">
-                    <label className="form-label">Start Date</label>
+                    <label className="form-label">
+                      {t?.reportModal?.startDate || "Start Date"}
+                    </label>
                     <input
                       type="date"
                       className="form-control"
@@ -365,7 +398,9 @@ function ReportModal({ isOpen, onClose }) {
                     />
                   </div>
                   <div className="col-md-6 mb-3">
-                    <label className="form-label">End Date</label>
+                    <label className="form-label">
+                      {t?.reportModal?.endDate || "End Date"}
+                    </label>
                     <input
                       type="date"
                       className="form-control"
@@ -379,7 +414,9 @@ function ReportModal({ isOpen, onClose }) {
               )}
 
               <div className="col-md-6 mb-3">
-                <label className="form-label">Format</label>
+                <label className="form-label">
+                  {t?.reportModal?.format || "Format"}
+                </label>
                 <div className="btn-group w-100" role="group">
                   <button
                     type="button"
@@ -399,7 +436,6 @@ function ReportModal({ isOpen, onClose }) {
               </div>
             </div>
 
-            {/* Generate Button */}
             <div className="row mb-4">
               <div className="col-12 text-center">
                 <button
@@ -409,236 +445,62 @@ function ReportModal({ isOpen, onClose }) {
                 >
                   {generating ? (
                     <>
-                      <FaSpinner className="spinner me-2" /> Generating...
+                      <FaSpinner className="spinner me-2" />{" "}
+                      {t?.common?.generating || "Generating..."}
                     </>
                   ) : (
                     <>
-                      <FaChartBar className="me-2" /> Generate Report
+                      <FaChartBar className="me-2" />{" "}
+                      {t?.reportModal?.generate || "Generate Report"}
                     </>
                   )}
                 </button>
               </div>
             </div>
 
-            {/* Report Preview */}
             {reportPreview && (
               <div className="report-preview">
-                <h6 className="border-bottom pb-2 mb-3">Report Preview</h6>
-
-                {/* Student Term Report Preview */}
-                {reportPreview.type === "Student Term Report" &&
-                  reportPreview.data && (
-                    <div className="preview-content">
-                      <div className="alert alert-info">
-                        <p>
-                          <strong>Student:</strong>{" "}
-                          {reportPreview.student?.fullName}
-                        </p>
-                        <p>
-                          <strong>Class:</strong>{" "}
-                          {reportPreview.student?.studentClass}{" "}
-                          {reportPreview.student?.classArm}
-                        </p>
-                        <p>
-                          <strong>Session:</strong> {reportPreview.session}
-                        </p>
-                        <p>
-                          <strong>Term:</strong> {reportPreview.term}
-                        </p>
-                        <p>
-                          <strong>Average:</strong>{" "}
-                          {reportPreview.data.summary?.average?.toFixed(2)}%
-                        </p>
-                        <p>
-                          <strong>Position:</strong>{" "}
-                          {reportPreview.data.summary?.positionInClass}
-                        </p>
-                      </div>
-                      <div className="table-responsive">
-                        <table className="table table-sm table-bordered">
-                          <thead className="table-light">
-                            <tr>
-                              <th>Subject</th>
-                              <th>CA</th>
-                              <th>Exam</th>
-                              <th>Total</th>
-                              <th>Grade</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {reportPreview.data.subjects
-                              ?.slice(0, 3)
-                              .map((subject, idx) => (
-                                <tr key={idx}>
-                                  <td>{subject.subject}</td>
-                                  <td>{subject.continuousAssessment}</td>
-                                  <td>{subject.examination}</td>
-                                  <td>{subject.total}</td>
-                                  <td>{subject.grade}</td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                        {reportPreview.data.subjects?.length > 3 && (
-                          <p className="text-muted small">
-                            ... and {reportPreview.data.subjects.length - 3}{" "}
-                            more subjects
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Class Report Preview */}
-                {reportPreview.type === "Class Report" &&
-                  reportPreview.data && (
-                    <div className="preview-content">
-                      <div className="alert alert-info">
-                        <p>
-                          <strong>Class:</strong> {reportPreview.className}
-                        </p>
-                        <p>
-                          <strong>Session:</strong> {reportPreview.session}
-                        </p>
-                        <p>
-                          <strong>Term:</strong> {reportPreview.term}
-                        </p>
-                        <p>
-                          <strong>Total Students:</strong>{" "}
-                          {reportPreview.data.totalStudents}
-                        </p>
-                      </div>
-                      <div className="table-responsive">
-                        <table className="table table-sm table-bordered">
-                          <thead className="table-light">
-                            <tr>
-                              <th>Position</th>
-                              <th>Student</th>
-                              <th>Average</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {reportPreview.data.rankings
-                              ?.slice(0, 5)
-                              .map((rank, idx) => (
-                                <tr key={idx}>
-                                  <td>{rank.position}</td>
-                                  <td>{rank.studentName}</td>
-                                  <td>{rank.average?.toFixed(2)}%</td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Attendance Report Preview */}
-                {reportPreview.type === "Attendance Report" &&
-                  reportPreview.data && (
-                    <div className="preview-content">
-                      <div className="alert alert-info">
-                        <p>
-                          <strong>Class:</strong> {reportPreview.className}
-                        </p>
-                        <p>
-                          <strong>Session:</strong> {reportPreview.session}
-                        </p>
-                        <p>
-                          <strong>Term:</strong> {reportPreview.term}
-                        </p>
-                        <p>
-                          <strong>Period:</strong>{" "}
-                          {moment(reportPreview.dateRange.startDate).format(
-                            "DD/MM/YYYY",
-                          )}{" "}
-                          -{" "}
-                          {moment(reportPreview.dateRange.endDate).format(
-                            "DD/MM/YYYY",
-                          )}
-                        </p>
-                      </div>
-                      <div className="row">
-                        <div className="col-md-6">
-                          <div className="border p-2 rounded text-center">
-                            <h6>Total Present</h6>
-                            <h3 className="text-success">
-                              {reportPreview.data.totalPresent}
-                            </h3>
-                          </div>
-                        </div>
-                        <div className="col-md-6">
-                          <div className="border p-2 rounded text-center">
-                            <h6>Total Absent</h6>
-                            <h3 className="text-danger">
-                              {reportPreview.data.totalAbsent}
-                            </h3>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Session Report Preview */}
-                {reportPreview.type === "Session Result Report" &&
-                  reportPreview.data && (
-                    <div className="preview-content">
-                      <div className="alert alert-info">
-                        <p>
-                          <strong>Student:</strong>{" "}
-                          {reportPreview.student?.fullName}
-                        </p>
-                        <p>
-                          <strong>Class:</strong>{" "}
-                          {reportPreview.student?.studentClass}{" "}
-                          {reportPreview.student?.classArm}
-                        </p>
-                        <p>
-                          <strong>Session:</strong> {reportPreview.session}
-                        </p>
-                        <p>
-                          <strong>Annual Average:</strong>{" "}
-                          {reportPreview.data.annualAverage?.toFixed(2)}%
-                        </p>
-                        <p>
-                          <strong>Promoted:</strong>{" "}
-                          {reportPreview.data.promoted ? "Yes" : "No"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                {/* School Report Preview */}
-                {reportPreview.type === "School Performance Report" &&
-                  reportPreview.data && (
-                    <div className="preview-content">
-                      <div className="alert alert-info">
-                        <p>
-                          <strong>Session:</strong> {reportPreview.session}
-                        </p>
-                        <p>
-                          <strong>Total Students:</strong>{" "}
-                          {reportPreview.data.totalStudents}
-                        </p>
-                        <p>
-                          <strong>Promotion Rate:</strong>{" "}
-                          {reportPreview.data.statistics?.promotionRate?.toFixed(
-                            1,
-                          )}
-                          %
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Action Buttons */}
+                <h6 className="border-bottom pb-2 mb-3">
+                  {t?.reportModal?.preview || "Report Preview"}
+                </h6>
+                <div className="preview-content">
+                  <div className="alert alert-info">
+                    <p>
+                      <strong>{t?.reportModal?.type || "Type"}:</strong>{" "}
+                      {reportPreview.type}
+                    </p>
+                    <p>
+                      <strong>{t?.reportModal?.session || "Session"}:</strong>{" "}
+                      {reportPreview.session || selectedSession}
+                    </p>
+                    {reportPreview.term && (
+                      <p>
+                        <strong>{t?.reportModal?.term || "Term"}:</strong>{" "}
+                        {reportPreview.term}
+                      </p>
+                    )}
+                    {reportPreview.student && (
+                      <p>
+                        <strong>{t?.reportModal?.student || "Student"}:</strong>{" "}
+                        {reportPreview.student.fullName}
+                      </p>
+                    )}
+                    {reportPreview.className && (
+                      <p>
+                        <strong>{t?.reportModal?.class || "Class"}:</strong>{" "}
+                        {reportPreview.className}
+                      </p>
+                    )}
+                  </div>
+                </div>
                 <div className="d-flex justify-content-end gap-2 mt-3">
                   <button className="btn btn-success" onClick={handleDownload}>
-                    <FaDownload className="me-2" /> Download{" "}
+                    <FaDownload className="me-2" />{" "}
+                    {t?.common?.download || "Download"}{" "}
                     {reportFormat.toUpperCase()}
                   </button>
                   <button className="btn btn-info" onClick={handlePrint}>
-                    <FaPrint className="me-2" /> Print
+                    <FaPrint className="me-2" /> {t?.common?.print || "Print"}
                   </button>
                 </div>
               </div>

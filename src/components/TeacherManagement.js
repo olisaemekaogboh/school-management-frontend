@@ -1,5 +1,8 @@
+// src/components/TeacherManagement.js
 import React, { useState, useEffect } from "react";
 import { teacherAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaChalkboardTeacher,
@@ -34,6 +37,9 @@ import moment from "moment";
 import "./TeacherManagement.css";
 
 const TeacherManagement = () => {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const initialFormState = {
     firstName: "",
     lastName: "",
@@ -88,7 +94,6 @@ const TeacherManagement = () => {
     "RETIRED",
     "RESIGNED",
   ];
-
   const genders = ["MALE", "FEMALE"];
   const maritalStatuses = ["SINGLE", "MARRIED", "DIVORCED", "WIDOWED"];
 
@@ -141,7 +146,9 @@ const TeacherManagement = () => {
       setImageErrors({});
     } catch (error) {
       console.error("Error fetching teachers:", error);
-      toast.error("Failed to load teachers");
+      toast.error(
+        t?.teacherManagement?.loadFailed || "Failed to load teachers",
+      );
     } finally {
       setLoading(false);
     }
@@ -172,7 +179,9 @@ const TeacherManagement = () => {
         specializationBreakdown: {},
       });
       toast.error(
-        error?.response?.data?.message || "Failed to load teacher statistics",
+        error?.response?.data?.message ||
+          t?.teacherManagement?.statsFailed ||
+          "Failed to load teacher statistics",
       );
     }
   };
@@ -211,24 +220,16 @@ const TeacherManagement = () => {
 
   const getProfileImageUrl = (teacher) => {
     if (!teacher.profilePictureUrl) return null;
-
-    if (teacher.profilePictureUrl.startsWith("http")) {
+    if (teacher.profilePictureUrl.startsWith("http"))
       return teacher.profilePictureUrl;
-    }
-
-    if (teacher.profilePictureUrl.startsWith("uploads/")) {
+    if (teacher.profilePictureUrl.startsWith("uploads/"))
       return `http://localhost:8080/${teacher.profilePictureUrl}`;
-    }
-
     return `http://localhost:8080/uploads/teachers/${teacher.profilePictureUrl}`;
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFileChange = (e) => {
@@ -237,14 +238,18 @@ const TeacherManagement = () => {
 
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error("File size exceeds 5MB limit");
+      toast.error(
+        t?.teacherManagement?.fileTooLarge || "File size exceeds 5MB limit",
+      );
       return;
     }
 
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
-
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Only JPG, PNG, and GIF images are allowed");
+      toast.error(
+        t?.teacherManagement?.invalidFileType ||
+          "Only JPG, PNG, and GIF images are allowed",
+      );
       return;
     }
 
@@ -330,7 +335,6 @@ const TeacherManagement = () => {
       const teacherBlob = new Blob([JSON.stringify(payload)], {
         type: "application/json",
       });
-
       multipart.append("teacher", teacherBlob);
 
       if (profilePicture) {
@@ -339,10 +343,14 @@ const TeacherManagement = () => {
 
       if (editingTeacher) {
         await teacherAPI.updateTeacher(editingTeacher.id, multipart);
-        toast.success("Teacher updated successfully");
+        toast.success(
+          t?.teacherManagement?.updateSuccess || "Teacher updated successfully",
+        );
       } else {
         await teacherAPI.createTeacher(multipart);
-        toast.success("Teacher created successfully");
+        toast.success(
+          t?.teacherManagement?.createSuccess || "Teacher created successfully",
+        );
       }
 
       resetForm();
@@ -351,7 +359,11 @@ const TeacherManagement = () => {
       fetchStatistics();
     } catch (error) {
       console.error("Error saving teacher:", error);
-      toast.error(error.response?.data?.message || "Failed to save teacher");
+      toast.error(
+        error.response?.data?.message ||
+          t?.teacherManagement?.saveFailed ||
+          "Failed to save teacher",
+      );
     } finally {
       setLoading(false);
     }
@@ -359,18 +371,21 @@ const TeacherManagement = () => {
 
   const handleDelete = async () => {
     if (!teacherToDelete) return;
-
     setLoading(true);
     try {
       await teacherAPI.deleteTeacher(teacherToDelete.id);
-      toast.success("Teacher deleted successfully");
+      toast.success(
+        t?.teacherManagement?.deleteSuccess || "Teacher deleted successfully",
+      );
       setShowDeleteModal(false);
       setTeacherToDelete(null);
       fetchTeachers();
       fetchStatistics();
     } catch (error) {
       console.error("Error deleting teacher:", error);
-      toast.error("Failed to delete teacher");
+      toast.error(
+        t?.teacherManagement?.deleteFailed || "Failed to delete teacher",
+      );
     } finally {
       setLoading(false);
     }
@@ -404,15 +419,12 @@ const TeacherManagement = () => {
       subjects: teacher.subjects || [],
       qualifications: teacher.qualifications || [],
     });
-
     setEditingTeacher(teacher);
-
     if (teacher.profilePictureUrl) {
       setProfilePicturePreview(getProfileImageUrl(teacher));
     } else {
       setProfilePicturePreview("");
     }
-
     setShowForm(true);
   };
 
@@ -425,10 +437,12 @@ const TeacherManagement = () => {
       a.href = url;
       a.download = `teachers_${moment().format("YYYY-MM-DD")}.pdf`;
       a.click();
-      toast.success("PDF exported successfully");
+      toast.success(
+        t?.teacherManagement?.exportSuccess || "PDF exported successfully",
+      );
     } catch (error) {
       console.error("Error exporting PDF:", error);
-      toast.error("Failed to export PDF");
+      toast.error(t?.teacherManagement?.exportFailed || "Failed to export PDF");
     }
   };
 
@@ -443,10 +457,14 @@ const TeacherManagement = () => {
       a.href = url;
       a.download = `teachers_${moment().format("YYYY-MM-DD")}.xlsx`;
       a.click();
-      toast.success("Excel exported successfully");
+      toast.success(
+        t?.teacherManagement?.exportSuccess || "Excel exported successfully",
+      );
     } catch (error) {
       console.error("Error exporting Excel:", error);
-      toast.error("Failed to export Excel");
+      toast.error(
+        t?.teacherManagement?.exportFailed || "Failed to export Excel",
+      );
     }
   };
 
@@ -463,30 +481,29 @@ const TeacherManagement = () => {
       ACTIVE: {
         class: "badge-success",
         icon: <FaCheckCircle />,
-        label: "Active",
+        label: t?.teacherManagement?.statusActive || "Active",
       },
       ON_LEAVE: {
         class: "badge-warning",
         icon: <FaClock />,
-        label: "On Leave",
+        label: t?.teacherManagement?.statusOnLeave || "On Leave",
       },
       TERMINATED: {
         class: "badge-danger",
         icon: <FaTimesCircle />,
-        label: "Terminated",
+        label: t?.teacherManagement?.statusTerminated || "Terminated",
       },
       RETIRED: {
         class: "badge-secondary",
         icon: <FaUserGraduate />,
-        label: "Retired",
+        label: t?.teacherManagement?.statusRetired || "Retired",
       },
       RESIGNED: {
         class: "badge-info",
         icon: <FaUserGraduate />,
-        label: "Resigned",
+        label: t?.teacherManagement?.statusResigned || "Resigned",
       },
     };
-
     return badges[status] || badges.ACTIVE;
   };
 
@@ -498,31 +515,32 @@ const TeacherManagement = () => {
   const totalPages = Math.ceil(filteredTeachers.length / itemsPerPage);
 
   return (
-    <div className="teacher-management">
+    <div className={`teacher-management ${darkMode ? "dark-mode" : ""}`}>
       <div className="header-section">
         <div className="header-top">
           <h1>
-            <FaChalkboardTeacher /> Teacher Management
+            <FaChalkboardTeacher />{" "}
+            {t?.teacherManagement?.title || "Teacher Management"}
           </h1>
           <div className="header-actions">
             <button
               className="btn-refresh"
               onClick={fetchTeachers}
-              title="Refresh"
+              title={t?.common?.refresh || "Refresh"}
             >
               <FaSync />
             </button>
             <button
               className="btn-export"
               onClick={handleExportPDF}
-              title="Export PDF"
+              title={t?.teacherManagement?.exportPDF || "Export PDF"}
             >
               <FaFilePdf />
             </button>
             <button
               className="btn-export"
               onClick={handleExportExcel}
-              title="Export Excel"
+              title={t?.teacherManagement?.exportExcel || "Export Excel"}
             >
               <FaFileExcel />
             </button>
@@ -535,21 +553,23 @@ const TeacherManagement = () => {
               <FaUsers />
               <div>
                 <h3>{statistics.totalTeachers || 0}</h3>
-                <p>Total Teachers</p>
+                <p>{t?.teacherManagement?.totalTeachers || "Total Teachers"}</p>
               </div>
             </div>
             <div className="stat-card success">
               <FaCheckCircle />
               <div>
                 <h3>{statistics.activeTeachers || 0}</h3>
-                <p>Active Teachers</p>
+                <p>
+                  {t?.teacherManagement?.activeTeachers || "Active Teachers"}
+                </p>
               </div>
             </div>
             <div className="stat-card warning">
               <FaExclamationTriangle />
               <div>
                 <h3>{statistics.inactiveTeachers || 0}</h3>
-                <p>Inactive</p>
+                <p>{t?.teacherManagement?.inactive || "Inactive"}</p>
               </div>
             </div>
             <div className="stat-card info">
@@ -558,7 +578,9 @@ const TeacherManagement = () => {
                 <h3>
                   {Object.keys(statistics.specializationBreakdown || {}).length}
                 </h3>
-                <p>Specializations</p>
+                <p>
+                  {t?.teacherManagement?.specializations || "Specializations"}
+                </p>
               </div>
             </div>
           </div>
@@ -569,18 +591,24 @@ const TeacherManagement = () => {
         className="mobile-filter-toggle"
         onClick={() => setShowMobileFilters(!showMobileFilters)}
       >
-        <FaFilter /> {showMobileFilters ? "Hide Filters" : "Show Filters"}
+        <FaFilter />{" "}
+        {showMobileFilters
+          ? t?.common?.hideFilters || "Hide Filters"
+          : t?.common?.showFilters || "Show Filters"}
       </button>
 
       <div className={`filters-section ${showMobileFilters ? "show" : ""}`}>
         <div className="filters-grid">
           <div className="filter-group">
-            <label>Search</label>
+            <label>{t?.common?.search || "Search"}</label>
             <div className="search-box">
               <FaSearch />
               <input
                 type="text"
-                placeholder="Search by name, ID, email..."
+                placeholder={
+                  t?.teacherManagement?.searchPlaceholder ||
+                  "Search by name, ID, email..."
+                }
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -588,12 +616,14 @@ const TeacherManagement = () => {
           </div>
 
           <div className="filter-group">
-            <label>Status</label>
+            <label>{t?.teacherManagement?.status || "Status"}</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <option value="all">All Status</option>
+              <option value="all">
+                {t?.common?.allStatus || "All Status"}
+              </option>
               {employmentStatuses.map((status) => (
                 <option key={status} value={status}>
                   {status.replace("_", " ")}
@@ -603,12 +633,14 @@ const TeacherManagement = () => {
           </div>
 
           <div className="filter-group">
-            <label>Subject</label>
+            <label>{t?.teacherManagement?.subject || "Subject"}</label>
             <select
               value={filterSubject}
               onChange={(e) => setFilterSubject(e.target.value)}
             >
-              <option value="all">All Subjects</option>
+              <option value="all">
+                {t?.common?.allSubjects || "All Subjects"}
+              </option>
               {subjectList.map((subject) => (
                 <option key={subject} value={subject}>
                   {subject}
@@ -626,7 +658,7 @@ const TeacherManagement = () => {
                 setShowForm(true);
               }}
             >
-              <FaPlus /> Add Teacher
+              <FaPlus /> {t?.teacherManagement?.addTeacher || "Add Teacher"}
             </button>
           </div>
         </div>
@@ -636,7 +668,7 @@ const TeacherManagement = () => {
         {loading ? (
           <div className="loading-spinner">
             <FaSpinner className="spin" />
-            <p>Loading teachers...</p>
+            <p>{t?.common?.loading || "Loading teachers..."}</p>
           </div>
         ) : (
           <>
@@ -644,21 +676,25 @@ const TeacherManagement = () => {
               <table className="teacher-table">
                 <thead>
                   <tr>
-                    <th></th>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Specialization</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th style={{ width: "40px" }}></th>
+                    <th>{t?.teacherManagement?.id || "ID"}</th>
+                    <th>{t?.teacherManagement?.name || "Name"}</th>
+                    <th>{t?.common?.email || "Email"}</th>
+                    <th>{t?.common?.phone || "Phone"}</th>
+                    <th>
+                      {t?.teacherManagement?.specialization || "Specialization"}
+                    </th>
+                    <th>{t?.teacherManagement?.status || "Status"}</th>
+                    <th style={{ width: "240px" }}>
+                      {t?.common?.actions || "Actions"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedTeachers().map((teacher) => (
                     <React.Fragment key={teacher.id}>
                       <tr>
-                        <td>
+                        <td className="text-center">
                           <button
                             className="btn-expand"
                             onClick={() => toggleRowExpansion(teacher.id)}
@@ -694,8 +730,12 @@ const TeacherManagement = () => {
                               <strong>
                                 {teacher.firstName} {teacher.lastName}
                               </strong>
-                              {teacher.middleName && <br />}
-                              <small>{teacher.middleName}</small>
+                              {teacher.middleName && (
+                                <>
+                                  <br />
+                                  <small>{teacher.middleName}</small>
+                                </>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -720,35 +760,44 @@ const TeacherManagement = () => {
                           <span
                             className={`status-badge ${getStatusBadge(teacher.employmentStatus).class}`}
                           >
-                            {getStatusBadge(teacher.employmentStatus).icon}
+                            {getStatusBadge(teacher.employmentStatus).icon}{" "}
                             {getStatusBadge(teacher.employmentStatus).label}
                           </span>
                         </td>
-                        <td>
+                        <td className="actions-cell">
                           <div className="action-buttons">
                             <button
-                              className="btn-view"
+                              className="btn-action btn-view"
                               onClick={() => handleView(teacher)}
-                              title="View"
+                              title={t?.common?.view || "View"}
                             >
-                              <FaEye />
+                              <FaEye />{" "}
+                              <span className="btn-text">
+                                {t?.common?.view || "View"}
+                              </span>
                             </button>
                             <button
-                              className="btn-edit"
+                              className="btn-action btn-edit"
                               onClick={() => handleEdit(teacher)}
-                              title="Edit"
+                              title={t?.common?.edit || "Edit"}
                             >
-                              <FaEdit />
+                              <FaEdit />{" "}
+                              <span className="btn-text">
+                                {t?.common?.edit || "Edit"}
+                              </span>
                             </button>
                             <button
-                              className="btn-delete"
+                              className="btn-action btn-delete"
                               onClick={() => {
                                 setTeacherToDelete(teacher);
                                 setShowDeleteModal(true);
                               }}
-                              title="Delete"
+                              title={t?.common?.delete || "Delete"}
                             >
-                              <FaTrash />
+                              <FaTrash />{" "}
+                              <span className="btn-text">
+                                {t?.common?.delete || "Delete"}
+                              </span>
                             </button>
                           </div>
                         </td>
@@ -760,13 +809,21 @@ const TeacherManagement = () => {
                             <div className="expanded-content">
                               <div className="detail-grid">
                                 <div>
-                                  <h4>Personal Info</h4>
+                                  <h4>
+                                    {t?.teacherManagement?.personalInfo ||
+                                      "Personal Info"}
+                                  </h4>
                                   <p>
-                                    <strong>Gender:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.gender || "Gender"}
+                                      :
+                                    </strong>{" "}
                                     {teacher.gender || "-"}
                                   </p>
                                   <p>
-                                    <strong>DOB:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.dob || "DOB"}:
+                                    </strong>{" "}
                                     {teacher.dateOfBirth
                                       ? moment(teacher.dateOfBirth).format(
                                           "DD/MM/YYYY",
@@ -774,31 +831,54 @@ const TeacherManagement = () => {
                                       : "-"}
                                   </p>
                                   <p>
-                                    <strong>Marital:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.maritalStatus ||
+                                        "Marital"}
+                                      :
+                                    </strong>{" "}
                                     {teacher.maritalStatus || "-"}
                                   </p>
                                 </div>
-
                                 <div>
-                                  <h4>Location</h4>
+                                  <h4>
+                                    {t?.teacherManagement?.location ||
+                                      "Location"}
+                                  </h4>
                                   <p>
-                                    <strong>Address:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.address ||
+                                        "Address"}
+                                      :
+                                    </strong>{" "}
                                     {teacher.address || "-"}
                                   </p>
                                 </div>
-
                                 <div>
-                                  <h4>Employment</h4>
+                                  <h4>
+                                    {t?.teacherManagement?.employment ||
+                                      "Employment"}
+                                  </h4>
                                   <p>
-                                    <strong>Qualification:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.qualification ||
+                                        "Qualification"}
+                                      :
+                                    </strong>{" "}
                                     {teacher.qualification || "-"}
                                   </p>
                                   <p>
-                                    <strong>Specialization:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.specialization ||
+                                        "Specialization"}
+                                      :
+                                    </strong>{" "}
                                     {teacher.specialization || "-"}
                                   </p>
                                   <p>
-                                    <strong>Joined:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.joined || "Joined"}
+                                      :
+                                    </strong>{" "}
                                     {teacher.dateOfJoining
                                       ? moment(teacher.dateOfJoining).format(
                                           "DD/MM/YYYY",
@@ -806,19 +886,29 @@ const TeacherManagement = () => {
                                       : "-"}
                                   </p>
                                 </div>
-
                                 <div>
-                                  <h4>Emergency</h4>
+                                  <h4>
+                                    {t?.teacherManagement?.emergency ||
+                                      "Emergency"}
+                                  </h4>
                                   <p>
-                                    <strong>Name:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.name || "Name"}:
+                                    </strong>{" "}
                                     {teacher.emergencyContactName || "-"}
                                   </p>
                                   <p>
-                                    <strong>Phone:</strong>{" "}
+                                    <strong>
+                                      {t?.common?.phone || "Phone"}:
+                                    </strong>{" "}
                                     {teacher.emergencyContactPhone || "-"}
                                   </p>
                                   <p>
-                                    <strong>Relationship:</strong>{" "}
+                                    <strong>
+                                      {t?.teacherManagement?.relationship ||
+                                        "Relationship"}
+                                      :
+                                    </strong>{" "}
                                     {teacher.emergencyContactRelationship ||
                                       "-"}
                                   </p>
@@ -827,7 +917,10 @@ const TeacherManagement = () => {
 
                               {teacher.subjects?.length > 0 && (
                                 <div className="subjects-section">
-                                  <h4>Subjects</h4>
+                                  <h4>
+                                    {t?.teacherManagement?.subjects ||
+                                      "Subjects"}
+                                  </h4>
                                   <div className="tags">
                                     {teacher.subjects.map((subject) => (
                                       <span key={subject} className="tag">
@@ -840,7 +933,10 @@ const TeacherManagement = () => {
 
                               {teacher.qualifications?.length > 0 && (
                                 <div className="subjects-section">
-                                  <h4>Qualifications</h4>
+                                  <h4>
+                                    {t?.teacherManagement?.qualifications ||
+                                      "Qualifications"}
+                                  </h4>
                                   <div className="tags">
                                     {teacher.qualifications.map((qual) => (
                                       <span key={qual} className="tag">
@@ -861,10 +957,13 @@ const TeacherManagement = () => {
                     <tr>
                       <td colSpan="8" className="empty-state">
                         <FaUserGraduate size={50} />
-                        <h3>No Teachers Found</h3>
+                        <h3>
+                          {t?.teacherManagement?.noTeachersFound ||
+                            "No Teachers Found"}
+                        </h3>
                         <p>
-                          Click "Add Teacher" to create your first teacher
-                          record.
+                          {t?.teacherManagement?.addFirstTeacher ||
+                            'Click "Add Teacher" to create your first teacher record.'}
                         </p>
                       </td>
                     </tr>
@@ -882,7 +981,8 @@ const TeacherManagement = () => {
                   <FaArrowLeft />
                 </button>
                 <span>
-                  Page {currentPage} of {totalPages}
+                  {t?.common?.page || "Page"} {currentPage}{" "}
+                  {t?.common?.of || "of"} {totalPages}
                 </span>
                 <button
                   onClick={() =>
@@ -898,6 +998,7 @@ const TeacherManagement = () => {
         )}
       </div>
 
+      {/* Add/Edit Modal - keep existing structure */}
       {showForm && (
         <div
           className="modal-overlay"
@@ -912,8 +1013,14 @@ const TeacherManagement = () => {
           >
             <div className="modal-header">
               <h2>
-                {editingTeacher ? <FaEdit /> : <FaPlus />}
-                {editingTeacher ? " Edit Teacher" : " Add New Teacher"}
+                {editingTeacher ? <FaEdit /> : <FaPlus />}{" "}
+                {editingTeacher
+                  ? (t?.common?.edit || "Edit") +
+                    " " +
+                    (t?.teacherManagement?.teacher || "Teacher")
+                  : (t?.common?.add || "Add") +
+                    " " +
+                    (t?.teacherManagement?.newTeacher || "New Teacher")}
               </h2>
               <button
                 className="modal-close"
@@ -929,7 +1036,10 @@ const TeacherManagement = () => {
             <div className="modal-body scrollable">
               <form onSubmit={handleSubmit}>
                 <div className="form-section">
-                  <h3>Personal Information</h3>
+                  <h3>
+                    {t?.teacherManagement?.personalInformation ||
+                      "Personal Information"}
+                  </h3>
 
                   <div className="profile-upload">
                     <div className="profile-preview">
@@ -943,7 +1053,8 @@ const TeacherManagement = () => {
                     </div>
                     <div className="profile-upload-controls">
                       <label htmlFor="profilePicture" className="btn-upload">
-                        <FaUpload /> Upload Photo
+                        <FaUpload />{" "}
+                        {t?.teacherManagement?.uploadPhoto || "Upload Photo"}
                       </label>
                       <input
                         type="file"
@@ -952,13 +1063,18 @@ const TeacherManagement = () => {
                         onChange={handleFileChange}
                         style={{ display: "none" }}
                       />
-                      <small>Max size: 5MB (JPG, PNG, GIF)</small>
+                      <small>
+                        {t?.teacherManagement?.maxSize ||
+                          "Max size: 5MB (JPG, PNG, GIF)"}
+                      </small>
                     </div>
                   </div>
 
                   <div className="form-row">
                     <div className="form-group">
-                      <label>First Name *</label>
+                      <label>
+                        {t?.teacherManagement?.firstName || "First Name"} *
+                      </label>
                       <input
                         type="text"
                         name="firstName"
@@ -968,7 +1084,9 @@ const TeacherManagement = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Last Name *</label>
+                      <label>
+                        {t?.teacherManagement?.lastName || "Last Name"} *
+                      </label>
                       <input
                         type="text"
                         name="lastName"
@@ -978,7 +1096,9 @@ const TeacherManagement = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Middle Name</label>
+                      <label>
+                        {t?.teacherManagement?.middleName || "Middle Name"}
+                      </label>
                       <input
                         type="text"
                         name="middleName"
@@ -990,7 +1110,7 @@ const TeacherManagement = () => {
 
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Email *</label>
+                      <label>{t?.common?.email || "Email"} *</label>
                       <input
                         type="email"
                         name="email"
@@ -1000,7 +1120,7 @@ const TeacherManagement = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Phone *</label>
+                      <label>{t?.common?.phone || "Phone"} *</label>
                       <input
                         type="tel"
                         name="phoneNumber"
@@ -1010,7 +1130,9 @@ const TeacherManagement = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Alt. Phone</label>
+                      <label>
+                        {t?.teacherManagement?.alternatePhone || "Alt. Phone"}
+                      </label>
                       <input
                         type="tel"
                         name="alternatePhone"
@@ -1022,13 +1144,15 @@ const TeacherManagement = () => {
 
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Gender</label>
+                      <label>{t?.teacherManagement?.gender || "Gender"}</label>
                       <select
                         name="gender"
                         value={formData.gender}
                         onChange={handleInputChange}
                       >
-                        <option value="">Select Gender</option>
+                        <option value="">
+                          {t?.common?.select || "Select"}
+                        </option>
                         {genders.map((g) => (
                           <option key={g} value={g}>
                             {g}
@@ -1037,7 +1161,9 @@ const TeacherManagement = () => {
                       </select>
                     </div>
                     <div className="form-group">
-                      <label>Date of Birth</label>
+                      <label>
+                        {t?.teacherManagement?.dob || "Date of Birth"}
+                      </label>
                       <input
                         type="date"
                         name="dateOfBirth"
@@ -1046,13 +1172,18 @@ const TeacherManagement = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Marital Status</label>
+                      <label>
+                        {t?.teacherManagement?.maritalStatus ||
+                          "Marital Status"}
+                      </label>
                       <select
                         name="maritalStatus"
                         value={formData.maritalStatus}
                         onChange={handleInputChange}
                       >
-                        <option value="">Select</option>
+                        <option value="">
+                          {t?.common?.select || "Select"}
+                        </option>
                         {maritalStatuses.map((ms) => (
                           <option key={ms} value={ms}>
                             {ms}
@@ -1063,7 +1194,7 @@ const TeacherManagement = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>Address</label>
+                    <label>{t?.teacherManagement?.address || "Address"}</label>
                     <textarea
                       name="address"
                       value={formData.address}
@@ -1074,11 +1205,15 @@ const TeacherManagement = () => {
                 </div>
 
                 <div className="form-section">
-                  <h3>Professional Information</h3>
-
+                  <h3>
+                    {t?.teacherManagement?.professionalInfo ||
+                      "Professional Information"}
+                  </h3>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Employee ID *</label>
+                      <label>
+                        {t?.teacherManagement?.employeeId || "Employee ID"} *
+                      </label>
                       <input
                         type="text"
                         name="employeeId"
@@ -1088,7 +1223,9 @@ const TeacherManagement = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Qualification</label>
+                      <label>
+                        {t?.teacherManagement?.qualification || "Qualification"}
+                      </label>
                       <input
                         type="text"
                         name="qualification"
@@ -1098,10 +1235,12 @@ const TeacherManagement = () => {
                       />
                     </div>
                   </div>
-
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Specialization</label>
+                      <label>
+                        {t?.teacherManagement?.specialization ||
+                          "Specialization"}
+                      </label>
                       <input
                         type="text"
                         name="specialization"
@@ -1111,7 +1250,10 @@ const TeacherManagement = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Employment Status</label>
+                      <label>
+                        {t?.teacherManagement?.employmentStatus ||
+                          "Employment Status"}
+                      </label>
                       <select
                         name="employmentStatus"
                         value={formData.employmentStatus}
@@ -1125,10 +1267,11 @@ const TeacherManagement = () => {
                       </select>
                     </div>
                   </div>
-
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Date Joined</label>
+                      <label>
+                        {t?.teacherManagement?.dateJoined || "Date Joined"}
+                      </label>
                       <input
                         type="date"
                         name="dateOfJoining"
@@ -1139,7 +1282,9 @@ const TeacherManagement = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>Subjects</label>
+                    <label>
+                      {t?.teacherManagement?.subjects || "Subjects"}
+                    </label>
                     <div className="tags-input">
                       <div className="tags-list">
                         {formData.subjects.map((subject) => (
@@ -1159,7 +1304,10 @@ const TeacherManagement = () => {
                           value={newSubject}
                           onChange={(e) => setNewSubject(e.target.value)}
                         >
-                          <option value="">Select subject</option>
+                          <option value="">
+                            {t?.teacherManagement?.selectSubject ||
+                              "Select subject"}
+                          </option>
                           {subjectList.map((s) => (
                             <option key={s} value={s}>
                               {s}
@@ -1171,14 +1319,16 @@ const TeacherManagement = () => {
                           className="btn-add-tag"
                           onClick={handleAddSubject}
                         >
-                          Add
+                          {t?.common?.add || "Add"}
                         </button>
                       </div>
                     </div>
                   </div>
 
                   <div className="form-group">
-                    <label>Qualifications</label>
+                    <label>
+                      {t?.teacherManagement?.qualifications || "Qualifications"}
+                    </label>
                     <div className="tags-input">
                       <div className="tags-list">
                         {formData.qualifications.map((qual) => (
@@ -1198,14 +1348,17 @@ const TeacherManagement = () => {
                           type="text"
                           value={newQualification}
                           onChange={(e) => setNewQualification(e.target.value)}
-                          placeholder="Add qualification"
+                          placeholder={
+                            t?.teacherManagement?.addQualificationPlaceholder ||
+                            "Add qualification"
+                          }
                         />
                         <button
                           type="button"
                           className="btn-add-tag"
                           onClick={handleAddQualification}
                         >
-                          Add
+                          {t?.common?.add || "Add"}
                         </button>
                       </div>
                     </div>
@@ -1213,11 +1366,13 @@ const TeacherManagement = () => {
                 </div>
 
                 <div className="form-section">
-                  <h3>Emergency Contact</h3>
-
+                  <h3>
+                    {t?.teacherManagement?.emergencyContact ||
+                      "Emergency Contact"}
+                  </h3>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Name</label>
+                      <label>{t?.teacherManagement?.name || "Name"}</label>
                       <input
                         type="text"
                         name="emergencyContactName"
@@ -1226,7 +1381,7 @@ const TeacherManagement = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Phone</label>
+                      <label>{t?.common?.phone || "Phone"}</label>
                       <input
                         type="tel"
                         name="emergencyContactPhone"
@@ -1235,9 +1390,10 @@ const TeacherManagement = () => {
                       />
                     </div>
                   </div>
-
                   <div className="form-group">
-                    <label>Relationship</label>
+                    <label>
+                      {t?.teacherManagement?.relationship || "Relationship"}
+                    </label>
                     <input
                       type="text"
                       name="emergencyContactRelationship"
@@ -1256,7 +1412,7 @@ const TeacherManagement = () => {
                       setShowForm(false);
                     }}
                   >
-                    Cancel
+                    {t?.common?.cancel || "Cancel"}
                   </button>
                   <button
                     type="submit"
@@ -1266,9 +1422,9 @@ const TeacherManagement = () => {
                     {loading ? (
                       <FaSpinner className="spin" />
                     ) : editingTeacher ? (
-                      "Update Teacher"
+                      t?.common?.update || "Update"
                     ) : (
-                      "Create Teacher"
+                      t?.common?.create || "Create"
                     )}
                   </button>
                 </div>
@@ -1278,6 +1434,7 @@ const TeacherManagement = () => {
         </div>
       )}
 
+      {/* View Modal */}
       {showViewModal && viewingTeacher && (
         <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
           <div
@@ -1286,7 +1443,8 @@ const TeacherManagement = () => {
           >
             <div className="modal-header">
               <h2>
-                <FaEye /> Teacher Details
+                <FaEye />{" "}
+                {t?.teacherManagement?.teacherDetails || "Teacher Details"}
               </h2>
               <button
                 className="modal-close"
@@ -1295,7 +1453,6 @@ const TeacherManagement = () => {
                 <FaTimes />
               </button>
             </div>
-
             <div className="modal-body scrollable">
               <div className="teacher-profile">
                 <div className="profile-header">
@@ -1313,13 +1470,12 @@ const TeacherManagement = () => {
                       </div>
                     )}
                   </div>
-
                   <div className="profile-title">
                     <h2>
                       {viewingTeacher.firstName} {viewingTeacher.lastName}
                     </h2>
                     <p className="teacher-id">
-                      ID:{" "}
+                      {t?.teacherManagement?.id || "ID"}:{" "}
                       {viewingTeacher.employeeId ||
                         viewingTeacher.teacherId ||
                         "-"}
@@ -1327,29 +1483,37 @@ const TeacherManagement = () => {
                     <span
                       className={`status-badge ${getStatusBadge(viewingTeacher.employmentStatus).class}`}
                     >
-                      {getStatusBadge(viewingTeacher.employmentStatus).icon}
+                      {getStatusBadge(viewingTeacher.employmentStatus).icon}{" "}
                       {getStatusBadge(viewingTeacher.employmentStatus).label}
                     </span>
                   </div>
                 </div>
-
                 <div className="profile-details">
                   <div className="detail-section">
-                    <h3>Personal Information</h3>
+                    <h3>
+                      {t?.teacherManagement?.personalInfo ||
+                        "Personal Information"}
+                    </h3>
                     <div className="detail-grid">
                       <div>
-                        <label>Full Name:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.fullName || "Full Name"}:
+                        </label>{" "}
                         <span>
                           {viewingTeacher.firstName} {viewingTeacher.middleName}{" "}
                           {viewingTeacher.lastName}
                         </span>
                       </div>
                       <div>
-                        <label>Gender:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.gender || "Gender"}:
+                        </label>{" "}
                         <span>{viewingTeacher.gender || "-"}</span>
                       </div>
                       <div>
-                        <label>Date of Birth:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.dob || "Date of Birth"}:
+                        </label>{" "}
                         <span>
                           {viewingTeacher.dateOfBirth
                             ? moment(viewingTeacher.dateOfBirth).format(
@@ -1359,21 +1523,29 @@ const TeacherManagement = () => {
                         </span>
                       </div>
                       <div>
-                        <label>Marital Status:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.maritalStatus ||
+                            "Marital Status"}
+                          :
+                        </label>{" "}
                         <span>{viewingTeacher.maritalStatus || "-"}</span>
                       </div>
                       <div className="full-width">
-                        <label>Address:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.address || "Address"}:
+                        </label>{" "}
                         <span>{viewingTeacher.address || "-"}</span>
                       </div>
                     </div>
                   </div>
-
                   <div className="detail-section">
-                    <h3>Contact Information</h3>
+                    <h3>
+                      {t?.teacherManagement?.contactInfo ||
+                        "Contact Information"}
+                    </h3>
                     <div className="detail-grid">
                       <div>
-                        <label>Email:</label>{" "}
+                        <label>{t?.common?.email || "Email"}:</label>{" "}
                         <span>
                           <a href={`mailto:${viewingTeacher.email}`}>
                             {viewingTeacher.email}
@@ -1381,7 +1553,7 @@ const TeacherManagement = () => {
                         </span>
                       </div>
                       <div>
-                        <label>Phone:</label>{" "}
+                        <label>{t?.common?.phone || "Phone"}:</label>{" "}
                         <span>
                           <a href={`tel:${viewingTeacher.phoneNumber}`}>
                             {viewingTeacher.phoneNumber}
@@ -1389,25 +1561,40 @@ const TeacherManagement = () => {
                         </span>
                       </div>
                       <div>
-                        <label>Alt. Phone:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.alternatePhone || "Alt. Phone"}
+                          :
+                        </label>{" "}
                         <span>{viewingTeacher.alternatePhone || "-"}</span>
                       </div>
                     </div>
                   </div>
-
                   <div className="detail-section">
-                    <h3>Professional Information</h3>
+                    <h3>
+                      {t?.teacherManagement?.professionalInfo ||
+                        "Professional Information"}
+                    </h3>
                     <div className="detail-grid">
                       <div>
-                        <label>Qualification:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.qualification ||
+                            "Qualification"}
+                          :
+                        </label>{" "}
                         <span>{viewingTeacher.qualification || "-"}</span>
                       </div>
                       <div>
-                        <label>Specialization:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.specialization ||
+                            "Specialization"}
+                          :
+                        </label>{" "}
                         <span>{viewingTeacher.specialization || "-"}</span>
                       </div>
                       <div>
-                        <label>Date Joined:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.dateJoined || "Date Joined"}:
+                        </label>{" "}
                         <span>
                           {viewingTeacher.dateOfJoining
                             ? moment(viewingTeacher.dateOfJoining).format(
@@ -1417,10 +1604,11 @@ const TeacherManagement = () => {
                         </span>
                       </div>
                     </div>
-
                     {viewingTeacher.subjects?.length > 0 && (
                       <>
-                        <label>Subjects:</label>
+                        <label>
+                          {t?.teacherManagement?.subjects || "Subjects"}:
+                        </label>
                         <div className="tags">
                           {viewingTeacher.subjects.map((subject) => (
                             <span key={subject} className="tag">
@@ -1430,10 +1618,13 @@ const TeacherManagement = () => {
                         </div>
                       </>
                     )}
-
                     {viewingTeacher.qualifications?.length > 0 && (
                       <>
-                        <label>Qualifications:</label>
+                        <label>
+                          {t?.teacherManagement?.qualifications ||
+                            "Qualifications"}
+                          :
+                        </label>
                         <ul>
                           {viewingTeacher.qualifications.map((q, i) => (
                             <li key={i}>{q}</li>
@@ -1442,24 +1633,29 @@ const TeacherManagement = () => {
                       </>
                     )}
                   </div>
-
                   <div className="detail-section">
-                    <h3>Emergency Contact</h3>
+                    <h3>
+                      {t?.teacherManagement?.emergencyContact ||
+                        "Emergency Contact"}
+                    </h3>
                     <div className="detail-grid">
                       <div>
-                        <label>Name:</label>{" "}
+                        <label>{t?.teacherManagement?.name || "Name"}:</label>{" "}
                         <span>
                           {viewingTeacher.emergencyContactName || "-"}
                         </span>
                       </div>
                       <div>
-                        <label>Phone:</label>{" "}
+                        <label>{t?.common?.phone || "Phone"}:</label>{" "}
                         <span>
                           {viewingTeacher.emergencyContactPhone || "-"}
                         </span>
                       </div>
                       <div>
-                        <label>Relationship:</label>{" "}
+                        <label>
+                          {t?.teacherManagement?.relationship || "Relationship"}
+                          :
+                        </label>{" "}
                         <span>
                           {viewingTeacher.emergencyContactRelationship || "-"}
                         </span>
@@ -1469,13 +1665,12 @@ const TeacherManagement = () => {
                 </div>
               </div>
             </div>
-
             <div className="modal-footer">
               <button
                 className="btn-secondary"
                 onClick={() => setShowViewModal(false)}
               >
-                Close
+                {t?.common?.close || "Close"}
               </button>
               <button
                 className="btn-primary"
@@ -1484,13 +1679,14 @@ const TeacherManagement = () => {
                   handleEdit(viewingTeacher);
                 }}
               >
-                <FaEdit /> Edit Teacher
+                <FaEdit /> {t?.common?.edit || "Edit"}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Delete Modal */}
       {showDeleteModal && teacherToDelete && (
         <div
           className="modal-overlay"
@@ -1502,7 +1698,8 @@ const TeacherManagement = () => {
           >
             <div className="modal-header danger">
               <h2>
-                <FaExclamationTriangle /> Delete Teacher
+                <FaExclamationTriangle />{" "}
+                {t?.teacherManagement?.deleteTeacher || "Delete Teacher"}
               </h2>
               <button
                 className="modal-close"
@@ -1511,31 +1708,37 @@ const TeacherManagement = () => {
                 <FaTimes />
               </button>
             </div>
-
             <div className="modal-body">
               <p>
-                Are you sure you want to delete{" "}
+                {t?.teacherManagement?.confirmDelete ||
+                  "Are you sure you want to delete"}{" "}
                 <strong>
                   {teacherToDelete.firstName} {teacherToDelete.lastName}
                 </strong>
                 ?
               </p>
-              <p className="text-danger">This action cannot be undone.</p>
+              <p className="text-danger">
+                {t?.teacherManagement?.cannotUndo ||
+                  "This action cannot be undone."}
+              </p>
             </div>
-
             <div className="modal-footer">
               <button
                 className="btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
               >
-                Cancel
+                {t?.common?.cancel || "Cancel"}
               </button>
               <button
                 className="btn-danger"
                 onClick={handleDelete}
                 disabled={loading}
               >
-                {loading ? <FaSpinner className="spin" /> : "Delete"}
+                {loading ? (
+                  <FaSpinner className="spin" />
+                ) : (
+                  t?.common?.delete || "Delete"
+                )}
               </button>
             </div>
           </div>

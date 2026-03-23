@@ -1,153 +1,175 @@
-/* Report Modal Styles */
-
 .modal {
-    overflow-y: auto;
+  overflow-y: auto;
 }
 
 .modal-content {
-    border: none;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  border: 1px solid var(--app-border);
+  border-radius: 15px;
+  box-shadow: var(--app-shadow);
+  background: var(--app-card);
+  color: var(--app-text);
 }
 
 .modal-header {
-    border-radius: 15px 15px 0 0;
-    padding: 1rem 1.5rem;
+  border-radius: 15px 15px 0 0;
+  padding: 1rem 1.5rem;
+  background: var(--app-surface-2);
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
 }
 
 .modal-header .btn-close-white {
-    filter: brightness(0) invert(1);
+  filter: none;
 }
 
 .modal-body {
-    padding: 1.5rem;
-    max-height: 70vh;
-    overflow-y: auto;
+  padding: 1.5rem;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--app-card);
+  color: var(--app-text);
 }
 
-/* Report type buttons */
 .btn-group {
-    gap: 5px;
+  gap: 5px;
 }
 
 .btn-group .btn {
-    flex: 1;
-    margin: 0;
-    border-radius: 5px !important;
+  flex: 1;
+  margin: 0;
+  border-radius: 5px !important;
 }
 
 .btn-nigerian {
-    background-color: #008753;
-    color: white;
-    border: none;
-    padding: 8px 20px;
-    border-radius: 5px;
-    font-weight: bold;
-    transition: all 0.3s;
+  background-color: #008753;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 5px;
+  font-weight: bold;
+  transition: all 0.3s;
 }
 
 .btn-nigerian:hover {
-    background-color: #003366;
-    color: #FFD700;
+  background-color: #003366;
+  color: #ffd700;
 }
 
 .btn-outline-nigerian {
-    background-color: transparent;
-    color: #008753;
-    border: 2px solid #008753;
-    padding: 6px 18px;
-    border-radius: 5px;
-    font-weight: bold;
-    transition: all 0.3s;
+  background-color: transparent;
+  color: #008753;
+  border: 2px solid #008753;
+  padding: 6px 18px;
+  border-radius: 5px;
+  font-weight: bold;
+  transition: all 0.3s;
 }
 
 .btn-outline-nigerian:hover {
-    background-color: #008753;
-    color: white;
+  background-color: #008753;
+  color: white;
 }
 
-/* Report preview */
 .report-preview {
-    background-color: #f8f9fa;
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin-top: 1rem;
-    border: 1px solid #dee2e6;
+  background-color: var(--app-surface-2);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
 }
 
 .report-preview h6 {
-    color: #003366;
-    font-weight: bold;
+  color: var(--app-accent);
+  font-weight: bold;
 }
 
 .preview-content .alert {
-    border-left: 4px solid #008753;
+  border-left: 4px solid #008753;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .btn-group {
-        flex-direction: column;
-    }
-    
-    .btn-group .btn {
-        width: 100%;
-        margin-bottom: 5px;
-    }
-    
-    .modal-dialog {
-        margin: 0.5rem;
-    }
-    
-    .modal-body {
-        padding: 1rem;
-    }
+.form-control,
+.form-select {
+  background: var(--app-input-bg);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
 }
 
-/* Spinner animation */
+.form-control::placeholder {
+  color: var(--app-text-soft);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #008753;
+  box-shadow: 0 0 0 0.2rem rgba(0, 135, 83, 0.25);
+  background: var(--app-input-bg);
+  color: var(--app-text);
+}
+
 .spinner {
-    animation: spin 1s linear infinite;
+  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-/* Form controls */
-.form-control:focus, .form-select:focus {
-    border-color: #008753;
-    box-shadow: 0 0 0 0.2rem rgba(0, 135, 83, 0.25);
+body[data-language="ar"] .modal-content {
+  direction: rtl;
+  text-align: right;
 }
 
-/* Print styles */
+@media (max-width: 768px) {
+  .btn-group {
+    flex-direction: column;
+  }
+
+  .btn-group .btn {
+    width: 100%;
+    margin-bottom: 5px;
+  }
+
+  .modal-dialog {
+    margin: 0.5rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+}
+
 @media print {
-    .modal {
-        position: absolute;
-        left: 0;
-        top: 0;
-        margin: 0;
-        padding: 0;
-        overflow: visible;
-        background: white;
-    }
-    
-    .modal-header,
-    .btn-group,
-    .btn,
-    .modal-footer {
-        display: none !important;
-    }
-    
-    .modal-body {
-        padding: 1cm;
-        max-height: none;
-        overflow: visible;
-    }
-    
-    .report-preview {
-        border: none;
-        background: white;
-        padding: 0;
-    }
+  .modal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    background: white;
+  }
+
+  .modal-header,
+  .btn-group,
+  .btn,
+  .modal-footer {
+    display: none !important;
+  }
+
+  .modal-body {
+    padding: 1cm;
+    max-height: none;
+    overflow: visible;
+    background: white;
+    color: black;
+  }
+
+  .report-preview {
+    border: none;
+    background: white;
+    padding: 0;
+    color: black;
+  }
 }

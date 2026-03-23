@@ -1,0 +1,239 @@
+/* src/components/parent/ParentManagement.css */
+
+.parent-management {
+  transition: background-color 0.3s ease;
+}
+
+.parent-management.dark-mode {
+  background-color: #0f172a;
+  min-height: 100vh;
+}
+
+/* Table Styles */
+.parent-management .table {
+  margin-bottom: 0;
+}
+
+.parent-management .table th {
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom-width: 2px;
+}
+
+.parent-management .table td {
+  vertical-align: middle;
+  padding: 12px 16px;
+}
+
+.parent-management .table-hover tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.parent-management.dark-mode .table-hover tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Card Styles */
+.parent-management .card {
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.parent-management .card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.parent-management.dark-mode .card-header {
+  border-bottom-color: #334155;
+}
+
+.parent-management .card-body {
+  padding: 20px;
+}
+
+/* Badge Styles */
+.parent-management .badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.parent-management .badge-primary {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.parent-management .badge-success {
+  background-color: #10b981;
+  color: white;
+}
+
+.parent-management .badge-info {
+  background-color: #06b6d4;
+  color: white;
+}
+
+.parent-management .badge-secondary {
+  background-color: #6b7280;
+  color: white;
+}
+
+.parent-management .badge-warning {
+  background-color: #f59e0b;
+  color: #1f2937;
+}
+
+/* Action Buttons */
+.parent-management .action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.parent-management .btn-action {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.parent-management .btn-action.view {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.parent-management .btn-action.edit {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.parent-management .btn-action.delete {
+  background-color: #ef4444;
+  color: white;
+}
+
+.parent-management .btn-action:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Input Group */
+.parent-management .input-group {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.parent-management .input-group-text {
+  border: 1px solid #e5e7eb;
+  border-right: none;
+}
+
+.parent-management.dark-mode .input-group-text {
+  border-color: #334155;
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+.parent-management .form-control {
+  border: 1px solid #e5e7eb;
+  border-left: none;
+}
+
+.parent-management .form-control:focus {
+  box-shadow: none;
+  border-color: #3b82f6;
+}
+
+.parent-management.dark-mode .form-control {
+  border-color: #334155;
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+.parent-management.dark-mode .form-control:focus {
+  border-color: #60a5fa;
+}
+
+/* Link Styles */
+.parent-management a {
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.parent-management a:hover {
+  text-decoration: underline;
+}
+
+/* Button Styles */
+.parent-management .btn-primary {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.parent-management .btn-primary:hover {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+/* Loading Container */
+.parent-management .loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+}
+
+.parent-management .loading-container.dark-mode {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+/* Spinner Animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.parent-management .spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .parent-management .action-buttons {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .parent-management .btn-action {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .parent-management .table th,
+  .parent-management .table td {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .parent-management .badge {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+  }
+}

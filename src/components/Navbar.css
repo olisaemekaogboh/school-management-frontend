@@ -1,12 +1,12 @@
 .navbar-school {
-  background-color: var(--school-navy) !important;
+  background-color: var(--app-card) !important;
   padding: 0.85rem 1rem;
-  box-shadow: 0 4px 20px rgba(0, 51, 102, 0.25);
+  box-shadow: var(--app-shadow);
   width: 100%;
   position: sticky;
   top: 0;
   z-index: 1000;
-  border-bottom: 3px solid var(--school-gold);
+  border-bottom: 1px solid var(--app-border);
   transition: all 0.25s ease;
 }
 
@@ -18,7 +18,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: var(--school-gold) !important;
+  color: var(--app-accent) !important;
   font-weight: 700;
   text-decoration: none;
   font-size: 1.2rem;
@@ -28,15 +28,17 @@
   display: inline-flex;
   align-items: center;
   line-height: 1;
+  color: var(--app-text);
 }
 
 .navbar-toggler {
-  border: 2px solid var(--school-gold) !important;
+  border: 1px solid var(--app-border) !important;
   box-shadow: none !important;
+  background: var(--app-card);
 }
 
 .navbar-toggler svg {
-  color: var(--school-gold);
+  color: var(--app-accent);
   font-size: 1.3rem;
 }
 
@@ -64,7 +66,7 @@
   padding: 0.55rem 0.9rem !important;
   border-radius: 10px;
   transition: all 0.25s ease;
-  color: rgba(255, 255, 255, 0.92) !important;
+  color: var(--app-text) !important;
   font-size: 0.92rem;
   text-decoration: none;
   border: none;
@@ -79,14 +81,14 @@
 
 .nav-link:hover,
 .dropdown-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--school-gold) !important;
+  background: var(--app-hover);
+  color: var(--app-accent) !important;
 }
 
 .nav-link.active,
 .dropdown-toggle-btn.active {
-  background: rgba(255, 215, 0, 0.15);
-  color: var(--school-gold) !important;
+  background: var(--app-accent-soft);
+  color: var(--app-accent) !important;
 }
 
 .nav-icon {
@@ -121,10 +123,10 @@
   top: calc(100% + 8px);
   left: 0;
   min-width: 220px;
-  background: #ffffff;
+  background: var(--app-card);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--app-shadow);
+  border: 1px solid var(--app-border);
   padding: 0.45rem;
   opacity: 0;
   visibility: hidden;
@@ -147,7 +149,7 @@
   padding: 0.7rem 0.85rem;
   border: none;
   background: transparent;
-  color: var(--dark-gray);
+  color: var(--app-text);
   text-decoration: none;
   border-radius: 10px;
   transition: all 0.2s ease;
@@ -155,23 +157,23 @@
 }
 
 .dropdown-item-custom:hover {
-  background: rgba(0, 135, 83, 0.1);
-  color: var(--nigerian-green);
+  background: var(--app-hover);
+  color: var(--app-accent);
 }
 
 .dropdown-item-custom.active {
-  background: rgba(0, 135, 83, 0.15);
-  color: var(--nigerian-green);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
   font-weight: 600;
 }
 
 .dropdown-icon {
-  color: var(--school-navy);
+  color: var(--app-accent);
 }
 
 .dropdown-divider-custom {
   height: 1px;
-  background: #e5e7eb;
+  background: var(--app-border);
   margin: 0.4rem 0;
 }
 
@@ -191,27 +193,28 @@
   gap: 0.5rem;
   min-height: 42px;
   padding: 0.4rem 0.75rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--app-hover);
+  border: 1px solid var(--app-border);
   border-radius: 999px;
-  color: white;
+  color: var(--app-text);
   cursor: pointer;
   transition: all 0.25s ease;
 }
 
 .user-menu-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 .user-avatar {
   width: 30px;
   height: 30px;
-  background: var(--school-gold);
+  background: var(--app-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--school-navy);
+  color: #fff;
   font-size: 0.9rem;
 }
 
@@ -226,13 +229,24 @@
   min-width: 190px;
 }
 
+body[data-language="ar"] .navbar-school,
+body[data-language="ar"] .navbar-collapse,
+body[data-language="ar"] .navbar-nav {
+  direction: rtl;
+}
+
+body[data-language="ar"] .dropdown-menu-custom {
+  left: auto;
+  right: 0;
+}
+
 @media (max-width: 991px) {
   .navbar-collapse {
-    background-color: var(--school-navy);
+    background-color: var(--app-card);
     padding: 1rem;
     margin-top: 0.9rem;
     border-radius: 12px;
-    border: 1px solid rgba(255, 215, 0, 0.35);
+    border: 1px solid var(--app-border);
   }
 
   .navbar-nav {
@@ -257,8 +271,8 @@
     visibility: visible;
     transform: none;
     display: none;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--app-hover);
+    border: 1px solid var(--app-border);
     box-shadow: none;
   }
 
@@ -267,23 +281,23 @@
   }
 
   .dropdown-item-custom {
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--app-text);
   }
 
   .dropdown-item-custom:hover,
   .dropdown-item-custom.active {
-    color: var(--school-gold);
-    background: rgba(255, 255, 255, 0.12);
+    color: var(--app-accent);
+    background: var(--app-accent-soft);
   }
 
   .dropdown-icon {
-    color: var(--school-gold);
+    color: var(--app-accent);
   }
 
   .user-menu {
     margin-top: 1rem;
     padding-top: 1rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    border-top: 1px solid var(--app-border);
     width: 100%;
   }
 

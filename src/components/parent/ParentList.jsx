@@ -1,10 +1,30 @@
 // src/components/parent/ParentList.jsx
 import React, { useEffect, useState } from "react";
-import { useParent } from "../../context/ParentContext";
+import { useParent } from "../../contexts/ParentContext";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { useDarkMode } from "../../contexts/DarkModeContext";
 import { toast } from "react-toastify";
+import {
+  FaUsers,
+  FaUserPlus,
+  FaSearch,
+  FaTimes,
+  FaEye,
+  FaEdit,
+  FaTrash,
+  FaEnvelope,
+  FaPhone,
+  FaSpinner,
+  FaChevronLeft,
+  FaChevronRight,
+  FaExclamationTriangle,
+  FaInfoCircle,
+} from "react-icons/fa";
 
 const ParentList = () => {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const {
     parents,
     loading,
@@ -24,14 +44,22 @@ const ParentList = () => {
   }, [currentPage, fetchParentsPaginated]);
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this parent?")) {
+    if (
+      window.confirm(
+        t?.parentList?.confirmDelete ||
+          "Are you sure you want to delete this parent?",
+      )
+    ) {
       try {
         await deleteParent(id);
-        toast.success("Parent deleted successfully");
+        toast.success(
+          t?.parentList?.deleteSuccess || "Parent deleted successfully",
+        );
         fetchParentsPaginated(currentPage, 10, "id", "asc");
       } catch (error) {
         toast.error(
-          "Error deleting parent: " + (error.message || "Unknown error"),
+          t?.parentList?.deleteError ||
+            "Error deleting parent: " + (error.message || "Unknown error"),
         );
       }
     }
@@ -48,25 +76,50 @@ const ParentList = () => {
       const results = await searchParents(searchTerm);
       setSearchResults(results);
     } catch (error) {
-      toast.error("Error searching parents");
+      toast.error(t?.parentList?.searchError || "Error searching parents");
     }
   };
 
+  const getRelationshipBadge = (relationship) => {
+    const badges = {
+      FATHER: { class: "bg-primary", label: t?.parentList?.father || "Father" },
+      MOTHER: { class: "bg-success", label: t?.parentList?.mother || "Mother" },
+      GUARDIAN: {
+        class: "bg-info",
+        label: t?.parentList?.guardian || "Guardian",
+      },
+    };
+    const badge = badges[relationship] || {
+      class: "bg-secondary",
+      label: relationship,
+    };
+    return <span className={`badge ${badge.class}`}>{badge.label}</span>;
+  };
+
   const displayParents = isSearching ? searchResults : parents;
+
+  if (loading && parents.length === 0) {
+    return (
+      <div className="text-center my-5">
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{t?.common?.loading || "Loading..."}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mt-4">
       <div className="row mb-4">
         <div className="col-md-8">
           <h2>
-            <i className="bi bi-people-fill me-2"></i>
-            Parents Management
+            <FaUsers className="me-2" />
+            {t?.parentList?.title || "Parents Management"}
           </h2>
         </div>
         <div className="col-md-4 text-end">
           <Link to="/parents/register" className="btn btn-success">
-            <i className="bi bi-person-plus-fill me-2"></i>
-            Add New Parent
+            <FaUserPlus className="me-2" />
+            {t?.parentList?.addNewParent || "Add New Parent"}
           </Link>
         </div>
       </div>
@@ -77,7 +130,10 @@ const ParentList = () => {
             <input
               type="text"
               className="form-control"
-              placeholder="Search parents by name or email..."
+              placeholder={
+                t?.parentList?.searchPlaceholder ||
+                "Search parents by name or email..."
+              }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && handleSearch()}
@@ -87,7 +143,7 @@ const ParentList = () => {
               onClick={handleSearch}
               disabled={!searchTerm.trim()}
             >
-              <i className="bi bi-search"></i> Search
+              <FaSearch /> {t?.common?.search || "Search"}
             </button>
             {isSearching && (
               <button
@@ -97,39 +153,34 @@ const ParentList = () => {
                   setSearchTerm("");
                 }}
               >
-                <i className="bi bi-x-circle"></i> Clear
+                <FaTimes /> {t?.common?.clear || "Clear"}
               </button>
             )}
           </div>
         </div>
         <div className="col-md-6 text-end">
           <span className="badge bg-info p-2">
-            Total Parents: {pagination.totalElements || 0}
+            {t?.parentList?.totalParents || "Total Parents"}:{" "}
+            {pagination.totalElements || 0}
           </span>
         </div>
       </div>
 
-      {loading && (
-        <div className="text-center my-5">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-        </div>
-      )}
-
       {error && (
         <div className="alert alert-danger">
-          <i className="bi bi-exclamation-triangle-fill me-2"></i>
-          Error: {error}
+          <FaExclamationTriangle className="me-2" />
+          {t?.parentList?.error || "Error"}: {error}
         </div>
       )}
 
       {!loading && !error && displayParents.length === 0 && (
         <div className="alert alert-info">
-          <i className="bi bi-info-circle-fill me-2"></i>
+          <FaInfoCircle className="me-2" />
           {isSearching
-            ? "No parents found matching your search."
-            : 'No parents found. Click "Add New Parent" to create one.'}
+            ? t?.parentList?.noSearchResults ||
+              "No parents found matching your search."
+            : t?.parentList?.noParentsFound ||
+              'No parents found. Click "Add New Parent" to create one.'}
         </div>
       )}
 
@@ -139,13 +190,13 @@ const ParentList = () => {
             <table className="table table-hover table-striped">
               <thead className="table-dark">
                 <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Relationship</th>
-                  <th>Wards</th>
-                  <th>Actions</th>
+                  <th>{t?.parentList?.id || "ID"}</th>
+                  <th>{t?.parentList?.name || "Name"}</th>
+                  <th>{t?.common?.email || "Email"}</th>
+                  <th>{t?.common?.phone || "Phone"}</th>
+                  <th>{t?.parentList?.relationship || "Relationship"}</th>
+                  <th>{t?.parentList?.wards || "Wards"}</th>
+                  <th>{t?.common?.actions || "Actions"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -158,60 +209,52 @@ const ParentList = () => {
                     </td>
                     <td>
                       <a href={`mailto:${parent.email}`}>
-                        <i className="bi bi-envelope me-1"></i>
+                        <FaEnvelope className="me-1" />
                         {parent.email}
                       </a>
                     </td>
                     <td>
                       <a href={`tel:${parent.phoneNumber}`}>
-                        <i className="bi bi-telephone me-1"></i>
+                        <FaPhone className="me-1" />
                         {parent.phoneNumber}
                       </a>
                     </td>
-                    <td>
-                      <span
-                        className={`badge ${
-                          parent.relationship === "FATHER"
-                            ? "bg-primary"
-                            : parent.relationship === "MOTHER"
-                              ? "bg-success"
-                              : "bg-info"
-                        }`}
-                      >
-                        {parent.relationship}
-                      </span>
-                    </td>
+                    <td>{getRelationshipBadge(parent.relationship)}</td>
                     <td>
                       {parent.wardNames ? (
                         <span className="badge bg-secondary">
                           {parent.wardNames.length}{" "}
-                          {parent.wardNames.length === 1 ? "ward" : "wards"}
+                          {parent.wardNames.length === 1
+                            ? t?.parentList?.ward || "ward"
+                            : t?.parentList?.wards || "wards"}
                         </span>
                       ) : (
-                        <span className="badge bg-warning">No wards</span>
+                        <span className="badge bg-warning">
+                          {t?.parentList?.noWards || "No wards"}
+                        </span>
                       )}
                     </td>
                     <td>
                       <Link
                         to={`/parents/${parent.id}`}
                         className="btn btn-sm btn-info me-2"
-                        title="View Details"
+                        title={t?.common?.view || "View Details"}
                       >
-                        <i className="bi bi-eye"></i>
+                        <FaEye />
                       </Link>
                       <Link
                         to={`/parents/edit/${parent.id}`}
                         className="btn btn-sm btn-warning me-2"
-                        title="Edit"
+                        title={t?.common?.edit || "Edit"}
                       >
-                        <i className="bi bi-pencil"></i>
+                        <FaEdit />
                       </Link>
                       <button
                         onClick={() => handleDelete(parent.id)}
                         className="btn btn-sm btn-danger"
-                        title="Delete"
+                        title={t?.common?.delete || "Delete"}
                       >
-                        <i className="bi bi-trash"></i>
+                        <FaTrash />
                       </button>
                     </td>
                   </tr>
@@ -232,7 +275,8 @@ const ParentList = () => {
                       setCurrentPage((prev) => Math.max(0, prev - 1))
                     }
                   >
-                    Previous
+                    <FaChevronLeft className="me-1" />{" "}
+                    {t?.common?.previous || "Previous"}
                   </button>
                 </li>
                 {[...Array(pagination.totalPages).keys()].map((page) => (
@@ -259,7 +303,8 @@ const ParentList = () => {
                       )
                     }
                   >
-                    Next
+                    {t?.common?.next || "Next"}{" "}
+                    <FaChevronRight className="ms-1" />
                   </button>
                 </li>
               </ul>
@@ -267,6 +312,11 @@ const ParentList = () => {
           )}
         </>
       )}
+
+      <style>{`
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 };

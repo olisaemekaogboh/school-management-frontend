@@ -1,10 +1,22 @@
 // src/components/parent/ParentEmailVerification.jsx
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { useDarkMode } from "../../contexts/DarkModeContext";
 import { toast } from "react-toastify";
-import parentService from "../../services/ParentService"; // Import the service directly
+import parentService from "../../services/ParentService";
+import {
+  FaEnvelope,
+  FaCheckCircle,
+  FaExclamationTriangle,
+  FaSpinner,
+  FaUserPlus,
+  FaArrowLeft,
+} from "react-icons/fa";
 
 const ParentEmailVerification = () => {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [email, setEmail] = useState("");
   const [verificationResult, setVerificationResult] = useState(null);
   const [parentInfo, setParentInfo] = useState(null);
@@ -17,42 +29,39 @@ const ParentEmailVerification = () => {
     setParentInfo(null);
 
     try {
-      console.log("Verifying email:", email);
-
-      // Use parentService directly instead of context
       const result = await parentService.verifyParentEmail(email);
-      console.log("Verification result:", result);
-
       setVerificationResult(result);
 
       if (result?.success) {
-        console.log("Success! Parent data:", result.parent);
-
-        // The parent data might be in the result
         if (result.parent) {
           setParentInfo(result.parent);
-          toast.success("Email verified successfully!");
+          toast.success(
+            t?.parentVerification?.verified || "Email verified successfully!",
+          );
         } else {
-          // Try to fetch parent details if not included
           try {
-            console.log("Fetching parent details separately...");
             const parent = await parentService.getParentByEmail(email);
-            console.log("Parent details:", parent);
             setParentInfo(parent);
-            toast.success("Email verified successfully!");
+            toast.success(
+              t?.parentVerification?.verified || "Email verified successfully!",
+            );
           } catch (err) {
             console.error("Error fetching parent details:", err);
-            // Still show success since verification worked
-            toast.success("Email verified successfully!");
+            toast.success(
+              t?.parentVerification?.verified || "Email verified successfully!",
+            );
           }
         }
       } else {
-        console.log("Verification failed:", result?.message);
-        toast.info(result?.message || "Parent not found");
+        toast.info(
+          result?.message ||
+            t?.parentVerification?.notFound ||
+            "Parent not found",
+        );
       }
     } catch (error) {
       console.error("Verification error:", error);
-      toast.error("Error verifying email");
+      toast.error(t?.parentVerification?.error || "Error verifying email");
     } finally {
       setLoading(false);
     }
@@ -65,19 +74,19 @@ const ParentEmailVerification = () => {
           <div className="card shadow">
             <div className="card-header bg-primary text-white">
               <h4 className="mb-0">
-                <i className="bi bi-envelope-check me-2"></i>
-                Parent Email Verification
+                <FaEnvelope className="me-2" />
+                {t?.parentVerification?.title || "Parent Email Verification"}
               </h4>
             </div>
             <div className="card-body">
               <form onSubmit={handleVerify}>
                 <div className="mb-3">
                   <label htmlFor="email" className="form-label">
-                    Email Address
+                    {t?.common?.email || "Email Address"}
                   </label>
                   <div className="input-group">
                     <span className="input-group-text">
-                      <i className="bi bi-envelope"></i>
+                      <FaEnvelope />
                     </span>
                     <input
                       type="email"
@@ -85,7 +94,10 @@ const ParentEmailVerification = () => {
                       id="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter parent email"
+                      placeholder={
+                        t?.parentVerification?.emailPlaceholder ||
+                        "Enter parent email"
+                      }
                       required
                     />
                   </div>
@@ -98,35 +110,28 @@ const ParentEmailVerification = () => {
                 >
                   {loading ? (
                     <>
-                      <span className="spinner-border spinner-border-sm me-2"></span>
-                      Verifying...
+                      <FaSpinner className="spin me-2" />
+                      {t?.common?.verifying || "Verifying..."}
                     </>
                   ) : (
                     <>
-                      <i className="bi bi-check-circle me-2"></i>
-                      Verify Email
+                      <FaCheckCircle className="me-2" />
+                      {t?.parentVerification?.verifyButton || "Verify Email"}
                     </>
                   )}
                 </button>
               </form>
 
-              {/* Verification Result */}
               {verificationResult && (
                 <div
-                  className={`alert mt-4 ${
-                    verificationResult.success
-                      ? "alert-success"
-                      : "alert-warning"
-                  }`}
+                  className={`alert mt-4 ${verificationResult.success ? "alert-success" : "alert-warning"}`}
                 >
                   <div className="d-flex align-items-center">
-                    <i
-                      className={`bi ${
-                        verificationResult.success
-                          ? "bi-check-circle-fill"
-                          : "bi-exclamation-triangle-fill"
-                      } fs-4 me-3`}
-                    ></i>
+                    {verificationResult.success ? (
+                      <FaCheckCircle className="fs-4 me-3 text-success" />
+                    ) : (
+                      <FaExclamationTriangle className="fs-4 me-3 text-warning" />
+                    )}
                     <div>
                       <h5 className="alert-heading">
                         {verificationResult.message}
@@ -134,20 +139,29 @@ const ParentEmailVerification = () => {
 
                       {verificationResult.success && parentInfo && (
                         <div className="mt-3">
-                          <h6>Parent Information:</h6>
+                          <h6>
+                            {t?.parentVerification?.parentInfo ||
+                              "Parent Information:"}
+                          </h6>
                           <p className="mb-1">
-                            <strong>Name:</strong> {parentInfo.firstName}{" "}
-                            {parentInfo.lastName}
+                            <strong>
+                              {t?.parentDetails?.fullName || "Name"}:
+                            </strong>{" "}
+                            {parentInfo.firstName} {parentInfo.lastName}
                           </p>
                           <p className="mb-1">
-                            <strong>Email:</strong> {parentInfo.email}
+                            <strong>{t?.common?.email || "Email"}:</strong>{" "}
+                            {parentInfo.email}
                           </p>
                           <p className="mb-1">
-                            <strong>Phone:</strong> {parentInfo.phoneNumber}
+                            <strong>{t?.common?.phone || "Phone"}:</strong>{" "}
+                            {parentInfo.phoneNumber}
                           </p>
                           {parentInfo.wardNames?.length > 0 && (
                             <p className="mb-1">
-                              <strong>Wards:</strong>{" "}
+                              <strong>
+                                {t?.parentDetails?.wards || "Wards"}:
+                              </strong>{" "}
                               {parentInfo.wardNames.join(", ")}
                             </p>
                           )}
@@ -156,13 +170,17 @@ const ParentEmailVerification = () => {
 
                       {!verificationResult.success && (
                         <div className="mt-3">
-                          <p>Would you like to register as a new parent?</p>
+                          <p>
+                            {t?.parentVerification?.registerPrompt ||
+                              "Would you like to register as a new parent?"}
+                          </p>
                           <Link
                             to="/parents/register"
                             className="btn btn-primary btn-sm"
                           >
-                            <i className="bi bi-person-plus me-2"></i>
-                            Register Parent
+                            <FaUserPlus className="me-2" />
+                            {t?.parentVerification?.registerButton ||
+                              "Register Parent"}
                           </Link>
                         </div>
                       )}
@@ -174,6 +192,11 @@ const ParentEmailVerification = () => {
           </div>
         </div>
       </div>
+
+      <style>{`
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 };

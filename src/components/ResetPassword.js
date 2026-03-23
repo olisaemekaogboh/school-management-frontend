@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { authAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaLock,
@@ -14,6 +16,8 @@ import {
 import "./Auth.css";
 
 function ResetPassword() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [token, setToken] = useState("");
   const [formData, setFormData] = useState({
     password: "",
@@ -28,22 +32,19 @@ function ResetPassword() {
   const params = useParams();
 
   useEffect(() => {
-    // Try to get token from path parameter first
     if (params.token) {
       setToken(params.token);
-    }
-    // If not in path, try query parameter
-    else {
+    } else {
       const queryParams = new URLSearchParams(location.search);
       const tokenParam = queryParams.get("token");
       if (tokenParam) {
         setToken(tokenParam);
       } else {
-        toast.error("Invalid reset link");
+        toast.error(t?.resetPassword?.invalidLink || "Invalid reset link");
         navigate("/forgot-password");
       }
     }
-  }, [params, location, navigate]);
+  }, [params, location, navigate, t]);
 
   const handleChange = (e) => {
     setFormData({
@@ -56,12 +57,17 @@ function ResetPassword() {
     e.preventDefault();
 
     if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+      toast.error(
+        t?.resetPassword?.passwordMinLength ||
+          "Password must be at least 6 characters",
+      );
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error(
+        t?.resetPassword?.passwordsMismatch || "Passwords do not match",
+      );
       return;
     }
 
@@ -70,11 +76,18 @@ function ResetPassword() {
     try {
       await authAPI.resetPassword(token, formData.password);
       setResetComplete(true);
-      toast.success("Password reset successful! You can now login.");
+      toast.success(
+        t?.resetPassword?.success ||
+          "Password reset successful! You can now login.",
+      );
       setTimeout(() => navigate("/login"), 3000);
     } catch (error) {
       console.error("Reset password error:", error);
-      toast.error(error.response?.data?.message || "Failed to reset password");
+      toast.error(
+        error.response?.data?.message ||
+          t?.resetPassword?.failed ||
+          "Failed to reset password",
+      );
     } finally {
       setLoading(false);
     }
@@ -84,15 +97,15 @@ function ResetPassword() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h2>Reset Password</h2>
-          <p>Enter your new password</p>
+          <h2>{t?.resetPassword?.title || "Reset Password"}</h2>
+          <p>{t?.resetPassword?.subtitle || "Enter your new password"}</p>
         </div>
 
         {!resetComplete ? (
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="form-group">
               <label>
-                <FaLock /> New Password
+                <FaLock /> {t?.resetPassword?.newPassword || "New Password"}
               </label>
               <div className="password-input">
                 <input
@@ -100,7 +113,10 @@ function ResetPassword() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="Enter new password"
+                  placeholder={
+                    t?.resetPassword?.newPasswordPlaceholder ||
+                    "Enter new password"
+                  }
                   required
                   minLength="6"
                 />
@@ -116,7 +132,8 @@ function ResetPassword() {
 
             <div className="form-group">
               <label>
-                <FaLock /> Confirm Password
+                <FaLock />{" "}
+                {t?.resetPassword?.confirmPassword || "Confirm Password"}
               </label>
               <div className="password-input">
                 <input
@@ -124,7 +141,10 @@ function ResetPassword() {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  placeholder="Confirm new password"
+                  placeholder={
+                    t?.resetPassword?.confirmPasswordPlaceholder ||
+                    "Confirm new password"
+                  }
                   required
                 />
                 <button
@@ -138,21 +158,32 @@ function ResetPassword() {
             </div>
 
             <button type="submit" className="auth-button" disabled={loading}>
-              {loading ? <FaSpinner className="spin" /> : "Reset Password"}
+              {loading ? (
+                <FaSpinner className="spin" />
+              ) : (
+                t?.resetPassword?.resetButton || "Reset Password"
+              )}
             </button>
           </form>
         ) : (
           <div className="success-message">
             <FaCheckCircle className="success-icon" />
-            <h3>Password Reset Complete!</h3>
-            <p>Your password has been successfully reset.</p>
-            <p>Redirecting to login page...</p>
+            <h3>
+              {t?.resetPassword?.completeTitle || "Password Reset Complete!"}
+            </h3>
+            <p>
+              {t?.resetPassword?.completeMessage ||
+                "Your password has been successfully reset."}
+            </p>
+            <p>
+              {t?.resetPassword?.redirecting || "Redirecting to login page..."}
+            </p>
           </div>
         )}
 
         <div className="auth-footer">
           <Link to="/login" className="back-to-login">
-            <FaArrowLeft /> Back to Login
+            <FaArrowLeft /> {t?.resetPassword?.backToLogin || "Back to Login"}
           </Link>
         </div>
       </div>

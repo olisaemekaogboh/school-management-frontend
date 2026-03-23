@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { libraryAPI } from "../services/api";
 import { toast } from "react-toastify";
 import { FaPlus, FaSave, FaTrash, FaEdit, FaSearch } from "react-icons/fa";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const emptyForm = {
   title: "",
@@ -18,6 +19,58 @@ const emptyForm = {
 };
 
 export default function BookManagement() {
+  const { t } = useLanguage();
+
+  const ui = {
+    title: t?.bookManagement?.title || "Books",
+    subtitle:
+      t?.bookManagement?.subtitle || "Manage your library catalogue properly.",
+    editBook: t?.bookManagement?.editBook || "Edit Book",
+    addBook: t?.bookManagement?.addBook || "Add Book",
+    new: t?.bookManagement?.new || "New",
+    save: t?.common?.save || "Save",
+    update: t?.bookManagement?.update || "Update",
+    allBooks: t?.bookManagement?.allBooks || "All Books",
+    searchPlaceholder:
+      t?.bookManagement?.searchPlaceholder ||
+      "Search title, author, ISBN, category...",
+    id: t?.bookManagement?.id || "ID",
+    titleLabel: t?.bookManagement?.titleLabel || "Title",
+    author: t?.bookManagement?.author || "Author",
+    isbn: t?.bookManagement?.isbn || "ISBN",
+    publisher: t?.bookManagement?.publisher || "Publisher",
+    publicationDate: t?.bookManagement?.publicationDate || "Publication Date",
+    edition: t?.bookManagement?.edition || "Edition",
+    category: t?.bookManagement?.category || "Category",
+    shelfLocation: t?.bookManagement?.shelfLocation || "Shelf Location",
+    total: t?.bookManagement?.total || "Total",
+    available: t?.bookManagement?.available || "Available",
+    description: t?.bookManagement?.description || "Description",
+    status: t?.bookManagement?.status || "Status",
+    actions: t?.bookManagement?.actions || "Actions",
+    edit: t?.bookManagement?.edit || "Edit",
+    delete: t?.bookManagement?.delete || "Delete",
+    noBooksFound: t?.bookManagement?.noBooksFound || "No books found.",
+    loading: t?.common?.loading || "Loading...",
+    titleRequired: t?.bookManagement?.titleRequired || "Title is required",
+    authorRequired: t?.bookManagement?.authorRequired || "Author is required",
+    totalNegative:
+      t?.bookManagement?.totalNegative || "Total copies cannot be negative",
+    availableNegative:
+      t?.bookManagement?.availableNegative ||
+      "Available copies cannot be negative",
+    availableGreater:
+      t?.bookManagement?.availableGreater ||
+      "Available copies cannot be greater than total copies",
+    loadFailed: t?.bookManagement?.loadFailed || "Failed to load books",
+    saveFailed: t?.bookManagement?.saveFailed || "Failed to save book",
+    deleteFailed: t?.bookManagement?.deleteFailed || "Failed to delete book",
+    created: t?.bookManagement?.created || "Book created",
+    updated: t?.bookManagement?.updated || "Book updated",
+    deleted: t?.bookManagement?.deleted || "Book deleted",
+    confirmDelete: t?.bookManagement?.confirmDelete || "Delete this book?",
+  };
+
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,15 +79,15 @@ export default function BookManagement() {
 
   const filtered = useMemo(() => {
     if (!searchTerm.trim()) return books;
-    const t = searchTerm.toLowerCase();
+    const q = searchTerm.toLowerCase();
 
     return books.filter(
       (b) =>
-        (b.title || "").toLowerCase().includes(t) ||
-        (b.author || "").toLowerCase().includes(t) ||
-        (b.isbn || "").toLowerCase().includes(t) ||
-        (b.category || "").toLowerCase().includes(t) ||
-        (b.publisher || "").toLowerCase().includes(t),
+        (b.title || "").toLowerCase().includes(q) ||
+        (b.author || "").toLowerCase().includes(q) ||
+        (b.isbn || "").toLowerCase().includes(q) ||
+        (b.category || "").toLowerCase().includes(q) ||
+        (b.publisher || "").toLowerCase().includes(q),
     );
   }, [books, searchTerm]);
 
@@ -42,13 +95,13 @@ export default function BookManagement() {
     try {
       setLoading(true);
       const res = await libraryAPI.getAllBooks();
-      setBooks(res.data || []);
+      setBooks(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error("Error loading books:", error);
       toast.error(
         error?.response?.data?.message ||
           error?.response?.data?.error ||
-          "Failed to load books",
+          ui.loadFailed,
       );
     } finally {
       setLoading(false);
@@ -93,37 +146,37 @@ export default function BookManagement() {
     };
 
     if (!payload.title.trim()) {
-      toast.error("Title is required");
+      toast.error(ui.titleRequired);
       return;
     }
 
     if (!payload.author.trim()) {
-      toast.error("Author is required");
+      toast.error(ui.authorRequired);
       return;
     }
 
     if (payload.totalCopies < 0) {
-      toast.error("Total copies cannot be negative");
+      toast.error(ui.totalNegative);
       return;
     }
 
     if (payload.availableCopies < 0) {
-      toast.error("Available copies cannot be negative");
+      toast.error(ui.availableNegative);
       return;
     }
 
     if (payload.availableCopies > payload.totalCopies) {
-      toast.error("Available copies cannot be greater than total copies");
+      toast.error(ui.availableGreater);
       return;
     }
 
     try {
       if (editingId) {
         await libraryAPI.updateBook(editingId, payload);
-        toast.success("Book updated");
+        toast.success(ui.updated);
       } else {
         await libraryAPI.createBook(payload);
-        toast.success("Book created");
+        toast.success(ui.created);
       }
 
       startCreate();
@@ -133,24 +186,24 @@ export default function BookManagement() {
       toast.error(
         error?.response?.data?.message ||
           error?.response?.data?.error ||
-          "Failed to save book",
+          ui.saveFailed,
       );
     }
   };
 
   const remove = async (id) => {
-    if (!window.confirm("Delete this book?")) return;
+    if (!window.confirm(ui.confirmDelete)) return;
 
     try {
       await libraryAPI.deleteBook(id);
-      toast.success("Book deleted");
+      toast.success(ui.deleted);
       await load();
     } catch (error) {
       console.error("Error deleting book:", error);
       toast.error(
         error?.response?.data?.message ||
           error?.response?.data?.error ||
-          "Failed to delete book",
+          ui.deleteFailed,
       );
     }
   };
@@ -158,27 +211,27 @@ export default function BookManagement() {
   return (
     <div className="content-wrapper earth-pattern">
       <div className="hero-section p-4">
-        <h2 className="mb-2">Books</h2>
-        <p className="mb-0">Manage your library catalogue properly.</p>
+        <h2 className="mb-2">{ui.title}</h2>
+        <p className="mb-0">{ui.subtitle}</p>
       </div>
 
       <div className="form-container mb-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="mb-0">{editingId ? "Edit Book" : "Add Book"}</h4>
+          <h4 className="mb-0">{editingId ? ui.editBook : ui.addBook}</h4>
           <button
             type="button"
             className="btn-outline-nigerian"
             onClick={startCreate}
           >
             <FaPlus className="me-2" />
-            New
+            {ui.new}
           </button>
         </div>
 
         <form onSubmit={submit}>
           <div className="row">
             <div className="col-md-6 mb-3">
-              <label className="form-label">Title *</label>
+              <label className="form-label">{ui.titleLabel} *</label>
               <input
                 className="form-control"
                 value={form.title}
@@ -189,7 +242,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-6 mb-3">
-              <label className="form-label">Author *</label>
+              <label className="form-label">{ui.author} *</label>
               <input
                 className="form-control"
                 value={form.author}
@@ -200,7 +253,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-4 mb-3">
-              <label className="form-label">ISBN</label>
+              <label className="form-label">{ui.isbn}</label>
               <input
                 className="form-control"
                 value={form.isbn}
@@ -211,7 +264,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-4 mb-3">
-              <label className="form-label">Publisher</label>
+              <label className="form-label">{ui.publisher}</label>
               <input
                 className="form-control"
                 value={form.publisher}
@@ -222,7 +275,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-4 mb-3">
-              <label className="form-label">Publication Date</label>
+              <label className="form-label">{ui.publicationDate}</label>
               <input
                 type="date"
                 className="form-control"
@@ -237,7 +290,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-3 mb-3">
-              <label className="form-label">Edition</label>
+              <label className="form-label">{ui.edition}</label>
               <input
                 className="form-control"
                 value={form.edition}
@@ -248,7 +301,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-3 mb-3">
-              <label className="form-label">Category</label>
+              <label className="form-label">{ui.category}</label>
               <input
                 className="form-control"
                 value={form.category}
@@ -259,7 +312,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-3 mb-3">
-              <label className="form-label">Shelf Location</label>
+              <label className="form-label">{ui.shelfLocation}</label>
               <input
                 className="form-control"
                 value={form.shelfLocation}
@@ -273,7 +326,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-1 mb-3">
-              <label className="form-label">Total</label>
+              <label className="form-label">{ui.total}</label>
               <input
                 type="number"
                 min="0"
@@ -286,7 +339,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-md-2 mb-3">
-              <label className="form-label">Available</label>
+              <label className="form-label">{ui.available}</label>
               <input
                 type="number"
                 min="0"
@@ -302,7 +355,7 @@ export default function BookManagement() {
             </div>
 
             <div className="col-12 mb-3">
-              <label className="form-label">Description</label>
+              <label className="form-label">{ui.description}</label>
               <textarea
                 className="form-control"
                 rows="3"
@@ -316,21 +369,21 @@ export default function BookManagement() {
 
           <button className="btn-nigerian" type="submit">
             <FaSave className="me-2" />
-            {editingId ? "Update" : "Save"}
+            {editingId ? ui.update : ui.save}
           </button>
         </form>
       </div>
 
       <div className="table-container">
         <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-          <h4 className="mb-0">All Books</h4>
+          <h4 className="mb-0">{ui.allBooks}</h4>
 
           <div className="d-flex gap-2 align-items-center">
             <FaSearch />
             <input
               className="form-control"
               style={{ maxWidth: 320 }}
-              placeholder="Search title, author, ISBN, category..."
+              placeholder={ui.searchPlaceholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -340,29 +393,30 @@ export default function BookManagement() {
         {loading ? (
           <div className="spinner-container">
             <div className="spinner-border-nigerian" />
+            <div className="mt-2">{ui.loading}</div>
           </div>
         ) : (
           <div className="table-responsive">
             <table className="table table-striped">
               <thead>
                 <tr>
-                  <th>ID</th> {/* Added ID column */}
-                  <th>Title</th>
-                  <th>Author</th>
-                  <th>ISBN</th>
-                  <th>Category</th>
-                  <th>Shelf</th>
-                  <th>Total</th>
-                  <th>Available</th>
-                  <th>Status</th>
-                  <th style={{ width: 160 }}>Actions</th>
+                  <th>{ui.id}</th>
+                  <th>{ui.titleLabel}</th>
+                  <th>{ui.author}</th>
+                  <th>{ui.isbn}</th>
+                  <th>{ui.category}</th>
+                  <th>{ui.shelfLocation}</th>
+                  <th>{ui.total}</th>
+                  <th>{ui.available}</th>
+                  <th>{ui.status}</th>
+                  <th style={{ width: 160 }}>{ui.actions}</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((b) => (
                   <tr key={b.id}>
                     <td>
-                      <code>{b.id}</code> {/* Display the ID */}
+                      <code>{b.id}</code>
                     </td>
                     <td>{b.title}</td>
                     <td>{b.author}</td>
@@ -378,7 +432,7 @@ export default function BookManagement() {
                         onClick={() => startEdit(b)}
                         type="button"
                       >
-                        <FaEdit className="me-1" /> Edit
+                        <FaEdit className="me-1" /> {ui.edit}
                       </button>
 
                       <button
@@ -386,7 +440,7 @@ export default function BookManagement() {
                         onClick={() => remove(b.id)}
                         type="button"
                       >
-                        <FaTrash className="me-1" /> Delete
+                        <FaTrash className="me-1" /> {ui.delete}
                       </button>
                     </td>
                   </tr>
@@ -395,9 +449,7 @@ export default function BookManagement() {
                 {filtered.length === 0 && (
                   <tr>
                     <td colSpan="10" className="text-center py-4">
-                      {" "}
-                      {/* Updated colSpan from 9 to 10 */}
-                      No books found.
+                      {ui.noBooksFound}
                     </td>
                   </tr>
                 )}

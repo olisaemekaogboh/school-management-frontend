@@ -1,4 +1,3 @@
-// src/components/AnnouncementManager.js
 import React, { useState, useEffect } from "react";
 import { announcementAPI } from "../services/api";
 import { toast } from "react-toastify";
@@ -24,12 +23,66 @@ import {
   FaEye,
   FaSchool,
   FaUmbrellaBeach,
-  FaSun,
-  FaCloudSun,
 } from "react-icons/fa";
 import moment from "moment";
+import { useLanguage } from "../contexts/LanguageContext";
 
 function AnnouncementManager() {
+  const { t } = useLanguage();
+
+  const ui = {
+    title: t?.announcementManager?.title || "School Announcements",
+    quickAnnouncements:
+      t?.announcementManager?.quickAnnouncements || "Quick Announcements",
+    allAnnouncements:
+      t?.announcementManager?.allAnnouncements || "All Announcements",
+    upcomingEvents: t?.announcementManager?.upcomingEvents || "Upcoming Events",
+    feeDeadlines: t?.announcementManager?.feeDeadlines || "Fee Deadlines",
+    schoolEventsCalendar:
+      t?.announcementManager?.schoolEventsCalendar || "School Events Calendar",
+    monthOverview: t?.announcementManager?.monthOverview || "Month Overview",
+    eventsFor: t?.announcementManager?.eventsFor || "Events for",
+    date: t?.announcementManager?.date || "Date",
+    time: t?.announcementManager?.time || "Time",
+    location: t?.announcementManager?.location || "Location",
+    amount: t?.announcementManager?.amount || "Amount",
+    active: t?.announcementManager?.active || "Active",
+    inactive: t?.announcementManager?.inactive || "Inactive",
+    resumption: t?.announcementManager?.resumption || "Resumption",
+    midtermBreak: t?.announcementManager?.midtermBreak || "Midterm Break",
+    resultRelease: t?.announcementManager?.resultRelease || "Result Release",
+    schoolFees: t?.announcementManager?.schoolFees || "School Fees",
+    custom: t?.announcementManager?.custom || "Custom",
+    failedLoad:
+      t?.announcementManager?.failedLoad || "Failed to load announcements",
+    failedSave:
+      t?.announcementManager?.failedSave ||
+      "Failed to save announcement. Please check all fields.",
+    failedDelete:
+      t?.announcementManager?.failedDelete || "Failed to delete announcement",
+    failedSmsHistory:
+      t?.announcementManager?.failedSmsHistory ||
+      "Failed to load SMS history. Please try again.",
+    smsNoRecords:
+      t?.announcementManager?.smsNoRecords ||
+      "No SMS records found for this announcement",
+    announcementUpdated:
+      t?.announcementManager?.announcementUpdated ||
+      "Announcement updated successfully",
+    announcementCreated:
+      t?.announcementManager?.announcementCreated ||
+      "Announcement created successfully",
+    announcementDeleted:
+      t?.announcementManager?.announcementDeleted ||
+      "Announcement deleted successfully",
+    deleteConfirm:
+      t?.announcementManager?.deleteConfirm ||
+      "Are you sure you want to delete this announcement?",
+    sendSmsConfirm:
+      t?.announcementManager?.sendSmsConfirm ||
+      "Send SMS notification for this announcement to all recipients?",
+  };
+
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -117,45 +170,36 @@ function AnnouncementManager() {
       setAnnouncements(response.data);
     } catch (error) {
       console.error("Error fetching announcements:", error);
-      toast.error("Failed to load announcements");
+      toast.error(ui.failedLoad);
     } finally {
       setLoading(false);
     }
   };
+
   const fetchSmsHistory = async (announcementId) => {
     try {
-      console.log("Fetching SMS history for announcement:", announcementId);
       const response = await announcementAPI.getSmsHistory(announcementId);
-      console.log("SMS history response:", response.data);
 
-      // Check if response.data is an array
       if (Array.isArray(response.data)) {
         if (response.data.length === 0) {
-          toast.info("No SMS records found for this announcement");
+          toast.info(ui.smsNoRecords);
         }
         setSmsHistory(response.data);
       } else {
-        console.error("Expected array but got:", typeof response.data);
         setSmsHistory([]);
       }
 
       setShowSmsHistory(true);
     } catch (error) {
       console.error("Error fetching SMS history:", error);
-      if (error.response) {
-        console.error("Error response:", error.response.data);
-        console.error("Error status:", error.response.status);
-        toast.error(`Failed to load SMS history: ${error.response.status}`);
-      } else {
-        toast.error("Failed to load SMS history. Please try again.");
-      }
+      toast.error(ui.failedSmsHistory);
     }
   };
+
   const generateCalendarEvents = () => {
     const events = [];
 
     announcements.forEach((announcement) => {
-      // Add event date as calendar event
       if (announcement.eventDate) {
         events.push({
           id: `event-${announcement.id}`,
@@ -170,7 +214,6 @@ function AnnouncementManager() {
         });
       }
 
-      // Add start/end dates as date range events
       if (announcement.startDate && announcement.endDate) {
         events.push({
           id: `range-${announcement.id}`,
@@ -185,7 +228,6 @@ function AnnouncementManager() {
         });
       }
 
-      // Add fee due dates
       if (announcement.feeDueDate) {
         events.push({
           id: `fee-${announcement.id}`,
@@ -199,7 +241,6 @@ function AnnouncementManager() {
         });
       }
 
-      // Add result release dates
       if (announcement.resultReleaseDate) {
         events.push({
           id: `result-${announcement.id}`,
@@ -215,7 +256,6 @@ function AnnouncementManager() {
       }
     });
 
-    // Sort events by date
     events.sort((a, b) => {
       const dateA = a.date || a.startDate;
       const dateB = b.date || b.startDate;
@@ -275,10 +315,10 @@ function AnnouncementManager() {
           editingAnnouncement.id,
           formData,
         );
-        toast.success("Announcement updated successfully");
+        toast.success(ui.announcementUpdated);
       } else {
         await announcementAPI.createAnnouncement(formData);
-        toast.success("Announcement created successfully");
+        toast.success(ui.announcementCreated);
       }
 
       setShowForm(false);
@@ -296,7 +336,7 @@ function AnnouncementManager() {
           .join(", ");
         toast.error(errorMessages);
       } else {
-        toast.error("Failed to save announcement. Please check all fields.");
+        toast.error(ui.failedSave);
       }
     } finally {
       setLoading(false);
@@ -328,21 +368,25 @@ function AnnouncementManager() {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this announcement?")) {
+    if (window.confirm(ui.deleteConfirm)) {
       try {
         await announcementAPI.deleteAnnouncement(id);
-        toast.success("Announcement deleted successfully");
+        toast.success(ui.announcementDeleted);
         fetchAnnouncements();
       } catch (error) {
         console.error("Error deleting announcement:", error);
-        toast.error("Failed to delete announcement");
+        toast.error(ui.failedDelete);
       }
     }
   };
+
   const handleSendSms = async (announcement) => {
     if (
       !window.confirm(
-        `Send SMS notification for "${announcement.title}" to all recipients?`,
+        ui.sendSmsConfirm.replace(
+          "this announcement",
+          `"${announcement.title}"`,
+        ),
       )
     ) {
       return;
@@ -351,38 +395,30 @@ function AnnouncementManager() {
     setSendingSms(true);
     try {
       const response = await announcementAPI.sendNotifications(announcement.id);
-      console.log("SMS response:", response.data);
 
-      // Check if we got a summary object
       if (response.data) {
         const successCount = response.data.successCount || 0;
         const failedCount = response.data.failedCount || 0;
         const failedNumbers = response.data.failedNumbers || [];
 
-        // Show success message
         if (successCount > 0) {
           toast.success(`✅ ${successCount} SMS message(s) sent successfully!`);
         }
 
-        // Show failure message if any
         if (failedCount > 0) {
           toast.warning(`⚠️ ${failedCount} message(s) failed to send`);
-
-          // Store results for the modal
           setSmsResults({
-            successCount: successCount,
-            failedCount: failedCount,
-            failedNumbers: failedNumbers,
+            successCount,
+            failedCount,
+            failedNumbers,
             message: response.data.message || "SMS delivery report",
           });
         } else {
-          // All succeeded
           toast.success(
             `✅ All ${successCount} SMS messages sent successfully!`,
           );
         }
 
-        // Refresh announcements after a delay to get updated logs
         setTimeout(() => {
           fetchAnnouncements();
         }, 2000);
@@ -402,7 +438,6 @@ function AnnouncementManager() {
 
       toast.error(`❌ ${errorMessage}`);
 
-      // Set error results
       setSmsResults({
         successCount: 0,
         failedCount: 0,
@@ -413,6 +448,7 @@ function AnnouncementManager() {
       setSendingSms(false);
     }
   };
+
   const handleQuickAnnouncement = (type) => {
     let data = {
       active: true,
@@ -425,7 +461,7 @@ function AnnouncementManager() {
           ...data,
           title: "School Resumption Announcement",
           content:
-            "Dear Parents and Guardians, we are pleased to announce that school will resume for the FIRST term of the 2025/2026 academic session on September 8th, 2025. All students are expected to resume on this date. Boarding students can return on September 7th. We look forward to welcoming all students back for a new term of academic excellence.",
+            "Dear Parents and Guardians, we are pleased to announce that school will resume for the FIRST term of the 2025/2026 academic session on September 8th, 2025.",
           type: "RESUMPTION",
           priority: "HIGH",
           eventDate: "2025-09-08",
@@ -438,7 +474,7 @@ function AnnouncementManager() {
           ...data,
           title: "Midterm Break Schedule",
           content:
-            "This is to inform all parents and students that the midterm break for the FIRST term will run from October 15th to October 22nd, 2025. School will resume on October 23rd. Students are encouraged to use this break to catch up on assignments and rest. Boarding students will depart on October 14th after school.",
+            "This is to inform all parents and students that the midterm break for the FIRST term will run from October 15th to October 22nd, 2025.",
           type: "MIDTERM_BREAK",
           priority: "NORMAL",
           startDate: "2025-10-15",
@@ -450,7 +486,7 @@ function AnnouncementManager() {
           ...data,
           title: "First Term Results Release",
           content:
-            "Dear Parents, the results for the FIRST term of the 2025/2026 session will be released on December 20th, 2025. Results will be available on the school portal. Parents are advised to log in to their accounts to access their wards' results. For any issues accessing results, please contact the class teacher or the IT department.",
+            "Dear Parents, the results for the FIRST term of the 2025/2026 session will be released on December 20th, 2025.",
           type: "RESULT",
           priority: "HIGH",
           audience: ["PARENTS", "STUDENTS"],
@@ -464,7 +500,7 @@ function AnnouncementManager() {
           ...data,
           title: "School Fees Payment Deadline",
           content:
-            "This is a reminder that the deadline for payment of school fees for the FIRST term of the 2025/2026 session is August 30th, 2025. The total fees for the term are ₦45,000. Please make payments via the school portal or bank to avoid penalties. For payment inquiries, contact the accounts department.",
+            "This is a reminder that the deadline for payment of school fees for the FIRST term of the 2025/2026 session is August 30th, 2025.",
           type: "FEE",
           priority: "HIGH",
           audience: ["PARENTS"],
@@ -535,23 +571,21 @@ function AnnouncementManager() {
     return icons[type] || <FaBullhorn />;
   };
 
-  const getStatusBadge = (active) => {
-    return active ? (
-      <span className="badge bg-success">Active</span>
+  const getStatusBadge = (active) =>
+    active ? (
+      <span className="badge bg-success">{ui.active}</span>
     ) : (
-      <span className="badge bg-secondary">Inactive</span>
+      <span className="badge bg-secondary">{ui.inactive}</span>
     );
-  };
 
   const filteredEvents = getEventsForSelectedMonth();
 
   return (
     <div className="announcement-manager container-fluid py-4">
       <h2 className="mb-4">
-        <FaBullhorn className="me-2" /> School Announcements
+        <FaBullhorn className="me-2" /> {ui.title}
       </h2>
 
-      {/* Quick Actions */}
       <div className="row mb-4">
         <div className="col-12">
           <div className="card">
@@ -563,12 +597,11 @@ function AnnouncementManager() {
               }}
             >
               <h5 className="mb-0">
-                <FaPlus className="me-2" /> Quick Announcements
+                <FaPlus className="me-2" /> {ui.quickAnnouncements}
               </h5>
             </div>
             <div className="card-body">
               <div className="d-flex gap-3 flex-wrap justify-content-center">
-                {/* Resumption Button */}
                 <button
                   className="btn btn-lg"
                   onClick={() => handleQuickAnnouncement("resumption")}
@@ -586,24 +619,12 @@ function AnnouncementManager() {
                     fontSize: "16px",
                     fontWeight: "600",
                     minWidth: "200px",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = "translateY(-3px)";
-                    e.target.style.boxShadow =
-                      "0 6px 20px rgba(67, 160, 71, 0.4)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 4px 15px rgba(67, 160, 71, 0.3)";
                   }}
                 >
                   <FaSchool size={24} />
-                  <span>📚 Resumption</span>
+                  <span>📚 {ui.resumption}</span>
                 </button>
 
-                {/* Midterm Break Button */}
                 <button
                   className="btn btn-lg"
                   onClick={() => handleQuickAnnouncement("midterm")}
@@ -621,24 +642,12 @@ function AnnouncementManager() {
                     fontSize: "16px",
                     fontWeight: "600",
                     minWidth: "200px",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = "translateY(-3px)";
-                    e.target.style.boxShadow =
-                      "0 6px 20px rgba(249, 168, 38, 0.4)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 4px 15px rgba(249, 168, 38, 0.3)";
                   }}
                 >
                   <FaUmbrellaBeach size={24} />
-                  <span>🌴 Midterm Break</span>
+                  <span>🌴 {ui.midtermBreak}</span>
                 </button>
 
-                {/* Result Release Button */}
                 <button
                   className="btn btn-lg"
                   onClick={() => handleQuickAnnouncement("result")}
@@ -656,24 +665,12 @@ function AnnouncementManager() {
                     fontSize: "16px",
                     fontWeight: "600",
                     minWidth: "200px",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = "translateY(-3px)";
-                    e.target.style.boxShadow =
-                      "0 6px 20px rgba(67, 97, 238, 0.4)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 4px 15px rgba(67, 97, 238, 0.3)";
                   }}
                 >
                   <FaFileAlt size={22} />
-                  <span>📋 Result Release</span>
+                  <span>📋 {ui.resultRelease}</span>
                 </button>
 
-                {/* School Fees Button */}
                 <button
                   className="btn btn-lg"
                   onClick={() => handleQuickAnnouncement("fee")}
@@ -691,24 +688,12 @@ function AnnouncementManager() {
                     fontSize: "16px",
                     fontWeight: "600",
                     minWidth: "200px",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = "translateY(-3px)";
-                    e.target.style.boxShadow =
-                      "0 6px 20px rgba(229, 77, 66, 0.4)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 4px 15px rgba(229, 77, 66, 0.3)";
                   }}
                 >
                   <FaMoneyBill size={22} />
-                  <span>💰 School Fees</span>
+                  <span>💰 {ui.schoolFees}</span>
                 </button>
 
-                {/* Custom Announcement Button */}
                 <button
                   className="btn btn-lg"
                   onClick={() => {
@@ -729,21 +714,10 @@ function AnnouncementManager() {
                     fontSize: "16px",
                     fontWeight: "600",
                     minWidth: "200px",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = "translateY(-3px)";
-                    e.target.style.boxShadow =
-                      "0 6px 20px rgba(108, 117, 125, 0.4)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow =
-                      "0 4px 15px rgba(108, 117, 125, 0.3)";
                   }}
                 >
                   <FaPlus size={20} />
-                  <span>✨ Custom</span>
+                  <span>✨ {ui.custom}</span>
                 </button>
               </div>
             </div>
@@ -751,7 +725,6 @@ function AnnouncementManager() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="row mb-4">
         <div className="col-md-4">
           <select
@@ -759,9 +732,9 @@ function AnnouncementManager() {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           >
-            <option value="all">All Announcements</option>
-            <option value="upcoming">Upcoming Events</option>
-            <option value="fees">Fee Deadlines</option>
+            <option value="all">{ui.allAnnouncements}</option>
+            <option value="upcoming">{ui.upcomingEvents}</option>
+            <option value="fees">{ui.feeDeadlines}</option>
             {types.map((type) => (
               <option key={type} value={type}>
                 {type}
@@ -771,13 +744,12 @@ function AnnouncementManager() {
         </div>
       </div>
 
-      {/* Calendar View */}
       <div className="row mb-4">
         <div className="col-12">
           <div className="card">
             <div className="card-header bg-info text-white d-flex justify-content-between align-items-center">
               <h5 className="mb-0">
-                <FaCalendarAlt className="me-2" /> School Events Calendar
+                <FaCalendarAlt className="me-2" /> {ui.schoolEventsCalendar}
               </h5>
               <div>
                 <input
@@ -792,10 +764,9 @@ function AnnouncementManager() {
             <div className="card-body">
               {calendarEvents.length > 0 ? (
                 <div className="row">
-                  {/* Calendar Mini View */}
                   <div className="col-md-4 mb-3">
                     <div className="border rounded p-3">
-                      <h6 className="mb-3">Month Overview</h6>
+                      <h6 className="mb-3">{ui.monthOverview}</h6>
                       <div className="d-flex flex-wrap gap-2">
                         {Array.from(
                           { length: moment(selectedMonth).daysInMonth() },
@@ -822,10 +793,9 @@ function AnnouncementManager() {
                     </div>
                   </div>
 
-                  {/* Events List */}
                   <div className="col-md-8">
                     <h6 className="mb-3">
-                      Events for {moment(selectedMonth).format("MMMM YYYY")}
+                      {ui.eventsFor} {moment(selectedMonth).format("MMMM YYYY")}
                     </h6>
                     <div className="list-group">
                       {filteredEvents.length > 0 ? (
@@ -848,7 +818,7 @@ function AnnouncementManager() {
                                   </p>
                                   <div className="d-flex gap-3 mt-2">
                                     <small className="text-muted">
-                                      <strong>Date:</strong>{" "}
+                                      <strong>{ui.date}:</strong>{" "}
                                       {event.date
                                         ? moment(event.date).format(
                                             "DD/MM/YYYY",
@@ -857,18 +827,18 @@ function AnnouncementManager() {
                                     </small>
                                     {event.time && (
                                       <small className="text-muted">
-                                        <strong>Time:</strong> {event.time}
+                                        <strong>{ui.time}:</strong> {event.time}
                                       </small>
                                     )}
                                     {event.location && (
                                       <small className="text-muted">
-                                        <strong>Location:</strong>{" "}
+                                        <strong>{ui.location}:</strong>{" "}
                                         {event.location}
                                       </small>
                                     )}
                                     {event.amount && (
                                       <small className="text-success">
-                                        <strong>Amount:</strong> ₦
+                                        <strong>{ui.amount}:</strong> ₦
                                         {event.amount.toLocaleString()}
                                       </small>
                                     )}
@@ -884,19 +854,15 @@ function AnnouncementManager() {
                           </div>
                         ))
                       ) : (
-                        <div className="alert alert-info">
-                          No events scheduled for{" "}
-                          {moment(selectedMonth).format("MMMM YYYY")}
+                        <div className="text-muted">
+                          No events for this month.
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="alert alert-info">
-                  No calendar events found. Create announcements with dates to
-                  see them here.
-                </div>
+                <div className="text-muted">No calendar events yet.</div>
               )}
             </div>
           </div>

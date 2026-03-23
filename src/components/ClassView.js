@@ -1,11 +1,13 @@
-// src/components/ClassView.js
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { studentAPI } from "../services/api";
 import { FaEye } from "react-icons/fa";
+import { useLanguage } from "../contexts/LanguageContext";
 
 function ClassView() {
   const { className } = useParams();
+  const { t } = useLanguage();
+
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [classStats, setClassStats] = useState({
@@ -17,22 +19,21 @@ function ClassView() {
 
   useEffect(() => {
     fetchClassStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [className]);
 
   const fetchClassStudents = async () => {
     try {
       const response = await studentAPI.getStudentsByClass(className);
-      setStudents(response.data);
+      const data = Array.isArray(response.data) ? response.data : [];
+      setStudents(data);
 
-      // Calculate statistics
-      const male = response.data.filter((s) => s.gender === "MALE").length;
-      const female = response.data.filter((s) => s.gender === "FEMALE").length;
-      const arms = [
-        ...new Set(response.data.map((s) => s.classArm).filter(Boolean)),
-      ];
+      const male = data.filter((s) => s.gender === "MALE").length;
+      const female = data.filter((s) => s.gender === "FEMALE").length;
+      const arms = [...new Set(data.map((s) => s.classArm).filter(Boolean))];
 
       setClassStats({
-        total: response.data.length,
+        total: data.length,
         male,
         female,
         arms,
@@ -44,11 +45,29 @@ function ClassView() {
     }
   };
 
+  const ui = {
+    loading: t?.common?.loading || "Loading...",
+    classLabel: t?.classView?.classLabel || "Class",
+    totalStudents: t?.classView?.totalStudents || "Total Students",
+    male: t?.classView?.male || "Male",
+    female: t?.classView?.female || "Female",
+    classArms: t?.classView?.classArms || "Class Arms",
+    admissionNo: t?.classView?.admissionNo || "Admission No.",
+    fullName: t?.classView?.fullName || "Full Name",
+    arm: t?.classView?.arm || "Arm",
+    gender: t?.classView?.gender || "Gender",
+    parentName: t?.classView?.parentName || "Parent Name",
+    parentPhone: t?.classView?.parentPhone || "Parent Phone",
+    action: t?.classView?.action || "Action",
+    view: t?.classView?.view || "View",
+    notAvailable: t?.classView?.notAvailable || "N/A",
+  };
+
   if (loading) {
     return (
       <div className="spinner-container">
         <div className="spinner-border spinner-border-nigerian" role="status">
-          <span className="visually-hidden">Loading...</span>
+          <span className="visually-hidden">{ui.loading}</span>
         </div>
       </div>
     );
@@ -56,48 +75,48 @@ function ClassView() {
 
   return (
     <div className="class-view">
-      <h2 className="mb-4">Class {className}</h2>
+      <h2 className="mb-4">
+        {ui.classLabel} {className}
+      </h2>
 
-      {/* Class Statistics */}
       <div className="row mb-4">
         <div className="col-md-3">
           <div className="stat-card">
             <h3>{classStats.total}</h3>
-            <p>Total Students</p>
+            <p>{ui.totalStudents}</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="stat-card" style={{ background: "#003366" }}>
             <h3>{classStats.male}</h3>
-            <p>Male</p>
+            <p>{ui.male}</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="stat-card" style={{ background: "#800000" }}>
             <h3>{classStats.female}</h3>
-            <p>Female</p>
+            <p>{ui.female}</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="stat-card" style={{ background: "#008753" }}>
             <h3>{classStats.arms.length}</h3>
-            <p>Class Arms</p>
+            <p>{ui.classArms}</p>
           </div>
         </div>
       </div>
 
-      {/* Students List */}
       <div className="table-container">
         <table className="table table-striped">
           <thead>
             <tr>
-              <th>Admission No.</th>
-              <th>Full Name</th>
-              <th>Arm</th>
-              <th>Gender</th>
-              <th>Parent Name</th>
-              <th>Parent Phone</th>
-              <th>Action</th>
+              <th>{ui.admissionNo}</th>
+              <th>{ui.fullName}</th>
+              <th>{ui.arm}</th>
+              <th>{ui.gender}</th>
+              <th>{ui.parentName}</th>
+              <th>{ui.parentPhone}</th>
+              <th>{ui.action}</th>
             </tr>
           </thead>
           <tbody>
@@ -105,7 +124,7 @@ function ClassView() {
               <tr key={student.id}>
                 <td>{student.admissionNumber}</td>
                 <td>{student.fullName}</td>
-                <td>{student.classArm || "N/A"}</td>
+                <td>{student.classArm || ui.notAvailable}</td>
                 <td>{student.gender}</td>
                 <td>{student.parentName}</td>
                 <td>{student.parentPhone}</td>
@@ -114,7 +133,7 @@ function ClassView() {
                     to={`/students/view/${student.id}`}
                     className="btn btn-sm btn-info"
                   >
-                    <FaEye className="me-1" /> View
+                    <FaEye className="me-1" /> {ui.view}
                   </Link>
                 </td>
               </tr>

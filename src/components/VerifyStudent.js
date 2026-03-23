@@ -1,5 +1,7 @@
 // src/components/VerifyStudent.js
 import React, { useMemo, useState } from "react";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaSearch,
@@ -7,18 +9,19 @@ import {
   FaUserGraduate,
   FaCheckCircle,
   FaTimesCircle,
+  FaSpinner,
 } from "react-icons/fa";
 
-// ✅ Use env var (Create React App uses REACT_APP_*)
-// Create .env in frontend root:
-// REACT_APP_API_BASE_URL=http://localhost:8080
 const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL?.trim() || "http://localhost:8080";
 
 export default function VerifyStudent() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [admissionNumber, setAdmissionNumber] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null); // backend returns {id, admissionNumber, firstName, lastName, className, classArm, status}
+  const [result, setResult] = useState(null);
   const [notFound, setNotFound] = useState(false);
 
   const canSearch = useMemo(
@@ -29,7 +32,10 @@ export default function VerifyStudent() {
   const verify = async (e) => {
     e?.preventDefault();
     if (!canSearch) {
-      toast.info("Enter an admission number (e.g. NIS/2026/0004)");
+      toast.info(
+        t?.verifyStudent?.enterAdmissionNumber ||
+          "Enter an admission number (e.g. NIS/2026/0004)",
+      );
       return;
     }
 
@@ -49,17 +55,19 @@ export default function VerifyStudent() {
 
       if (!res.ok) {
         setNotFound(true);
-        // try to read message if backend returns one
         const text = await res.text().catch(() => "");
         throw new Error(text || "Student not found");
       }
 
       const data = await res.json();
       setResult(data);
-      toast.success("Student verified ✅");
+      toast.success(t?.verifyStudent?.verified || "Student verified ✅");
     } catch (err) {
       setNotFound(true);
-      toast.error("Student not found or could not be verified.");
+      toast.error(
+        t?.verifyStudent?.notFound ||
+          "Student not found or could not be verified.",
+      );
     } finally {
       setLoading(false);
     }
@@ -85,15 +93,16 @@ export default function VerifyStudent() {
         <div className="container">
           <h2 style={{ marginBottom: 10 }}>
             <FaUserGraduate style={{ marginRight: 10 }} />
-            Public Student Verification
+            {t?.verifyStudent?.title || "Public Student Verification"}
           </h2>
           <p style={{ opacity: 0.9, marginBottom: 0 }}>
-            Enter an admission number to verify a student record.
+            {t?.verifyStudent?.subtitle ||
+              "Enter an admission number to verify a student record."}
           </p>
           <div style={{ marginTop: 12 }}>
             <span className="nigeria-flag-badge">
               <FaIdCard style={{ marginRight: 8 }} />
-              Verification Portal
+              {t?.verifyStudent?.verificationPortal || "Verification Portal"}
             </span>
           </div>
         </div>
@@ -110,10 +119,14 @@ export default function VerifyStudent() {
             }}
           >
             <div style={{ flex: 1, minWidth: 240 }}>
-              <label className="form-label">Admission Number</label>
+              <label className="form-label">
+                {t?.verifyStudent?.admissionNumber || "Admission Number"}
+              </label>
               <input
                 className="form-control"
-                placeholder="e.g. NIS/2026/0004"
+                placeholder={
+                  t?.verifyStudent?.admissionPlaceholder || "e.g. NIS/2026/0004"
+                }
                 value={admissionNumber}
                 onChange={(e) => setAdmissionNumber(e.target.value)}
               />
@@ -126,11 +139,14 @@ export default function VerifyStudent() {
               style={{ minWidth: 170 }}
             >
               {loading ? (
-                "Verifying..."
+                <>
+                  <FaSpinner className="spin me-2" />{" "}
+                  {t?.common?.verifying || "Verifying..."}
+                </>
               ) : (
                 <>
-                  <FaSearch style={{ marginRight: 8 }} />
-                  Verify Student
+                  <FaSearch style={{ marginRight: 8 }} />{" "}
+                  {t?.verifyStudent?.verifyButton || "Verify Student"}
                 </>
               )}
             </button>
@@ -142,34 +158,37 @@ export default function VerifyStudent() {
             <div className="card school-card">
               <div className="card-header">
                 <FaCheckCircle style={{ marginRight: 10 }} />
-                Verified
+                {t?.verifyStudent?.verified || "Verified"}
               </div>
               <div className="card-body" style={{ padding: 16 }}>
                 <div style={{ display: "grid", gap: 10 }}>
                   {fullName && (
                     <div>
-                      <strong>Full Name: </strong>
+                      <strong>
+                        {t?.verifyStudent?.fullName || "Full Name"}:{" "}
+                      </strong>
                       {fullName}
                     </div>
                   )}
-
                   {result.admissionNumber && (
                     <div>
-                      <strong>Admission Number: </strong>
+                      <strong>
+                        {t?.verifyStudent?.admissionNumber ||
+                          "Admission Number"}
+                        :{" "}
+                      </strong>
                       {result.admissionNumber}
                     </div>
                   )}
-
                   {classDisplay && (
                     <div>
-                      <strong>Class: </strong>
+                      <strong>{t?.verifyStudent?.class || "Class"}: </strong>
                       {classDisplay}
                     </div>
                   )}
-
                   {result.status && (
                     <div>
-                      <strong>Status: </strong>
+                      <strong>{t?.verifyStudent?.status || "Status"}: </strong>
                       {result.status}
                     </div>
                   )}
@@ -183,21 +202,25 @@ export default function VerifyStudent() {
               <div
                 className="card-header"
                 style={{
-                  background:
-                    "linear-gradient(135deg, var(--school-maroon), #8B4513)",
+                  background: "linear-gradient(135deg, #dc3545, #8B4513)",
                 }}
               >
                 <FaTimesCircle style={{ marginRight: 10 }} />
-                Not Found
+                {t?.verifyStudent?.notFoundTitle || "Not Found"}
               </div>
               <div className="card-body" style={{ padding: 16 }}>
-                We couldn’t verify that admission number. Please check the
-                format and try again.
+                {t?.verifyStudent?.notFoundMessage ||
+                  "We couldn't verify that admission number. Please check the format and try again."}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      <style>{`
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

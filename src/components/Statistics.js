@@ -1,6 +1,8 @@
 // src/components/Statistics.js
 import React, { useState, useEffect } from "react";
 import { studentAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { Pie, Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -12,6 +14,13 @@ import {
   BarElement,
   Title,
 } from "chart.js";
+import {
+  FaSpinner,
+  FaUsers,
+  FaUserGraduate,
+  FaMapMarkerAlt,
+  FaSchool,
+} from "react-icons/fa";
 
 ChartJS.register(
   ArcElement,
@@ -24,6 +33,9 @@ ChartJS.register(
 );
 
 function Statistics() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [studentsByState, setStudentsByState] = useState({});
@@ -38,11 +50,9 @@ function Statistics() {
       const response = await studentAPI.getStatistics();
       setStatistics(response.data);
 
-      // Fetch all students to calculate additional statistics
       const allStudentsResponse = await studentAPI.getAllStudents();
       const students = allStudentsResponse.data;
 
-      // Calculate students by state
       const stateMap = {};
       students.forEach((student) => {
         if (student.stateOfOrigin) {
@@ -52,7 +62,6 @@ function Statistics() {
       });
       setStudentsByState(stateMap);
 
-      // Calculate students by status
       const statusMap = {};
       students.forEach((student) => {
         if (student.status) {
@@ -69,22 +78,20 @@ function Statistics() {
 
   if (loading) {
     return (
-      <div className="spinner-container">
-        <div className="spinner-border spinner-border-nigerian" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+      <div className="spinner-container text-center py-5">
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{t?.common?.loading || "Loading statistics..."}</p>
       </div>
     );
   }
 
-  // Class distribution chart data
   const classDistributionData = {
     labels: statistics?.studentsByClass
       ? Object.keys(statistics.studentsByClass)
       : [],
     datasets: [
       {
-        label: "Number of Students",
+        label: t?.statistics?.numberOfStudents || "Number of Students",
         data: statistics?.studentsByClass
           ? Object.values(statistics.studentsByClass)
           : [],
@@ -95,12 +102,11 @@ function Statistics() {
     ],
   };
 
-  // State distribution chart data
   const stateDistributionData = {
     labels: Object.keys(studentsByState),
     datasets: [
       {
-        label: "Students by State",
+        label: t?.statistics?.studentsByState || "Students by State",
         data: Object.values(studentsByState),
         backgroundColor: [
           "#008753",
@@ -118,18 +124,17 @@ function Statistics() {
     ],
   };
 
-  // Status distribution chart data
   const statusDistributionData = {
     labels: Object.keys(studentsByStatus),
     datasets: [
       {
         data: Object.values(studentsByStatus),
         backgroundColor: [
-          "#28a745", // Active - green
-          "#17a2b8", // Graduated - teal
-          "#ffc107", // Transferred - yellow
-          "#fd7e14", // Suspended - orange
-          "#dc3545", // Withdrawn - red
+          "#28a745",
+          "#17a2b8",
+          "#ffc107",
+          "#fd7e14",
+          "#dc3545",
         ],
       },
     ],
@@ -138,47 +143,40 @@ function Statistics() {
   const chartOptions = {
     responsive: true,
     plugins: {
-      legend: {
-        position: "top",
-      },
+      legend: { position: "top" },
       title: {
         display: true,
-        text: "Class Distribution",
+        text: t?.statistics?.classDistribution || "Class Distribution",
       },
     },
   };
 
   const pieOptions = {
     responsive: true,
-    plugins: {
-      legend: {
-        position: "right",
-      },
-    },
+    plugins: { legend: { position: "right" } },
   };
 
   return (
-    <div className="statistics">
-      <h2 className="mb-4">School Statistics</h2>
+    <div className="statistics container py-4">
+      <h2 className="mb-4">{t?.statistics?.title || "School Statistics"}</h2>
 
-      {/* Summary Cards */}
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
           <div className="stat-card">
             <h3>{statistics?.totalStudents || 0}</h3>
-            <p>Total Students</p>
+            <p>{t?.statistics?.totalStudents || "Total Students"}</p>
           </div>
         </div>
         <div className="col-md-3 mb-3">
           <div className="stat-card" style={{ background: "#003366" }}>
             <h3>{statistics?.activeStudents || 0}</h3>
-            <p>Active Students</p>
+            <p>{t?.statistics?.activeStudents || "Active Students"}</p>
           </div>
         </div>
         <div className="col-md-3 mb-3">
           <div className="stat-card" style={{ background: "#800000" }}>
             <h3>{Object.keys(studentsByState).length}</h3>
-            <p>States Represented</p>
+            <p>{t?.statistics?.statesRepresented || "States Represented"}</p>
           </div>
         </div>
         <div className="col-md-3 mb-3">
@@ -188,36 +186,39 @@ function Statistics() {
                 ? Object.keys(statistics.studentsByClass).length
                 : 0}
             </h3>
-            <p>Classes</p>
+            <p>{t?.statistics?.classes || "Classes"}</p>
           </div>
         </div>
       </div>
 
-      {/* Charts */}
       <div className="row">
         <div className="col-md-6 mb-4">
           <div className="school-card p-3">
             <Bar data={classDistributionData} options={chartOptions} />
           </div>
         </div>
-
         <div className="col-md-6 mb-4">
           <div className="school-card p-3">
             <Pie data={stateDistributionData} options={pieOptions} />
-            <h5 className="text-center mt-3">Students by State of Origin</h5>
+            <h5 className="text-center mt-3">
+              {t?.statistics?.studentsByStateTitle ||
+                "Students by State of Origin"}
+            </h5>
           </div>
         </div>
-
         <div className="col-md-6 mb-4">
           <div className="school-card p-3">
             <Pie data={statusDistributionData} options={pieOptions} />
-            <h5 className="text-center mt-3">Students by Status</h5>
+            <h5 className="text-center mt-3">
+              {t?.statistics?.studentsByStatusTitle || "Students by Status"}
+            </h5>
           </div>
         </div>
-
         <div className="col-md-6 mb-4">
           <div className="school-card p-3">
-            <h5 className="mb-3">Recent Admissions</h5>
+            <h5 className="mb-3">
+              {t?.statistics?.recentAdmissions || "Recent Admissions"}
+            </h5>
             <div className="list-group">
               {statistics?.recentAdmissions?.map((student) => (
                 <div key={student.id} className="list-group-item">
@@ -240,18 +241,22 @@ function Statistics() {
         </div>
       </div>
 
-      {/* State Distribution Table */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-3">
-            <h5 className="mb-3">Student Distribution by State</h5>
+            <h5 className="mb-3">
+              {t?.statistics?.stateDistribution ||
+                "Student Distribution by State"}
+            </h5>
             <div className="table-responsive">
               <table className="table table-striped">
                 <thead>
                   <tr>
-                    <th>State</th>
-                    <th>Number of Students</th>
-                    <th>Percentage</th>
+                    <th>{t?.statistics?.state || "State"}</th>
+                    <th>
+                      {t?.statistics?.numberOfStudents || "Number of Students"}
+                    </th>
+                    <th>{t?.statistics?.percentage || "Percentage"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -275,6 +280,8 @@ function Statistics() {
           </div>
         </div>
       </div>
+
+      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

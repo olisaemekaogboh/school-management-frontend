@@ -1,10 +1,18 @@
 /* src/components/FeeManagement.css */
 
-/* ===== FEE MANAGEMENT ONLY ===== */
+/* ===== FEE MANAGEMENT - Uses same theme variables as Settings ===== */
 .fee-management {
-  --fee-primary: #4f46e5;
-  --fee-primary-dark: #4338ca;
-  --fee-primary-light: #818cf8;
+  --fee-bg: var(--app-bg, #f3f6fb);
+  --fee-card: var(--app-card, #ffffff);
+  --fee-card-2: var(--app-surface-2, #f8fbff);
+  --fee-text: var(--app-text, #1f2937);
+  --fee-text-soft: var(--app-text-soft, #6b7280);
+  --fee-border: var(--app-border, #e5e7eb);
+  --fee-accent: var(--app-accent, #2563eb);
+  --fee-accent-soft: var(--app-accent-soft, rgba(37, 99, 235, 0.08));
+  --fee-shadow: var(--app-shadow, 0 10px 30px rgba(15, 23, 42, 0.08));
+  --fee-input-bg: var(--app-input-bg, #ffffff);
+  --fee-hover: var(--app-hover, #f3f7ff);
   --fee-success: #10b981;
   --fee-success-dark: #059669;
   --fee-warning: #f59e0b;
@@ -12,28 +20,22 @@
   --fee-danger: #ef4444;
   --fee-danger-dark: #dc2626;
   --fee-info: #3b82f6;
-  --fee-dark: #1f2937;
-  --fee-gray: #6b7280;
-  --fee-light: #f3f4f6;
-  --fee-white: #ffffff;
-  --fee-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --fee-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  --fee-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-  --fee-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-  --fee-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
   --fee-radius-sm: 0.375rem;
   --fee-radius-md: 0.5rem;
   --fee-radius-lg: 0.75rem;
   --fee-radius-xl: 1rem;
   --fee-radius-2xl: 1.5rem;
+  --fee-transition: all 0.3s ease;
 
   position: relative;
   min-height: 100%;
   padding: 2rem;
   overflow-x: hidden;
+  background: var(--fee-bg);
+  color: var(--fee-text);
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
-.fee-management,
 .fee-management * {
   box-sizing: border-box;
 }
@@ -46,6 +48,7 @@
   margin: 0 auto;
 }
 
+/* Animated Background */
 .fee-management .animated-bg {
   position: absolute;
   inset: 0;
@@ -58,8 +61,12 @@
   position: absolute;
   border-radius: 50%;
   filter: blur(80px);
-  opacity: 0.22;
+  opacity: 0.15;
   animation: fee-float 20s infinite ease-in-out;
+}
+
+html[data-theme="dark"] .fee-management .gradient-orb {
+  opacity: 0.08;
 }
 
 .fee-management .orb-1 {
@@ -97,18 +104,28 @@
   75% { transform: translate(-50px, 50px) scale(0.9); }
 }
 
+/* Glass Effect - uses theme variables */
 .fee-management .glass-effect {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: var(--fee-shadow-lg);
+  box-shadow: var(--fee-shadow);
 }
 
+html[data-theme="dark"] .fee-management .glass-effect {
+  background: rgba(17, 24, 39, 0.92);
+  border: 1px solid rgba(55, 65, 81, 0.5);
+}
+
+/* Header Section */
 .fee-management .header-section {
   border-radius: var(--fee-radius-2xl);
   padding: 2rem;
   margin-bottom: 2rem;
+  background: var(--fee-card);
+  border: 1px solid var(--fee-border);
+  box-shadow: var(--fee-shadow);
   animation: fee-slideDown 0.5s ease-out;
 }
 
@@ -129,14 +146,16 @@
   align-items: center;
   margin-bottom: 2rem;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .fee-management .header-title h1 {
   font-size: 2rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--fee-primary) 0%, var(--fee-primary-dark) 100%);
+  background: linear-gradient(135deg, var(--fee-accent) 0%, var(--fee-accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
@@ -145,14 +164,16 @@
 
 .fee-management .title-icon {
   font-size: 2rem;
+  color: var(--fee-accent);
 }
 
 .fee-management .header-subtitle {
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
   font-size: 0.875rem;
   margin-bottom: 0.25rem;
 }
 
+/* Buttons */
 .fee-management .btn-refresh,
 .fee-management .btn-primary,
 .fee-management .btn-warning,
@@ -163,26 +184,74 @@
   border: none;
   border-radius: var(--fee-radius-lg);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--fee-transition);
   font-weight: 500;
-}
-
-.fee-management .btn-refresh {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: var(--fee-white);
-  border: 1px solid var(--fee-light);
-  color: var(--fee-dark);
+}
+
+.fee-management .btn-refresh {
+  background: var(--fee-card);
+  border: 1px solid var(--fee-border);
+  color: var(--fee-text);
 }
 
 .fee-management .btn-refresh:hover {
   transform: translateY(-2px);
-  box-shadow: var(--fee-shadow-lg);
-  border-color: var(--fee-primary);
+  box-shadow: var(--fee-shadow);
+  border-color: var(--fee-accent);
 }
 
+.fee-management .btn-primary {
+  background: linear-gradient(135deg, var(--fee-accent) 0%, var(--fee-accent) 100%);
+  color: white;
+}
+
+.fee-management .btn-warning {
+  background: linear-gradient(135deg, var(--fee-warning) 0%, var(--fee-warning-dark) 100%);
+  color: white;
+}
+
+.fee-management .btn-success {
+  background: linear-gradient(135deg, var(--fee-success) 0%, var(--fee-success-dark) 100%);
+  color: white;
+}
+
+.fee-management .btn-excel {
+  background: linear-gradient(135deg, #1e7e34 0%, #145c23 100%);
+  color: white;
+}
+
+.fee-management .btn-pdf {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+}
+
+.fee-management .btn-secondary {
+  background: var(--fee-hover);
+  color: var(--fee-text);
+  border: 1px solid var(--fee-border);
+}
+
+.fee-management .btn-primary:hover:not(:disabled),
+.fee-management .btn-warning:hover,
+.fee-management .btn-success:hover,
+.fee-management .btn-excel:hover,
+.fee-management .btn-pdf:hover,
+.fee-management .btn-secondary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--fee-shadow);
+}
+
+.fee-management .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Stats Grid */
 .fee-management .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -195,14 +264,17 @@
   gap: 1rem;
   padding: 1.5rem;
   border-radius: var(--fee-radius-xl);
-  transition: all 0.3s ease;
+  transition: var(--fee-transition);
   cursor: pointer;
+  background: linear-gradient(135deg, var(--fee-card) 0%, var(--fee-card-2) 100%);
+  border: 1px solid var(--fee-border);
 }
 
 .fee-management .stat-card:hover,
 .fee-management .stat-card.hovered {
   transform: translateY(-5px) scale(1.02);
-  box-shadow: var(--fee-shadow-2xl);
+  box-shadow: var(--fee-shadow);
+  border-color: var(--fee-accent);
 }
 
 .fee-management .stat-icon {
@@ -214,6 +286,7 @@
   justify-content: center;
   font-size: 1.75rem;
   color: white;
+  flex-shrink: 0;
 }
 
 .fee-management .stat-icon.collected {
@@ -239,7 +312,7 @@
 .fee-management .stat-label {
   display: block;
   font-size: 0.875rem;
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
   margin-bottom: 0.25rem;
 }
 
@@ -247,7 +320,7 @@
   display: block;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--fee-dark);
+  color: var(--fee-text);
   margin-bottom: 0.25rem;
 }
 
@@ -256,13 +329,13 @@
   align-items: center;
   gap: 0.25rem;
   font-size: 0.75rem;
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
 }
 
 .fee-management .progress-bar {
   width: 100%;
   height: 6px;
-  background: var(--fee-light);
+  background: var(--fee-border);
   border-radius: var(--fee-radius-sm);
   overflow: hidden;
   margin-top: 0.5rem;
@@ -270,23 +343,31 @@
 
 .fee-management .progress-bar div {
   height: 100%;
-  background: linear-gradient(90deg, var(--fee-primary) 0%, var(--fee-primary-light) 100%);
+  background: linear-gradient(90deg, var(--fee-accent) 0%, var(--fee-accent) 100%);
+  transition: width 0.3s ease;
 }
 
+/* Mobile Filter Toggle */
 .fee-management .mobile-filter-toggle {
   display: none;
   width: 100%;
   padding: 1rem;
   border-radius: var(--fee-radius-lg);
-  background: var(--fee-white);
-  color: var(--fee-dark);
+  background: var(--fee-card);
+  color: var(--fee-text);
   margin-bottom: 1rem;
+  border: 1px solid var(--fee-border);
+  cursor: pointer;
 }
 
+/* Filters Section */
 .fee-management .filters-section {
   border-radius: var(--fee-radius-xl);
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  background: var(--fee-card);
+  border: 1px solid var(--fee-border);
+  transition: var(--fee-transition);
 }
 
 .fee-management .filters-grid {
@@ -308,7 +389,7 @@
   gap: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--fee-dark);
+  color: var(--fee-text);
 }
 
 .fee-management .filter-group select,
@@ -318,80 +399,22 @@
 .fee-management .form-group textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid var(--fee-light);
+  border: 1px solid var(--fee-border);
   border-radius: var(--fee-radius-lg);
-  background: var(--fee-white);
+  background: var(--fee-input-bg);
+  color: var(--fee-text);
   font-size: 0.875rem;
+  transition: var(--fee-transition);
 }
 
 .fee-management .filter-group select:focus,
 .fee-management .filter-group input:focus,
 .fee-management .form-group input:focus,
 .fee-management .form-group select:focus,
-.fee-management .form-group textarea:focus,
-.fee-management .search-box.large:focus-within {
+.fee-management .form-group textarea:focus {
   outline: none;
-  border-color: var(--fee-primary);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-}
-
-.fee-management .btn-primary {
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, var(--fee-primary) 0%, var(--fee-primary-dark) 100%);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.fee-management .btn-primary:hover:not(:disabled),
-.fee-management .btn-warning:hover,
-.fee-management .btn-success:hover,
-.fee-management .btn-excel:hover,
-.fee-management .btn-pdf:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--fee-shadow-lg);
-}
-
-.fee-management .btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.fee-management .btn-warning {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: white;
-  padding: 0.75rem 1rem;
-}
-
-.fee-management .btn-success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  padding: 0.75rem 1rem;
-}
-
-.fee-management .btn-excel {
-  background: linear-gradient(135deg, #1e7e34 0%, #145c23 100%);
-  color: white;
-  padding: 0.75rem 1rem;
-}
-
-.fee-management .btn-pdf {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  color: white;
-  padding: 0.75rem 1rem;
-}
-
-.fee-management .btn-secondary {
-  padding: 0.75rem 1.5rem;
-  background: var(--fee-light);
-  color: var(--fee-dark);
-}
-
-.fee-management .btn-secondary:hover {
-  background: var(--fee-gray);
-  color: white;
+  border-color: var(--fee-accent);
+  box-shadow: 0 0 0 3px var(--fee-accent-soft);
 }
 
 .fee-management .quick-actions {
@@ -404,6 +427,7 @@
 .fee-management .quick-actions button {
   flex: 1;
   min-width: 120px;
+  justify-content: center;
 }
 
 .fee-management .search-filter {
@@ -420,9 +444,10 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem;
-  background: var(--fee-white);
-  border: 1px solid var(--fee-light);
+  background: var(--fee-input-bg);
+  border: 1px solid var(--fee-border);
   border-radius: var(--fee-radius-lg);
+  transition: var(--fee-transition);
 }
 
 .fee-management .search-box input {
@@ -430,22 +455,31 @@
   border: none;
   outline: none;
   background: transparent;
+  color: var(--fee-text);
+}
+
+.fee-management .search-box input::placeholder {
+  color: var(--fee-text-soft);
 }
 
 .fee-management .search-filter select {
   padding: 0.75rem;
-  border: 1px solid var(--fee-light);
+  border: 1px solid var(--fee-border);
   border-radius: var(--fee-radius-lg);
-  background: var(--fee-white);
+  background: var(--fee-input-bg);
+  color: var(--fee-text);
   min-width: 150px;
 }
 
+/* Tab Navigation */
 .fee-management .tab-navigation {
   display: flex;
   gap: 0.5rem;
   padding: 0.5rem;
   border-radius: var(--fee-radius-xl);
   margin-bottom: 1.5rem;
+  background: var(--fee-card);
+  border: 1px solid var(--fee-border);
 }
 
 .fee-management .tab-btn {
@@ -454,27 +488,42 @@
   border: none;
   border-radius: var(--fee-radius-lg);
   background: transparent;
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--fee-transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .fee-management .tab-btn.active {
-  background: linear-gradient(135deg, var(--fee-primary) 0%, var(--fee-primary-dark) 100%);
-  color: white;
-  box-shadow: var(--fee-shadow-md);
+  background: var(--fee-accent-soft);
+  color: var(--fee-accent);
+  font-weight: 600;
 }
 
+.fee-management .tab-btn .badge {
+  background: var(--fee-accent-soft);
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  color: var(--fee-accent);
+}
+
+/* Student Info Card */
 .fee-management .student-info-card {
   display: flex;
   align-items: center;
   gap: 2rem;
   padding: 1.5rem;
-  background: linear-gradient(135deg, var(--fee-primary) 0%, var(--fee-primary-dark) 100%);
+  background: linear-gradient(135deg, var(--fee-accent) 0%, var(--fee-accent) 100%);
   border-radius: var(--fee-radius-xl);
   color: white;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .fee-management .student-avatar {
@@ -486,6 +535,7 @@
   align-items: center;
   justify-content: center;
   font-size: 2.5rem;
+  flex-shrink: 0;
 }
 
 .fee-management .student-details {
@@ -499,11 +549,15 @@
 
 .fee-management .student-details p {
   margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .fee-management .student-stats {
   display: flex;
   gap: 2rem;
+  flex-wrap: wrap;
 }
 
 .fee-management .student-stats div {
@@ -516,10 +570,12 @@
   opacity: 0.9;
 }
 
+/* Tables */
 .fee-management .table-responsive {
   overflow-x: auto;
   border-radius: var(--fee-radius-lg);
-  background: var(--fee-white);
+  background: var(--fee-card);
+  border: 1px solid var(--fee-border);
 }
 
 .fee-management .fee-table,
@@ -537,10 +593,11 @@
 .fee-management .selection-table th {
   padding: 1rem;
   text-align: left;
-  background: var(--fee-light);
-  color: var(--fee-dark);
+  background: var(--fee-hover);
+  color: var(--fee-text);
   font-weight: 600;
   font-size: 0.875rem;
+  border-bottom: 2px solid var(--fee-border);
 }
 
 .fee-management .fee-table td,
@@ -548,14 +605,15 @@
 .fee-management .defaulter-table td,
 .fee-management .selection-table td {
   padding: 1rem;
-  border-bottom: 1px solid var(--fee-light);
+  border-bottom: 1px solid var(--fee-border);
+  color: var(--fee-text);
 }
 
 .fee-management .fee-table tbody tr:hover,
 .fee-management .all-students-table tbody tr:hover,
 .fee-management .defaulter-table tbody tr:hover,
 .fee-management .selection-table tbody tr:hover {
-  background: rgba(79, 70, 229, 0.05);
+  background: var(--fee-hover);
 }
 
 .fee-management .text-right {
@@ -579,9 +637,10 @@
 }
 
 .fee-management .text-secondary {
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
 }
 
+/* Status Badges */
 .fee-management .status-badge {
   display: inline-flex;
   align-items: center;
@@ -614,9 +673,10 @@
 .fee-management .badge-waived,
 .fee-management .status-secondary {
   background: rgba(107, 114, 128, 0.1);
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
 }
 
+/* Action Buttons */
 .fee-management .action-buttons {
   display: flex;
   gap: 0.375rem;
@@ -634,7 +694,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--fee-transition);
   color: white;
   text-decoration: none;
 }
@@ -642,17 +702,28 @@
 .fee-management .btn-pay { background: var(--fee-success); }
 .fee-management .btn-view { background: var(--fee-info); }
 .fee-management .btn-remind { background: var(--fee-warning); }
-.fee-management .btn-call { background: var(--fee-primary); }
+.fee-management .btn-call { background: var(--fee-accent); }
+
+.fee-management .btn-pay:hover,
+.fee-management .btn-view:hover,
+.fee-management .btn-remind:hover,
+.fee-management .btn-call:hover {
+  transform: scale(1.1);
+}
 
 .fee-management .btn-expand {
   background: none;
   border: none;
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
   cursor: pointer;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .fee-management .expanded-row td {
-  background: rgba(243, 244, 246, 0.5);
+  background: var(--fee-hover);
   padding: 0 !important;
 }
 
@@ -669,16 +740,17 @@
 .fee-management .detail-grid h4 {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--fee-dark);
+  color: var(--fee-text);
   margin-bottom: 0.75rem;
 }
 
 .fee-management .detail-grid p {
   margin-bottom: 0.5rem;
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
   font-size: 0.875rem;
 }
 
+/* Pagination */
 .fee-management .pagination {
   display: flex;
   justify-content: center;
@@ -689,10 +761,18 @@
 
 .fee-management .pagination button {
   padding: 0.5rem 1rem;
-  border: 1px solid var(--fee-light);
-  background: var(--fee-white);
+  border: 1px solid var(--fee-border);
+  background: var(--fee-card);
+  color: var(--fee-text);
   border-radius: var(--fee-radius-md);
   cursor: pointer;
+  transition: var(--fee-transition);
+}
+
+.fee-management .pagination button:hover:not(:disabled) {
+  background: var(--fee-accent);
+  color: white;
+  border-color: var(--fee-accent);
 }
 
 .fee-management .pagination button:disabled {
@@ -700,18 +780,17 @@
   cursor: not-allowed;
 }
 
+/* Empty States */
 .fee-management .empty-state,
 .fee-management .select-student-prompt,
 .fee-management .loading-spinner {
   text-align: center;
   padding: 3rem;
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
 }
 
 .fee-management .spin {
   animation: fee-spin 1s linear infinite;
-  font-size: 2rem;
-  color: var(--fee-primary);
 }
 
 @keyframes fee-spin {
@@ -719,6 +798,7 @@
   to { transform: rotate(360deg); }
 }
 
+/* Modals */
 .fee-management .modal-overlay {
   position: fixed;
   inset: 0;
@@ -737,6 +817,20 @@
   max-height: 90vh;
   overflow-y: auto;
   border-radius: var(--fee-radius-xl);
+  background: var(--fee-card);
+  border: 1px solid var(--fee-border);
+  animation: fee-slideUp 0.3s ease-out;
+}
+
+@keyframes fee-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .fee-management .modal-content.large {
@@ -745,11 +839,11 @@
 
 .fee-management .modal-header {
   padding: 1.5rem;
-  border-bottom: 1px solid var(--fee-light);
+  border-bottom: 1px solid var(--fee-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, var(--fee-primary) 0%, var(--fee-primary-dark) 100%);
+  background: linear-gradient(135deg, var(--fee-accent) 0%, var(--fee-accent) 100%);
   color: white;
   border-radius: var(--fee-radius-xl) var(--fee-radius-xl) 0 0;
 }
@@ -763,11 +857,21 @@
   border: none;
   color: white;
   cursor: pointer;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.fee-management .modal-close:hover {
+  transform: scale(1.1);
 }
 
 .fee-management .modal-body {
   padding: 1.5rem;
-  background: var(--fee-white);
+  background: var(--fee-card);
+  color: var(--fee-text);
 }
 
 .fee-management .modal-footer {
@@ -775,14 +879,36 @@
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
+  border-top: 1px solid var(--fee-border);
+  margin-top: 1rem;
+}
+
+.fee-management .form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.fee-management .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fee-management .form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fee-text);
 }
 
 .fee-management .payment-summary,
 .fee-management .bulk-payment-summary {
-  background: var(--fee-light);
+  background: var(--fee-hover);
   padding: 1rem;
   border-radius: var(--fee-radius-lg);
   margin-bottom: 1.5rem;
+  border: 1px solid var(--fee-border);
 }
 
 .fee-management .summary-stats {
@@ -796,6 +922,17 @@
   flex-direction: column;
 }
 
+.fee-management .summary-stats span:first-child {
+  font-size: 0.75rem;
+  color: var(--fee-text-soft);
+}
+
+.fee-management .summary-stats strong {
+  font-size: 1.25rem;
+  color: var(--fee-text);
+}
+
+/* Quick Stats Grid */
 .fee-management .quick-stats-grid,
 .fee-management .defaulter-summary {
   display: grid;
@@ -810,9 +947,17 @@
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: var(--fee-white);
-  border-radius: var(--fee-lg);
-  box-shadow: var(--fee-shadow-sm);
+  background: var(--fee-card);
+  border-radius: var(--fee-radius-lg);
+  border: 1px solid var(--fee-border);
+  transition: var(--fee-transition);
+}
+
+.fee-management .quick-stat-card:hover,
+.fee-management .summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--fee-shadow);
+  border-color: var(--fee-accent);
 }
 
 .fee-management .quick-stat-card .stat-icon,
@@ -825,11 +970,12 @@
   justify-content: center;
   color: white;
   font-size: 1.25rem;
+  flex-shrink: 0;
 }
 
 .fee-management .quick-stat-card.total .stat-icon,
 .fee-management .summary-card.total .summary-icon {
-  background: linear-gradient(135deg, var(--fee-primary) 0%, var(--fee-primary-dark) 100%);
+  background: linear-gradient(135deg, var(--fee-accent) 0%, var(--fee-accent) 100%);
 }
 
 .fee-management .quick-stat-card.paid .stat-icon {
@@ -858,11 +1004,13 @@
   flex-wrap: wrap;
   gap: 1.5rem;
   padding: 1rem;
-  background: var(--fee-white);
+  background: var(--fee-card);
   border-radius: var(--fee-radius-lg);
   margin-bottom: 1rem;
+  border: 1px solid var(--fee-border);
 }
 
+/* Student Search */
 .fee-management .all-students-search {
   margin-bottom: 1.5rem;
   display: flex;
@@ -875,12 +1023,18 @@
   flex: 1;
   min-width: 300px;
   padding: 0.75rem 1rem;
-  background: var(--fee-white);
-  border: 2px solid var(--fee-light);
+  background: var(--fee-input-bg);
+  border: 2px solid var(--fee-border);
   border-radius: var(--fee-radius-xl);
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  transition: var(--fee-transition);
+}
+
+.fee-management .search-box.large:focus-within {
+  border-color: var(--fee-accent);
+  box-shadow: 0 0 0 3px var(--fee-accent-soft);
 }
 
 .fee-management .student-search-input {
@@ -888,31 +1042,46 @@
   border: none;
   outline: none;
   background: transparent;
+  color: var(--fee-text);
 }
 
 .fee-management .clear-search {
   background: none;
   border: none;
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  transition: var(--fee-transition);
+}
+
+.fee-management .clear-search:hover {
+  color: var(--fee-danger);
 }
 
 .fee-management .search-results-count {
   font-size: 0.875rem;
-  color: var(--fee-gray);
-  background: var(--fee-white);
+  color: var(--fee-text-soft);
+  background: var(--fee-card);
   padding: 0.5rem 1rem;
   border-radius: var(--fee-radius-lg);
   white-space: nowrap;
+  border: 1px solid var(--fee-border);
 }
 
+/* Utility Classes */
 .fee-management .phone-link {
   color: inherit;
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .fee-management .student-name-cell small {
-  color: var(--fee-gray);
+  color: var(--fee-text-soft);
   font-size: 0.75rem;
 }
 
@@ -941,6 +1110,7 @@
   color: var(--fee-warning);
 }
 
+/* Responsive Design */
 @media (max-width: 1024px) {
   .fee-management {
     padding: 1rem;
@@ -958,7 +1128,14 @@
   .fee-management .all-students-search {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .fee-management .student-info-card {
     text-align: center;
+  }
+
+  .fee-management .student-stats {
+    justify-content: center;
   }
 
   .fee-management .stats-grid,
@@ -988,9 +1165,16 @@
     flex-direction: column;
   }
 
-  .fee-management .student-stats {
-    justify-content: center;
-    flex-wrap: wrap;
+  .fee-management .quick-actions button {
+    min-width: 100%;
+  }
+
+  .fee-management .search-filter select {
+    width: 100%;
+  }
+
+  .fee-management .student-stats div {
+    text-align: center;
   }
 }
 
@@ -1003,11 +1187,81 @@
     padding: 1rem;
   }
 
-  .fee-management .quick-actions button {
-    min-width: 100%;
+  .fee-management .student-avatar {
+    width: 60px;
+    height: 60px;
+    font-size: 1.75rem;
+  }
+
+  .fee-management .student-details h3 {
+    font-size: 1.25rem;
+  }
+
+  .fee-management .stat-card {
+    padding: 1rem;
+  }
+
+  .fee-management .stat-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 1.25rem;
+  }
+
+  .fee-management .stat-value {
+    font-size: 1.25rem;
   }
 
   .fee-management .modal-content {
     margin: 0.5rem;
+  }
+
+  .fee-management .modal-header h3 {
+    font-size: 1rem;
+  }
+
+  .fee-management .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .fee-management .no-print {
+    display: none !important;
+  }
+
+  .fee-management .glass-effect,
+  .fee-management .header-section,
+  .fee-management .filters-section,
+  .fee-management .tab-navigation {
+    background: white !important;
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+  }
+
+  .fee-management .animated-bg,
+  .fee-management .gradient-orb {
+    display: none !important;
+  }
+
+  .fee-management {
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .fee-management .fee-table,
+  .fee-management .all-students-table {
+    break-inside: avoid;
+  }
+
+  .fee-management .fee-table th,
+  .fee-management .all-students-table th {
+    background: #f5f5f5 !important;
+    color: black !important;
+  }
+
+  .fee-management .fee-table td,
+  .fee-management .all-students-table td {
+    color: black !important;
   }
 }

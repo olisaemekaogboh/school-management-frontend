@@ -1,6 +1,9 @@
 // src/components/SessionManagement.js
 import React, { useEffect, useMemo, useState } from "react";
 import { sessionAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "react-toastify";
 import {
   FaPlus,
@@ -13,9 +16,12 @@ import {
   FaEdit,
   FaEye,
 } from "react-icons/fa";
-import { useAuth } from "../contexts/AuthContext";
 
 function SessionManagement() {
+  const { user, isAuthenticated } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [sessions, setSessions] = useState([]);
   const [activeSession, setActiveSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +29,6 @@ function SessionManagement() {
   const [activatingId, setActivatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [editingSessionId, setEditingSessionId] = useState(null);
-  const { user, isAuthenticated } = useAuth();
 
   const [formData, setFormData] = useState({
     session: "",
@@ -34,9 +39,12 @@ function SessionManagement() {
   });
 
   const terms = [
-    { value: "FIRST", label: "First Term" },
-    { value: "SECOND", label: "Second Term" },
-    { value: "THIRD", label: "Third Term" },
+    { value: "FIRST", label: t?.sessionManagement?.firstTerm || "First Term" },
+    {
+      value: "SECOND",
+      label: t?.sessionManagement?.secondTerm || "Second Term",
+    },
+    { value: "THIRD", label: t?.sessionManagement?.thirdTerm || "Third Term" },
   ];
 
   useEffect(() => {
@@ -54,7 +62,6 @@ function SessionManagement() {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      // Load active session (public endpoint)
       let activeData = null;
       try {
         const activeRes = await sessionAPI.getActiveSession();
@@ -65,7 +72,6 @@ function SessionManagement() {
       }
       setActiveSession(activeData);
 
-      // Load all sessions - only if user is admin
       if (isAuthenticated && user?.role === "ADMIN") {
         try {
           const sessionsRes = await sessionAPI.getAllSessions();
@@ -73,17 +79,20 @@ function SessionManagement() {
         } catch (error) {
           console.error("Error loading all sessions:", error);
           if (error.response?.status !== 403) {
-            toast.error("Failed to load sessions");
+            toast.error(
+              t?.sessionManagement?.loadFailed || "Failed to load sessions",
+            );
           }
           setSessions([]);
         }
       } else {
-        // Non-admin users can only see the active session
         setSessions(activeData ? [activeData] : []);
       }
     } catch (error) {
       console.error("Error loading sessions:", error);
-      toast.error("Failed to load sessions");
+      toast.error(
+        t?.sessionManagement?.loadFailed || "Failed to load sessions",
+      );
     } finally {
       setLoading(false);
     }
@@ -102,74 +111,67 @@ function SessionManagement() {
 
   const autoGenerateSessionName = (startDate, endDate) => {
     if (!startDate || !endDate) return "";
-
     const startYear = new Date(startDate).getFullYear();
     const endYear = new Date(endDate).getFullYear();
-
-    if (!startYear || !endYear) return "";
-    return `${startYear}/${endYear}`;
+    return startYear && endYear ? `${startYear}/${endYear}` : "";
   };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     const nextValue = type === "checkbox" ? checked : value;
-
     setFormData((prev) => {
-      const updated = {
-        ...prev,
-        [name]: nextValue,
-      };
-
+      const updated = { ...prev, [name]: nextValue };
       if (name === "startDate" || name === "endDate") {
         const generatedName = autoGenerateSessionName(
           name === "startDate" ? value : updated.startDate,
           name === "endDate" ? value : updated.endDate,
         );
-
-        if (generatedName) {
-          updated.session = generatedName;
-        }
+        if (generatedName) updated.session = generatedName;
       }
-
       return updated;
     });
   };
 
   const validateForm = () => {
     if (!formData.session.trim()) {
-      toast.warning("Session name is required");
+      toast.warning(
+        t?.sessionManagement?.sessionNameRequired || "Session name is required",
+      );
       return false;
     }
-
     if (!formData.startDate || !formData.endDate) {
-      toast.warning("Start date and end date are required");
+      toast.warning(
+        t?.sessionManagement?.datesRequired ||
+          "Start date and end date are required",
+      );
       return false;
     }
-
     if (new Date(formData.startDate) >= new Date(formData.endDate)) {
-      toast.warning("End date must be after start date");
+      toast.warning(
+        t?.sessionManagement?.endDateAfterStart ||
+          "End date must be after start date",
+      );
       return false;
     }
-
     if (!formData.currentTerm) {
-      toast.warning("Current term is required");
+      toast.warning(
+        t?.sessionManagement?.termRequired || "Current term is required",
+      );
       return false;
     }
-
     return true;
   };
 
   const handleCreateOrUpdateSession = async (e) => {
     e.preventDefault();
-
-    // Check if user is admin
     if (!isAuthenticated || user?.role !== "ADMIN") {
-      toast.error("Only administrators can manage sessions");
+      toast.error(
+        t?.sessionManagement?.adminOnly ||
+          "Only administrators can manage sessions",
+      );
       return;
     }
-
     if (!validateForm()) return;
-
     setSubmitting(true);
     try {
       const payload = {
@@ -179,32 +181,39 @@ function SessionManagement() {
         currentTerm: formData.currentTerm,
         active: formData.active,
       };
-
       if (editingSessionId) {
         await sessionAPI.updateSession(editingSessionId, payload);
-        toast.success("Session updated successfully");
+        toast.success(
+          t?.sessionManagement?.updateSuccess || "Session updated successfully",
+        );
       } else {
         await sessionAPI.createSession(payload);
-        toast.success("Session created successfully");
+        toast.success(
+          t?.sessionManagement?.createSuccess || "Session created successfully",
+        );
       }
-
       resetForm();
       await loadSessions();
     } catch (error) {
       console.error("Error saving session:", error);
-      toast.error(error?.response?.data?.message || "Failed to save session");
+      toast.error(
+        error?.response?.data?.message ||
+          t?.sessionManagement?.saveFailed ||
+          "Failed to save session",
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleEdit = (sessionItem) => {
-    // Check if user is admin
     if (!isAuthenticated || user?.role !== "ADMIN") {
-      toast.error("Only administrators can edit sessions");
+      toast.error(
+        t?.sessionManagement?.adminOnly ||
+          "Only administrators can edit sessions",
+      );
       return;
     }
-
     setEditingSessionId(sessionItem.id);
     setFormData({
       session: sessionItem.session || sessionItem.sessionName || "",
@@ -217,28 +226,37 @@ function SessionManagement() {
       currentTerm: sessionItem.currentTerm || "FIRST",
       active: sessionItem.active || false,
     });
-
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleActivate = async (id) => {
-    // Check if user is admin
     if (!isAuthenticated || user?.role !== "ADMIN") {
-      toast.error("Only administrators can activate sessions");
+      toast.error(
+        t?.sessionManagement?.adminOnly ||
+          "Only administrators can activate sessions",
+      );
       return;
     }
-
-    if (!window.confirm("Activate this session?")) return;
-
+    if (
+      !window.confirm(
+        t?.sessionManagement?.activateConfirm || "Activate this session?",
+      )
+    )
+      return;
     setActivatingId(id);
     try {
       await sessionAPI.activateSession(id);
-      toast.success("Session activated successfully");
+      toast.success(
+        t?.sessionManagement?.activateSuccess ||
+          "Session activated successfully",
+      );
       await loadSessions();
     } catch (error) {
       console.error("Error activating session:", error);
       toast.error(
-        error?.response?.data?.message || "Failed to activate session",
+        error?.response?.data?.message ||
+          t?.sessionManagement?.activateFailed ||
+          "Failed to activate session",
       );
     } finally {
       setActivatingId(null);
@@ -246,70 +264,81 @@ function SessionManagement() {
   };
 
   const handleDelete = async (id, sessionName) => {
-    // Check if user is admin
     if (!isAuthenticated || user?.role !== "ADMIN") {
-      toast.error("Only administrators can delete sessions");
+      toast.error(
+        t?.sessionManagement?.adminOnly ||
+          "Only administrators can delete sessions",
+      );
       return;
     }
-
-    if (!window.confirm(`Delete session ${sessionName}?`)) return;
-
+    if (
+      !window.confirm(
+        t?.sessionManagement?.deleteConfirm?.replace("{name}", sessionName) ||
+          `Delete session ${sessionName}?`,
+      )
+    )
+      return;
     setDeletingId(id);
     try {
       await sessionAPI.deleteSession(id);
-      toast.success("Session deleted successfully");
-
-      if (editingSessionId === id) {
-        resetForm();
-      }
-
+      toast.success(
+        t?.sessionManagement?.deleteSuccess || "Session deleted successfully",
+      );
+      if (editingSessionId === id) resetForm();
       await loadSessions();
     } catch (error) {
       console.error("Error deleting session:", error);
-      toast.error(error?.response?.data?.message || "Failed to delete session");
+      toast.error(
+        error?.response?.data?.message ||
+          t?.sessionManagement?.deleteFailed ||
+          "Failed to delete session",
+      );
     } finally {
       setDeletingId(null);
     }
   };
 
-  const formatDate = (date) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleDateString();
-  };
+  const formatDate = (date) =>
+    date ? new Date(date).toLocaleDateString() : "-";
 
-  const isActive = (sessionItem) => {
-    if (!sessionItem) return false;
-    if (sessionItem.active === true) return true;
-    return activeSession?.id === sessionItem.id;
-  };
+  const isActive = (sessionItem) =>
+    sessionItem.active === true || activeSession?.id === sessionItem.id;
 
-  const getSessionName = (sessionItem) => {
-    return sessionItem.session || sessionItem.sessionName || "-";
-  };
+  const getSessionName = (sessionItem) =>
+    sessionItem.session || sessionItem.sessionName || "-";
 
-  // Check if user has admin permissions
   const isAdmin = isAuthenticated && user?.role === "ADMIN";
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{t?.common?.loading || "Loading sessions..."}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-4">
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
-          <h2 className="mb-1">Session Management</h2>
+          <h2 className="mb-1">
+            {t?.sessionManagement?.title || "Session Management"}
+          </h2>
           <p className="text-muted mb-0">
             {isAdmin
-              ? "Create, update, activate, and manage academic sessions"
-              : "View current academic session"}
+              ? t?.sessionManagement?.adminDescription ||
+                "Create, update, activate, and manage academic sessions"
+              : t?.sessionManagement?.userDescription ||
+                "View current academic session"}
           </p>
         </div>
-
         <button className="btn btn-outline-primary" onClick={loadSessions}>
-          <FaSyncAlt className="me-2" />
-          Refresh
+          <FaSyncAlt className="me-2" /> {t?.common?.refresh || "Refresh"}
         </button>
       </div>
 
       <div className="row">
-        {/* Session Form - Only visible to Admin */}
         {isAdmin && (
           <div className="col-lg-4 mb-4">
             <div className="card shadow-sm">
@@ -317,22 +346,23 @@ function SessionManagement() {
                 <h5 className="mb-0">
                   {editingSessionId ? (
                     <>
-                      <FaEdit className="me-2" />
-                      Edit Session
+                      <FaEdit className="me-2" />{" "}
+                      {t?.sessionManagement?.editSession || "Edit Session"}
                     </>
                   ) : (
                     <>
-                      <FaPlus className="me-2" />
-                      Create Session
+                      <FaPlus className="me-2" />{" "}
+                      {t?.sessionManagement?.createSession || "Create Session"}
                     </>
                   )}
                 </h5>
               </div>
-
               <div className="card-body">
                 <form onSubmit={handleCreateOrUpdateSession}>
                   <div className="mb-3">
-                    <label className="form-label">Session Name</label>
+                    <label className="form-label">
+                      {t?.sessionManagement?.sessionName || "Session Name"}
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -342,12 +372,14 @@ function SessionManagement() {
                       placeholder="e.g. 2025/2026"
                     />
                     <small className="text-muted">
-                      This can auto-fill from the dates below.
+                      {t?.sessionManagement?.autoFillHint ||
+                        "This can auto-fill from the dates below."}
                     </small>
                   </div>
-
                   <div className="mb-3">
-                    <label className="form-label">Start Date</label>
+                    <label className="form-label">
+                      {t?.sessionManagement?.startDate || "Start Date"}
+                    </label>
                     <input
                       type="date"
                       className="form-control"
@@ -356,9 +388,10 @@ function SessionManagement() {
                       onChange={handleChange}
                     />
                   </div>
-
                   <div className="mb-3">
-                    <label className="form-label">End Date</label>
+                    <label className="form-label">
+                      {t?.sessionManagement?.endDate || "End Date"}
+                    </label>
                     <input
                       type="date"
                       className="form-control"
@@ -367,9 +400,10 @@ function SessionManagement() {
                       onChange={handleChange}
                     />
                   </div>
-
                   <div className="mb-3">
-                    <label className="form-label">Current Term</label>
+                    <label className="form-label">
+                      {t?.sessionManagement?.currentTerm || "Current Term"}
+                    </label>
                     <select
                       className="form-select"
                       name="currentTerm"
@@ -383,7 +417,6 @@ function SessionManagement() {
                       ))}
                     </select>
                   </div>
-
                   <div className="form-check mb-3">
                     <input
                       id="activeSession"
@@ -394,10 +427,10 @@ function SessionManagement() {
                       onChange={handleChange}
                     />
                     <label htmlFor="activeSession" className="form-check-label">
-                      Make active immediately
+                      {t?.sessionManagement?.makeActive ||
+                        "Make active immediately"}
                     </label>
                   </div>
-
                   <div className="d-grid gap-2">
                     <button
                       type="submit"
@@ -406,29 +439,30 @@ function SessionManagement() {
                     >
                       {submitting ? (
                         <>
-                          <FaSpinner className="me-2 spin" />
-                          {editingSessionId ? "Updating..." : "Creating..."}
+                          <FaSpinner className="me-2 spin" />{" "}
+                          {t?.common?.saving || "Saving..."}
                         </>
                       ) : editingSessionId ? (
                         <>
-                          <FaEdit className="me-2" />
-                          Update Session
+                          <FaEdit className="me-2" />{" "}
+                          {t?.common?.update || "Update Session"}
                         </>
                       ) : (
                         <>
-                          <FaPlus className="me-2" />
-                          Create Session
+                          <FaPlus className="me-2" />{" "}
+                          {t?.sessionManagement?.create || "Create Session"}
                         </>
                       )}
                     </button>
-
                     <button
                       type="button"
                       className="btn btn-outline-secondary"
                       onClick={resetForm}
                       disabled={submitting}
                     >
-                      {editingSessionId ? "Cancel Edit" : "Clear"}
+                      {editingSessionId
+                        ? t?.common?.cancel || "Cancel Edit"
+                        : t?.common?.clear || "Clear"}
                     </button>
                   </div>
                 </form>
@@ -437,13 +471,13 @@ function SessionManagement() {
           </div>
         )}
 
-        {/* Active Session Card */}
         <div className={isAdmin ? "col-lg-8 mb-4" : "col-lg-12 mb-4"}>
           <div className="card shadow-sm">
             <div className="card-header bg-success text-white">
               <h5 className="mb-0">
-                <FaCheckCircle className="me-2" />
-                Current Active Session
+                <FaCheckCircle className="me-2" />{" "}
+                {t?.sessionManagement?.currentActiveSession ||
+                  "Current Active Session"}
               </h5>
             </div>
             <div className="card-body">
@@ -451,59 +485,70 @@ function SessionManagement() {
                 <>
                   <h4 className="mb-2">{getSessionName(activeSession)}</h4>
                   <p className="mb-1">
-                    <strong>Start:</strong>{" "}
+                    <strong>
+                      {t?.sessionManagement?.startDate || "Start"}:
+                    </strong>{" "}
                     {formatDate(activeSession.startDate)}
                   </p>
                   <p className="mb-1">
-                    <strong>End:</strong> {formatDate(activeSession.endDate)}
+                    <strong>{t?.sessionManagement?.endDate || "End"}:</strong>{" "}
+                    {formatDate(activeSession.endDate)}
                   </p>
                   <p className="mb-0">
-                    <strong>Current Term:</strong>{" "}
+                    <strong>
+                      {t?.sessionManagement?.currentTerm || "Current Term"}:
+                    </strong>{" "}
                     {activeSession.currentTerm || "-"}
                   </p>
                 </>
               ) : (
-                <p className="text-muted mb-0">No active session found.</p>
+                <p className="text-muted mb-0">
+                  {t?.sessionManagement?.noActiveSession ||
+                    "No active session found."}
+                </p>
               )}
             </div>
           </div>
 
-          {/* All Sessions Table - Show different views for admin vs regular users */}
           <div className="card shadow-sm mt-4">
             <div className="card-header bg-dark text-white">
               <h5 className="mb-0">
-                <FaCalendarAlt className="me-2" />
-                {isAdmin ? "All Sessions" : "Session Information"}
+                <FaCalendarAlt className="me-2" />{" "}
+                {isAdmin
+                  ? t?.sessionManagement?.allSessions || "All Sessions"
+                  : t?.sessionManagement?.sessionInfo || "Session Information"}
               </h5>
             </div>
-
             <div className="card-body">
-              {loading ? (
-                <div className="text-center py-5">
-                  <FaSpinner className="spin mb-3" size={32} />
-                  <div>Loading sessions...</div>
-                </div>
-              ) : sortedSessions.length === 0 ? (
+              {sortedSessions.length === 0 ? (
                 <div className="alert alert-info mb-0">
-                  No session has been created yet.
+                  {t?.sessionManagement?.noSessions ||
+                    "No session has been created yet."}
                 </div>
               ) : (
                 <div className="table-responsive">
                   <table className="table table-hover align-middle">
                     <thead>
                       <tr>
-                        <th>Session</th>
-                        <th>Start Date</th>
-                        <th>End Date</th>
-                        <th>Current Term</th>
-                        <th>Status</th>
-                        {isAdmin && <th className="text-end">Actions</th>}
+                        <th>{t?.sessionManagement?.session || "Session"}</th>
+                        <th>
+                          {t?.sessionManagement?.startDate || "Start Date"}
+                        </th>
+                        <th>{t?.sessionManagement?.endDate || "End Date"}</th>
+                        <th>
+                          {t?.sessionManagement?.currentTerm || "Current Term"}
+                        </th>
+                        <th>{t?.sessionManagement?.status || "Status"}</th>
+                        {isAdmin && (
+                          <th className="text-end">
+                            {t?.common?.actions || "Actions"}
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
                       {sortedSessions.map((item) => {
                         const active = isActive(item);
-
                         return (
                           <tr key={item.id}>
                             <td className="fw-bold">{getSessionName(item)}</td>
@@ -517,25 +562,26 @@ function SessionManagement() {
                             </td>
                             <td>
                               {active ? (
-                                <span className="badge bg-success">Active</span>
+                                <span className="badge bg-success">
+                                  {t?.sessionManagement?.active || "Active"}
+                                </span>
                               ) : (
                                 <span className="badge bg-secondary">
-                                  Inactive
+                                  {t?.sessionManagement?.inactive || "Inactive"}
                                 </span>
                               )}
                             </td>
                             {isAdmin && (
-                              <td>
+                              <td className="text-end">
                                 <div className="d-flex justify-content-end gap-2 flex-wrap">
                                   <button
                                     className="btn btn-sm btn-outline-primary"
                                     onClick={() => handleEdit(item)}
                                     disabled={submitting}
                                   >
-                                    <FaEdit className="me-1" />
-                                    Edit
+                                    <FaEdit className="me-1" />{" "}
+                                    {t?.common?.edit || "Edit"}
                                   </button>
-
                                   {!active && (
                                     <button
                                       className="btn btn-sm btn-success"
@@ -544,18 +590,18 @@ function SessionManagement() {
                                     >
                                       {activatingId === item.id ? (
                                         <>
-                                          <FaSpinner className="me-1 spin" />
-                                          Activating
+                                          <FaSpinner className="me-1 spin" />{" "}
+                                          {t?.common?.activating ||
+                                            "Activating"}
                                         </>
                                       ) : (
                                         <>
-                                          <FaCheckCircle className="me-1" />
-                                          Activate
+                                          <FaCheckCircle className="me-1" />{" "}
+                                          {t?.common?.activate || "Activate"}
                                         </>
                                       )}
                                     </button>
                                   )}
-
                                   <button
                                     className="btn btn-sm btn-danger"
                                     onClick={() =>
@@ -568,13 +614,13 @@ function SessionManagement() {
                                   >
                                     {deletingId === item.id ? (
                                       <>
-                                        <FaSpinner className="me-1 spin" />
-                                        Deleting
+                                        <FaSpinner className="me-1 spin" />{" "}
+                                        {t?.common?.deleting || "Deleting"}
                                       </>
                                     ) : (
                                       <>
-                                        <FaTrash className="me-1" />
-                                        Delete
+                                        <FaTrash className="me-1" />{" "}
+                                        {t?.common?.delete || "Delete"}
                                       </>
                                     )}
                                   </button>
@@ -593,15 +639,7 @@ function SessionManagement() {
         </div>
       </div>
 
-      <style>{`
-        .spin {
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

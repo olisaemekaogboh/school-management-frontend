@@ -1,16 +1,26 @@
+// src/components/TransportManagement.js
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { transportAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import {
   FaBus,
   FaRoute,
   FaUsers,
   FaMapMarkerAlt,
   FaSyncAlt,
+  FaSpinner,
+  FaClock,
+  FaDollarSign,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
+import "./TransportManagement.css";
 
 function TransportManagement() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [stats, setStats] = useState(null);
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +36,11 @@ function TransportManagement() {
       setStats(statsRes.data);
       setRoutes(routesRes.data || []);
     } catch (error) {
-      toast.error("Failed to load transport dashboard");
+      console.error("Error loading transport data:", error);
+      toast.error(
+        t?.transportManagement?.loadFailed ||
+          "Failed to load transport dashboard",
+      );
     } finally {
       setLoading(false);
     }
@@ -36,139 +50,165 @@ function TransportManagement() {
     loadTransportData();
   }, []);
 
+  if (loading) {
+    return (
+      <div className={`text-center py-5 ${darkMode ? "dark-mode" : ""}`}>
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">
+          {t?.common?.loading || "Loading transport data..."}
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="container-fluid py-4">
-      <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-        <div>
-          <h2 className="mb-1">
+    <div className={`transport-management ${darkMode ? "dark-mode" : ""}`}>
+      <div className="transport-header">
+        <div className="transport-header-info">
+          <h2>
             <FaBus className="me-2" />
-            Transport Dashboard
+            {t?.transportManagement?.title || "Transport Dashboard"}
           </h2>
-          <p className="text-muted mb-0">
-            Manage school transport routes, assignments, and bus tracking.
+          <p className="transport-description">
+            {t?.transportManagement?.description ||
+              "Manage school transport routes, assignments, and bus tracking."}
           </p>
         </div>
 
-        <div className="d-flex gap-2">
+        <div className="transport-header-actions">
           <button
-            className="btn btn-outline-primary"
+            className="btn-refresh"
             onClick={loadTransportData}
+            title={t?.common?.refresh || "Refresh"}
           >
-            <FaSyncAlt className="me-2" />
-            Refresh
+            <FaSyncAlt />
           </button>
-          <Link to="/transport/routes" className="btn btn-primary">
-            Manage Routes
+          <Link to="/transport/routes" className="btn-primary">
+            {t?.transportManagement?.manageRoutes || "Manage Routes"}
           </Link>
         </div>
       </div>
 
-      {loading ? (
-        <div className="alert alert-info">Loading transport data...</div>
-      ) : (
-        <>
-          <div className="row g-3 mb-4">
-            <div className="col-md-4">
-              <div className="card shadow-sm border-0 h-100">
-                <div className="card-body">
-                  <h6 className="text-muted">Total Routes</h6>
-                  <h3>{stats?.totalRoutes ?? 0}</h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-md-4">
-              <div className="card shadow-sm border-0 h-100">
-                <div className="card-body">
-                  <h6 className="text-muted">Assigned Students</h6>
-                  <h3>{stats?.assignedStudents ?? 0}</h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-md-4">
-              <div className="card shadow-sm border-0 h-100">
-                <div className="card-body">
-                  <h6 className="text-muted">Available Slots</h6>
-                  <h3>{stats?.availableSlots ?? 0}</h3>
-                </div>
-              </div>
-            </div>
+      <div className="transport-stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon">
+            <FaRoute />
           </div>
-
-          <div className="card shadow-sm border-0">
-            <div className="card-header bg-white d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">
-                <FaRoute className="me-2" />
-                Route Overview
-              </h5>
-              <Link
-                to="/transport/routes"
-                className="btn btn-sm btn-outline-primary"
-              >
-                Open Full Route Manager
-              </Link>
-            </div>
-
-            <div className="card-body">
-              {routes.length === 0 ? (
-                <div className="alert alert-warning mb-0">
-                  No transport routes created yet.
-                </div>
-              ) : (
-                <div className="table-responsive">
-                  <table className="table table-hover align-middle">
-                    <thead>
-                      <tr>
-                        <th>Route</th>
-                        <th>Driver</th>
-                        <th>Time</th>
-                        <th>Fee</th>
-                        <th>Capacity</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {routes.map((route) => (
-                        <tr key={route.id}>
-                          <td>
-                            <div className="fw-bold">{route.routeName}</div>
-                            <small className="text-muted">
-                              <FaMapMarkerAlt className="me-1" />
-                              {route.pickupLocation} → {route.dropoffLocation}
-                            </small>
-                          </td>
-                          <td>
-                            <div>{route.driverName}</div>
-                            <small className="text-muted">
-                              {route.driverPhone}
-                            </small>
-                          </td>
-                          <td>
-                            {route.pickupTime} - {route.dropoffTime}
-                          </td>
-                          <td>₦{route.monthlyFee}</td>
-                          <td>
-                            <FaUsers className="me-1" />
-                            {route.assignedStudents}/{route.capacity}
-                          </td>
-                          <td>
-                            <span
-                              className={`badge ${route.active ? "bg-success" : "bg-secondary"}`}
-                            >
-                              {route.active ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+          <div className="stat-content">
+            <h6>{t?.transportManagement?.totalRoutes || "Total Routes"}</h6>
+            <h3>{stats?.totalRoutes ?? 0}</h3>
           </div>
-        </>
-      )}
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon">
+            <FaUsers />
+          </div>
+          <div className="stat-content">
+            <h6>
+              {t?.transportManagement?.assignedStudents || "Assigned Students"}
+            </h6>
+            <h3>{stats?.assignedStudents ?? 0}</h3>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon">
+            <FaBus />
+          </div>
+          <div className="stat-content">
+            <h6>
+              {t?.transportManagement?.availableSlots || "Available Slots"}
+            </h6>
+            <h3>{stats?.availableSlots ?? 0}</h3>
+          </div>
+        </div>
+      </div>
+
+      <div className="transport-card">
+        <div className="transport-card-header">
+          <h5 className="mb-0">
+            <FaRoute className="me-2" />
+            {t?.transportManagement?.routeOverview || "Route Overview"}
+          </h5>
+          <Link to="/transport/routes" className="btn-outline-primary">
+            {t?.transportManagement?.openRouteManager ||
+              "Open Full Route Manager"}
+          </Link>
+        </div>
+
+        <div className="transport-card-body">
+          {routes.length === 0 ? (
+            <div className="empty-state">
+              <FaBus size={48} />
+              <p>
+                {t?.transportManagement?.noRoutes ||
+                  "No transport routes created yet."}
+              </p>
+            </div>
+          ) : (
+            <div className="table-responsive">
+              <table className="transport-table">
+                <thead>
+                  <tr>
+                    <th>{t?.transportManagement?.route || "Route"}</th>
+                    <th>{t?.transportManagement?.driver || "Driver"}</th>
+                    <th>{t?.transportManagement?.time || "Time"}</th>
+                    <th>{t?.transportManagement?.fee || "Fee"}</th>
+                    <th>{t?.transportManagement?.capacity || "Capacity"}</th>
+                    <th>{t?.transportManagement?.status || "Status"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {routes.map((route) => (
+                    <tr key={route.id}>
+                      <td className="route-cell">
+                        <div className="route-name">{route.routeName}</div>
+                        <div className="route-location">
+                          <FaMapMarkerAlt className="me-1" />
+                          {route.pickupLocation} → {route.dropoffLocation}
+                        </div>
+                      </td>
+                      <td className="driver-cell">
+                        <div className="driver-name">{route.driverName}</div>
+                        <div className="driver-phone">{route.driverPhone}</div>
+                      </td>
+                      <td className="time-cell">
+                        <FaClock className="me-1" />
+                        {route.pickupTime} - {route.dropoffTime}
+                      </td>
+                      <td className="fee-cell">
+                        <FaDollarSign className="me-1" />₦
+                        {route.monthlyFee?.toLocaleString() || 0}
+                      </td>
+                      <td className="capacity-cell">
+                        <FaUsers className="me-1" />
+                        {route.assignedStudents || 0}/{route.capacity}
+                      </td>
+                      <td>
+                        <span
+                          className={`status-badge ${
+                            route.active ? "status-active" : "status-inactive"
+                          }`}
+                        >
+                          {route.active
+                            ? t?.transportManagement?.active || "Active"
+                            : t?.transportManagement?.inactive || "Inactive"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

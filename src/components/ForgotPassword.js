@@ -2,6 +2,8 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { authAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaEnvelope,
@@ -12,6 +14,8 @@ import {
 import "./Auth.css";
 
 function ForgotPassword() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -21,14 +25,18 @@ function ForgotPassword() {
     setLoading(true);
 
     try {
-      // Send email in the correct format
       await authAPI.forgotPassword({ email });
       setEmailSent(true);
-      toast.success("Password reset email sent! Check your inbox.");
+      toast.success(
+        t?.forgotPassword?.successMessage ||
+          "Password reset email sent! Check your inbox.",
+      );
     } catch (error) {
       console.error("Forgot password error:", error);
       toast.error(
-        error.response?.data?.message || "Failed to send reset email",
+        error.response?.data?.message ||
+          t?.forgotPassword?.errorMessage ||
+          "Failed to send reset email",
       );
     } finally {
       setLoading(false);
@@ -39,43 +47,55 @@ function ForgotPassword() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h2>Forgot Password</h2>
-          <p>Enter your email to reset your password</p>
+          <h2>{t?.forgotPassword?.title || "Forgot Password"}</h2>
+          <p>
+            {t?.forgotPassword?.subtitle ||
+              "Enter your email to reset your password"}
+          </p>
         </div>
 
         {!emailSent ? (
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="form-group">
               <label>
-                <FaEnvelope /> Email Address
+                <FaEnvelope /> {t?.common?.email || "Email Address"}
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
+                placeholder={
+                  t?.forgotPassword?.emailPlaceholder || "Enter your email"
+                }
                 required
               />
             </div>
 
             <button type="submit" className="auth-button" disabled={loading}>
-              {loading ? <FaSpinner className="spin" /> : "Send Reset Link"}
+              {loading ? (
+                <FaSpinner className="spin" />
+              ) : (
+                t?.forgotPassword?.sendButton || "Send Reset Link"
+              )}
             </button>
           </form>
         ) : (
           <div className="success-message">
             <FaCheckCircle className="success-icon" />
-            <h3>Email Sent!</h3>
+            <h3>{t?.forgotPassword?.successTitle || "Email Sent!"}</h3>
             <p>
-              We've sent a password reset link to <strong>{email}</strong>.
-              Please check your inbox and follow the instructions.
+              {t?.forgotPassword?.successMessage ||
+                "We've sent a password reset link to"}{" "}
+              <strong>{email}</strong>.
+              {t?.forgotPassword?.checkInbox ||
+                " Please check your inbox and follow the instructions."}
             </p>
           </div>
         )}
 
         <div className="auth-footer">
           <Link to="/login" className="back-to-login">
-            <FaArrowLeft /> Back to Login
+            <FaArrowLeft /> {t?.forgotPassword?.backToLogin || "Back to Login"}
           </Link>
         </div>
       </div>

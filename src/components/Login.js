@@ -1,7 +1,7 @@
-// src/components/Login.js
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import {
   FaEnvelope,
   FaLock,
@@ -25,29 +25,27 @@ function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState("");
   const { login, user } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || "/dashboard";
 
-  // Redirect if already logged in
+  const loginT = t?.login || {};
+  const registerT = t?.register || {};
+
   useEffect(() => {
     if (user) {
-      // Redirect based on user role
-      if (user.role === "ADMIN") {
-        navigate("/dashboard", { replace: true });
-      } else if (user.role === "TEACHER") {
+      if (user.role === "ADMIN") navigate("/dashboard", { replace: true });
+      else if (user.role === "TEACHER")
         navigate("/teacher-dashboard", { replace: true });
-      } else if (user.role === "STUDENT") {
+      else if (user.role === "STUDENT")
         navigate("/student-dashboard", { replace: true });
-      } else if (user.role === "PARENT") {
+      else if (user.role === "PARENT")
         navigate("/parent-dashboard", { replace: true });
-      } else {
-        navigate(from, { replace: true });
-      }
+      else navigate(from, { replace: true });
     }
   }, [user, navigate, from]);
 
-  // Load saved credentials if remember me was checked
   useEffect(() => {
     const savedUsername = localStorage.getItem("rememberedUsername");
     if (savedUsername) {
@@ -61,47 +59,47 @@ function Login() {
       ...formData,
       [e.target.name]: e.target.value,
     });
-    // Clear error when user types
     if (loginError) setLoginError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate inputs
     if (!formData.usernameOrEmail.trim()) {
-      setLoginError("Please enter your username or email");
+      setLoginError(
+        loginT.enterUsername || "Please enter your username or email",
+      );
       return;
     }
 
     if (!formData.password) {
-      setLoginError("Please enter your password");
+      setLoginError(loginT.enterPassword || "Please enter your password");
       return;
     }
 
     setLoading(true);
-    setLoginError("");
-
-    // Handle remember me
-    if (rememberMe) {
-      localStorage.setItem("rememberedUsername", formData.usernameOrEmail);
-    } else {
-      localStorage.removeItem("rememberedUsername");
-    }
 
     try {
-      const success = await login(formData.usernameOrEmail, formData.password);
-
-      if (success) {
-        // Navigation will be handled by the useEffect above
-        return;
+      if (rememberMe) {
+        localStorage.setItem("rememberedUsername", formData.usernameOrEmail);
       } else {
-        setLoginError("Invalid username/email or password. Please try again.");
+        localStorage.removeItem("rememberedUsername");
+      }
+
+      const result = await login(formData.usernameOrEmail, formData.password);
+
+      if (result?.success === false) {
+        setLoginError(
+          result.message ||
+            loginT.invalidCredentials ||
+            "Invalid username/email or password. Please try again.",
+        );
       }
     } catch (error) {
       console.error("Login error:", error);
       setLoginError(
         error?.response?.data?.message ||
+          loginT.loginError ||
           "An error occurred during login. Please try again.",
       );
     } finally {
@@ -111,7 +109,6 @@ function Login() {
 
   return (
     <div className="auth-container">
-      {/* Decorative background elements */}
       <div className="auth-bg-decoration">
         <div className="auth-circle auth-circle-1"></div>
         <div className="auth-circle auth-circle-2"></div>
@@ -119,19 +116,24 @@ function Login() {
       </div>
 
       <div className="auth-card-wrapper">
-        {/* School logo/brand section */}
         <div className="auth-brand">
           <div className="auth-logo">
             <FaSchool className="auth-logo-icon" />
           </div>
-          <h1 className="auth-school-name">Faith Foundation School</h1>
-          <p className="auth-tagline">Nurturing Minds, Building Futures</p>
+          <h1 className="auth-school-name">
+            {loginT.schoolName || "Faith Foundation School"}
+          </h1>
+          <p className="auth-tagline">
+            {loginT.tagline || "Nurturing Minds, Building Futures"}
+          </p>
         </div>
 
         <div className="auth-card">
           <div className="auth-header">
-            <h2>Welcome Back!</h2>
-            <p>Please sign in to access your dashboard</p>
+            <h2>{loginT.welcomeBack || "Welcome Back!"}</h2>
+            <p>
+              {loginT.signInPrompt || "Please sign in to access your dashboard"}
+            </p>
           </div>
 
           {loginError && (
@@ -145,7 +147,7 @@ function Login() {
             <div className="form-group">
               <label htmlFor="usernameOrEmail">
                 <FaEnvelope className="input-icon" />
-                ..Username or Email
+                {loginT.usernameOrEmail || "Username or Email"}
               </label>
               <input
                 type="text"
@@ -153,7 +155,10 @@ function Login() {
                 name="usernameOrEmail"
                 value={formData.usernameOrEmail}
                 onChange={handleChange}
-                placeholder="Enter your username or email"
+                placeholder={
+                  loginT.usernameOrEmailPlaceholder ||
+                  "Enter your username or email"
+                }
                 required
                 className={loginError ? "error" : ""}
                 autoComplete="username"
@@ -163,7 +168,7 @@ function Login() {
             <div className="form-group">
               <label htmlFor="password">
                 <FaLock className="input-icon" />
-                ..Password
+                {loginT.password || "Password"}
               </label>
               <div className={`password-input ${loginError ? "error" : ""}`}>
                 <input
@@ -172,7 +177,9 @@ function Login() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="Enter your password"
+                  placeholder={
+                    loginT.passwordPlaceholder || "Enter your password"
+                  }
                   required
                   autoComplete="current-password"
                 />
@@ -180,7 +187,11 @@ function Login() {
                   type="button"
                   className="password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={
+                    showPassword
+                      ? loginT.hidePassword || "Hide password"
+                      : loginT.showPassword || "Show password"
+                  }
                 >
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
@@ -195,10 +206,10 @@ function Login() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                 />
                 <span className="checkbox-custom"></span>
-                Remember me
+                {loginT.rememberMe || "Remember me"}
               </label>
               <Link to="/forgot-password" className="forgot-password">
-                Forgot Password?
+                {loginT.forgotPassword || "Forgot Password?"}
               </Link>
             </div>
 
@@ -206,11 +217,11 @@ function Login() {
               {loading ? (
                 <>
                   <FaSpinner className="spin" />
-                  <span>Signing in...</span>
+                  <span>{loginT.signingIn || "Signing in..."}</span>
                 </>
               ) : (
                 <>
-                  <span>Sign In</span>
+                  <span>{loginT.signIn || "Sign In"}</span>
                   <FaArrowRight className="button-icon" />
                 </>
               )}
@@ -218,16 +229,20 @@ function Login() {
           </form>
 
           <div className="auth-divider">
-            <span>New to Faith Foundation?</span>
+            <span>
+              {registerT.joinCommunityShort || "New to Faith Foundation?"}
+            </span>
           </div>
 
           <div className="auth-footer">
             <Link to="/register" className="register-button">
               <FaUserGraduate className="register-icon" />
               <div className="register-text">
-                <span className="register-label">Create Account</span>
+                <span className="register-label">
+                  {registerT.createAccount || "Create Account"}
+                </span>
                 <span className="register-subtitle">
-                  Join our school community
+                  {registerT.joinCommunity || "Join our school community"}
                 </span>
               </div>
               <FaArrowRight className="register-arrow" />

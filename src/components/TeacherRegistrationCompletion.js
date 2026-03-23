@@ -1,6 +1,8 @@
 // src/components/TeacherRegistrationCompletion.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import { teacherAPI } from "../services/api";
 import {
@@ -14,6 +16,8 @@ import {
 import "./Auth.css";
 
 function TeacherRegistrationCompletion() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [token, setToken] = useState("");
   const [teacherInfo, setTeacherInfo] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +35,6 @@ function TeacherRegistrationCompletion() {
   const location = useLocation();
 
   useEffect(() => {
-    // Get token from URL
     const queryParams = new URLSearchParams(location.search);
     const tokenParam = queryParams.get("token");
 
@@ -39,22 +42,27 @@ function TeacherRegistrationCompletion() {
       setToken(tokenParam);
       verifyToken(tokenParam);
     } else {
-      toast.error("Invalid registration link");
+      toast.error(
+        t?.teacherRegistration?.invalidLink || "Invalid registration link",
+      );
       navigate("/");
     }
-  }, [location, navigate]);
+  }, [location, navigate, t]);
 
   const verifyToken = async (token) => {
     try {
       const response = await teacherAPI.verifyInvitationToken(token);
       setTeacherInfo(response.data);
 
-      // Suggest username from email
       const email = response.data.email;
       const suggestedUsername = email.split("@")[0];
       setFormData((prev) => ({ ...prev, username: suggestedUsername }));
     } catch (error) {
-      toast.error(error.response?.data?.message || "Invalid or expired token");
+      toast.error(
+        error.response?.data?.message ||
+          t?.teacherRegistration?.invalidToken ||
+          "Invalid or expired token",
+      );
       navigate("/");
     } finally {
       setVerifying(false);
@@ -71,19 +79,26 @@ function TeacherRegistrationCompletion() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validation
     if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+      toast.error(
+        t?.teacherRegistration?.passwordMinLength ||
+          "Password must be at least 6 characters",
+      );
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error(
+        t?.teacherRegistration?.passwordsMismatch || "Passwords do not match",
+      );
       return;
     }
 
     if (!formData.username || formData.username.length < 3) {
-      toast.error("Username must be at least 3 characters");
+      toast.error(
+        t?.teacherRegistration?.usernameMinLength ||
+          "Username must be at least 3 characters",
+      );
       return;
     }
 
@@ -99,15 +114,19 @@ function TeacherRegistrationCompletion() {
       await teacherAPI.completeRegistration(completeData);
 
       setCompleted(true);
-      toast.success("Registration completed successfully!");
+      toast.success(
+        t?.teacherRegistration?.registrationComplete ||
+          "Registration completed successfully!",
+      );
 
-      // Redirect to login after 3 seconds
       setTimeout(() => {
         navigate("/login");
       }, 3000);
     } catch (error) {
       toast.error(
-        error.response?.data?.message || "Failed to complete registration",
+        error.response?.data?.message ||
+          t?.teacherRegistration?.completeFailed ||
+          "Failed to complete registration",
       );
     } finally {
       setLoading(false);
@@ -120,7 +139,9 @@ function TeacherRegistrationCompletion() {
         <div className="auth-card">
           <div className="loading-spinner">
             <FaSpinner className="spin" />
-            <p>Verifying invitation...</p>
+            <p>
+              {t?.teacherRegistration?.verifying || "Verifying invitation..."}
+            </p>
           </div>
         </div>
       </div>
@@ -133,9 +154,18 @@ function TeacherRegistrationCompletion() {
         <div className="auth-card">
           <div className="success-message">
             <FaCheckCircle className="success-icon" />
-            <h2>Registration Complete!</h2>
-            <p>Your teacher account has been created successfully.</p>
-            <p>Redirecting to login page...</p>
+            <h2>
+              {t?.teacherRegistration?.registrationCompleteTitle ||
+                "Registration Complete!"}
+            </h2>
+            <p>
+              {t?.teacherRegistration?.accountCreated ||
+                "Your teacher account has been created successfully."}
+            </p>
+            <p>
+              {t?.teacherRegistration?.redirecting ||
+                "Redirecting to login page..."}
+            </p>
           </div>
         </div>
       </div>
@@ -147,17 +177,23 @@ function TeacherRegistrationCompletion() {
       <div className="auth-card">
         <div className="auth-header">
           <h2>
-            <FaUser /> Complete Teacher Registration
+            <FaUser />{" "}
+            {t?.teacherRegistration?.completeRegistration ||
+              "Complete Teacher Registration"}
           </h2>
           <p>
-            Welcome, {teacherInfo?.firstName} {teacherInfo?.lastName}!
+            {t?.teacherRegistration?.welcome || "Welcome"},{" "}
+            {teacherInfo?.firstName} {teacherInfo?.lastName}!
           </p>
-          <p className="text-muted">Please set up your account credentials</p>
+          <p className="text-muted">
+            {t?.teacherRegistration?.setupCredentials ||
+              "Please set up your account credentials"}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
-            <label>Email</label>
+            <label>{t?.common?.email || "Email"}</label>
             <input
               type="email"
               value={teacherInfo?.email || ""}
@@ -167,7 +203,7 @@ function TeacherRegistrationCompletion() {
           </div>
 
           <div className="form-group">
-            <label>Username *</label>
+            <label>{t?.teacherRegistration?.username || "Username"} *</label>
             <input
               type="text"
               name="username"
@@ -175,15 +211,18 @@ function TeacherRegistrationCompletion() {
               onChange={handleChange}
               required
               minLength="3"
-              placeholder="Choose a username"
+              placeholder={
+                t?.teacherRegistration?.chooseUsername || "Choose a username"
+              }
             />
             <small className="hint-text">
-              3-20 characters (letters, numbers, underscore only)
+              {t?.teacherRegistration?.usernameHint ||
+                "3-20 characters (letters, numbers, underscore only)"}
             </small>
           </div>
 
           <div className="form-group">
-            <label>Password *</label>
+            <label>{t?.teacherRegistration?.password || "Password"} *</label>
             <div className="password-input">
               <input
                 type={showPassword ? "text" : "password"}
@@ -192,7 +231,10 @@ function TeacherRegistrationCompletion() {
                 onChange={handleChange}
                 required
                 minLength="6"
-                placeholder="Enter password (min 6 characters)"
+                placeholder={
+                  t?.teacherRegistration?.passwordPlaceholder ||
+                  "Enter password (min 6 characters)"
+                }
               />
               <button
                 type="button"
@@ -205,7 +247,9 @@ function TeacherRegistrationCompletion() {
           </div>
 
           <div className="form-group">
-            <label>Confirm Password *</label>
+            <label>
+              {t?.teacherRegistration?.confirmPassword || "Confirm Password"} *
+            </label>
             <div className="password-input">
               <input
                 type={showConfirmPassword ? "text" : "password"}
@@ -213,7 +257,10 @@ function TeacherRegistrationCompletion() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 required
-                placeholder="Confirm password"
+                placeholder={
+                  t?.teacherRegistration?.confirmPasswordPlaceholder ||
+                  "Confirm password"
+                }
               />
               <button
                 type="button"
@@ -226,7 +273,12 @@ function TeacherRegistrationCompletion() {
           </div>
 
           <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? <FaSpinner className="spin" /> : "Complete Registration"}
+            {loading ? (
+              <FaSpinner className="spin" />
+            ) : (
+              t?.teacherRegistration?.completeRegistration ||
+              "Complete Registration"
+            )}
           </button>
         </form>
       </div>

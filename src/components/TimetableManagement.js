@@ -1,3 +1,4 @@
+// src/components/TimetableManagement.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   timetableAPI,
@@ -6,8 +7,10 @@ import {
   sessionAPI,
   parentPortalAPI,
 } from "../services/api";
-import { toast } from "react-toastify";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { useAuth } from "../contexts/AuthContext";
+import { toast } from "react-toastify";
 import {
   FaCalendarAlt,
   FaPlus,
@@ -16,6 +19,11 @@ import {
   FaCheckCircle,
   FaSpinner,
   FaSyncAlt,
+  FaEdit,
+  FaUser,
+  FaBook,
+  FaClock,
+  FaDoorOpen,
 } from "react-icons/fa";
 import useActiveSession from "../hooks/useActiveSession";
 
@@ -43,6 +51,8 @@ const buildName = (...parts) =>
 
 export default function TimetableManagement() {
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const initializedRef = useRef(false);
 
   const isAdmin = user?.role === "ADMIN";
@@ -108,7 +118,9 @@ export default function TimetableManagement() {
     } catch (error) {
       console.error("Error fetching sessions:", error);
       setAvailableSessions([]);
-      toast.error("Failed to load sessions");
+      toast.error(
+        t?.timetableManagement?.loadFailed || "Failed to load sessions",
+      );
     } finally {
       setSessionsLoading(false);
     }
@@ -146,7 +158,9 @@ export default function TimetableManagement() {
       setTeachers([]);
       setParentWards([]);
       toast.error(
-        error?.response?.data?.message || "Failed to load timetable references",
+        error?.response?.data?.message ||
+          t?.timetableManagement?.loadRefsFailed ||
+          "Failed to load timetable references",
       );
     }
   };
@@ -157,7 +171,6 @@ export default function TimetableManagement() {
 
     fetchSessions();
     loadRefs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -265,7 +278,11 @@ export default function TimetableManagement() {
       setEntries(normalizeEntries(res.data));
     } catch (error) {
       console.error("Error loading timetable:", error);
-      toast.error(error?.response?.data?.message || "Failed to load timetable");
+      toast.error(
+        error?.response?.data?.message ||
+          t?.timetableManagement?.loadFailed ||
+          "Failed to load timetable",
+      );
       setEntries([]);
     } finally {
       setLoading(false);
@@ -274,7 +291,6 @@ export default function TimetableManagement() {
 
   useEffect(() => {
     loadTimetable();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, term, mode, viewClassId, viewTeacherId, selectedWardId]);
 
   const startCreate = () => {
@@ -299,17 +315,25 @@ export default function TimetableManagement() {
 
   const checkAvailability = async () => {
     if (!isAdmin) {
-      toast.error("Only admin can check teacher availability here");
+      toast.error(
+        t?.timetableManagement?.adminOnly ||
+          "Only admin can check teacher availability here",
+      );
       return;
     }
 
     if (!session || !term) {
-      toast.error("Select session and term first");
+      toast.error(
+        t?.timetableManagement?.selectSessionTerm ||
+          "Select session and term first",
+      );
       return;
     }
 
     if (!form.teacherId) {
-      toast.error("Select teacher first");
+      toast.error(
+        t?.timetableManagement?.selectTeacherFirst || "Select teacher first",
+      );
       return;
     }
 
@@ -325,14 +349,21 @@ export default function TimetableManagement() {
       });
 
       if (res.data === true) {
-        toast.success("Teacher is available");
+        toast.success(
+          t?.timetableManagement?.teacherAvailable || "Teacher is available",
+        );
       } else {
-        toast.error("Teacher has a conflict at this time");
+        toast.error(
+          t?.timetableManagement?.teacherConflict ||
+            "Teacher has a conflict at this time",
+        );
       }
     } catch (error) {
       console.error("Availability check error:", error);
       toast.error(
-        error?.response?.data?.message || "Availability check failed",
+        error?.response?.data?.message ||
+          t?.timetableManagement?.availabilityCheckFailed ||
+          "Availability check failed",
       );
     } finally {
       setCheckingAvailability(false);
@@ -343,32 +374,46 @@ export default function TimetableManagement() {
     e.preventDefault();
 
     if (!isAdmin) {
-      toast.error("Only admin can create or edit timetable entries");
+      toast.error(
+        t?.timetableManagement?.adminOnlyCreate ||
+          "Only admin can create or edit timetable entries",
+      );
       return;
     }
 
     if (!session) {
-      toast.error("Please select a session first");
+      toast.error(
+        t?.timetableManagement?.selectSessionFirst ||
+          "Please select a session first",
+      );
       return;
     }
 
     if (!TERMS_ENUM.includes(term)) {
-      toast.error("Invalid term selected");
+      toast.error(
+        t?.timetableManagement?.invalidTerm || "Invalid term selected",
+      );
       return;
     }
 
     if (!form.classId) {
-      toast.error("Please select a class");
+      toast.error(
+        t?.timetableManagement?.selectClass || "Please select a class",
+      );
       return;
     }
 
     if (!form.teacherId) {
-      toast.error("Please select a teacher");
+      toast.error(
+        t?.timetableManagement?.selectTeacher || "Please select a teacher",
+      );
       return;
     }
 
     if (!form.subject.trim()) {
-      toast.error("Subject is required");
+      toast.error(
+        t?.timetableManagement?.subjectRequired || "Subject is required",
+      );
       return;
     }
 
@@ -388,10 +433,16 @@ export default function TimetableManagement() {
     try {
       if (editingId) {
         await timetableAPI.updateTimetableEntry(editingId, payload);
-        toast.success("Timetable entry updated successfully");
+        toast.success(
+          t?.timetableManagement?.updateSuccess ||
+            "Timetable entry updated successfully",
+        );
       } else {
         await timetableAPI.createTimetableEntry(payload);
-        toast.success("Timetable entry created successfully");
+        toast.success(
+          t?.timetableManagement?.createSuccess ||
+            "Timetable entry created successfully",
+        );
       }
 
       startCreate();
@@ -399,7 +450,9 @@ export default function TimetableManagement() {
     } catch (err) {
       console.error("Save error:", err);
       toast.error(
-        err?.response?.data?.message || "Failed to save timetable entry",
+        err?.response?.data?.message ||
+          t?.timetableManagement?.saveFailed ||
+          "Failed to save timetable entry",
       );
     } finally {
       setLoading(false);
@@ -408,12 +461,18 @@ export default function TimetableManagement() {
 
   const remove = async (id) => {
     if (!isAdmin) {
-      toast.error("Only admin can delete timetable entries");
+      toast.error(
+        t?.timetableManagement?.adminOnlyDelete ||
+          "Only admin can delete timetable entries",
+      );
       return;
     }
 
     if (
-      !window.confirm("Are you sure you want to delete this timetable entry?")
+      !window.confirm(
+        t?.timetableManagement?.confirmDelete ||
+          "Are you sure you want to delete this timetable entry?",
+      )
     ) {
       return;
     }
@@ -421,11 +480,18 @@ export default function TimetableManagement() {
     setLoading(true);
     try {
       await timetableAPI.deleteTimetableEntry(id);
-      toast.success("Timetable entry deleted successfully");
+      toast.success(
+        t?.timetableManagement?.deleteSuccess ||
+          "Timetable entry deleted successfully",
+      );
       await loadTimetable();
     } catch (error) {
       console.error("Delete error:", error);
-      toast.error(error?.response?.data?.message || "Failed to delete entry");
+      toast.error(
+        error?.response?.data?.message ||
+          t?.timetableManagement?.deleteFailed ||
+          "Failed to delete entry",
+      );
     } finally {
       setLoading(false);
     }
@@ -435,7 +501,7 @@ export default function TimetableManagement() {
     return (
       <div className="text-center py-5">
         <FaSpinner className="spin" size={40} />
-        <p className="mt-3">Loading session...</p>
+        <p className="mt-3">{t?.common?.loading || "Loading session..."}</p>
       </div>
     );
   }
@@ -447,21 +513,25 @@ export default function TimetableManagement() {
           <h2 className="mb-1">
             <FaCalendarAlt className="me-2 text-primary" />
             {isAdmin
-              ? "Timetable Management"
+              ? t?.timetableManagement?.title || "Timetable Management"
               : isTeacher
-                ? "My Timetable"
+                ? t?.timetableManagement?.myTimetable || "My Timetable"
                 : isParent
-                  ? "Ward Timetable"
-                  : "My Timetable"}
+                  ? t?.timetableManagement?.wardTimetable || "Ward Timetable"
+                  : t?.timetableManagement?.myTimetable || "My Timetable"}
           </h2>
           <p className="text-muted mb-0">
             {isAdmin
-              ? "Create and manage class schedules"
+              ? t?.timetableManagement?.description ||
+                "Create and manage class schedules"
               : isTeacher
-                ? "View your teaching schedule"
+                ? t?.timetableManagement?.myDescription ||
+                  "View your teaching schedule"
                 : isParent
-                  ? "View timetable for your ward"
-                  : "View your class timetable"}
+                  ? t?.timetableManagement?.wardDescription ||
+                    "View timetable for your ward"
+                  : t?.timetableManagement?.studentDescription ||
+                    "View your class timetable"}
           </p>
         </div>
 
@@ -476,7 +546,7 @@ export default function TimetableManagement() {
           disabled={loading}
         >
           <FaSyncAlt className={`me-2 ${loading ? "spin" : ""}`} />
-          Refresh
+          {t?.common?.refresh || "Refresh"}
         </button>
       </div>
 
@@ -484,13 +554,17 @@ export default function TimetableManagement() {
         <div className="card-body">
           <div className="row">
             <div className={isParent ? "col-md-4 mb-3" : "col-md-6 mb-3"}>
-              <label className="form-label fw-bold">Academic Session</label>
+              <label className="form-label fw-bold">
+                {t?.timetableManagement?.academicSession || "Academic Session"}
+              </label>
               <select
                 className="form-select"
                 value={session || ""}
                 onChange={(e) => setSession(e.target.value)}
               >
-                <option value="">Select Session...</option>
+                <option value="">
+                  {t?.common?.select || "Select Session..."}
+                </option>
                 {availableSessions.map((s) => (
                   <option
                     key={s.id || getSessionLabel(s)}
@@ -503,7 +577,9 @@ export default function TimetableManagement() {
             </div>
 
             <div className={isParent ? "col-md-4 mb-3" : "col-md-6 mb-3"}>
-              <label className="form-label fw-bold">Term</label>
+              <label className="form-label fw-bold">
+                {t?.timetableManagement?.term || "Term"}
+              </label>
               <select
                 className="form-select"
                 value={term || "FIRST"}
@@ -519,13 +595,17 @@ export default function TimetableManagement() {
 
             {isParent && (
               <div className="col-md-4 mb-3">
-                <label className="form-label fw-bold">Select Ward</label>
+                <label className="form-label fw-bold">
+                  {t?.timetableManagement?.selectWard || "Select Ward"}
+                </label>
                 <select
                   className="form-select"
                   value={selectedWardId}
                   onChange={(e) => setSelectedWardId(e.target.value)}
                 >
-                  <option value="">Choose ward...</option>
+                  <option value="">
+                    {t?.common?.select || "Choose ward..."}
+                  </option>
                   {parentWards.map((ward) => (
                     <option key={ward.id} value={ward.id}>
                       {(
@@ -541,7 +621,9 @@ export default function TimetableManagement() {
           </div>
 
           <div className="text-muted small">
-            Active Session: <strong>{session || "None"}</strong> | Term:{" "}
+            {t?.timetableManagement?.activeSession || "Active Session"}:{" "}
+            <strong>{session || "None"}</strong> |{" "}
+            {t?.timetableManagement?.term || "Term"}:{" "}
             <strong>{term || "None"}</strong>
           </div>
         </div>
@@ -553,12 +635,13 @@ export default function TimetableManagement() {
             <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
               <h5 className="mb-0">
                 {editingId
-                  ? "Edit Timetable Entry"
-                  : "Create New Timetable Entry"}
+                  ? t?.timetableManagement?.editEntry || "Edit Timetable Entry"
+                  : t?.timetableManagement?.createEntry ||
+                    "Create New Timetable Entry"}
               </h5>
               <button className="btn btn-light btn-sm" onClick={startCreate}>
                 <FaPlus className="me-1" />
-                New Entry
+                {t?.timetableManagement?.newEntry || "New Entry"}
               </button>
             </div>
 
@@ -566,7 +649,9 @@ export default function TimetableManagement() {
               <form onSubmit={save}>
                 <div className="row">
                   <div className="col-md-4 mb-3">
-                    <label className="form-label fw-bold">Class *</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.classLabel || "Class"} *
+                    </label>
                     <select
                       className="form-select"
                       value={form.classId}
@@ -575,7 +660,9 @@ export default function TimetableManagement() {
                       }
                       required
                     >
-                      <option value="">Select Class...</option>
+                      <option value="">
+                        {t?.common?.select || "Select Class..."}
+                      </option>
                       {classes.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.className} {c.arm || ""}
@@ -585,7 +672,9 @@ export default function TimetableManagement() {
                   </div>
 
                   <div className="col-md-4 mb-3">
-                    <label className="form-label fw-bold">Teacher *</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.teacherLabel || "Teacher"} *
+                    </label>
                     <select
                       className="form-select"
                       value={form.teacherId}
@@ -594,7 +683,9 @@ export default function TimetableManagement() {
                       }
                       required
                     >
-                      <option value="">Select Teacher...</option>
+                      <option value="">
+                        {t?.common?.select || "Select Teacher..."}
+                      </option>
                       {teachers.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.fullName || buildName(t.firstName, t.lastName)}
@@ -604,7 +695,9 @@ export default function TimetableManagement() {
                   </div>
 
                   <div className="col-md-4 mb-3">
-                    <label className="form-label fw-bold">Subject *</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.subjectLabel || "Subject"} *
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -618,7 +711,9 @@ export default function TimetableManagement() {
                   </div>
 
                   <div className="col-md-3 mb-3">
-                    <label className="form-label fw-bold">Day *</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.day || "Day"} *
+                    </label>
                     <select
                       className="form-select"
                       value={form.dayOfWeek}
@@ -636,7 +731,9 @@ export default function TimetableManagement() {
                   </div>
 
                   <div className="col-md-2 mb-3">
-                    <label className="form-label fw-bold">Start Time *</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.startTime || "Start Time"} *
+                    </label>
                     <input
                       type="time"
                       className="form-control"
@@ -649,7 +746,9 @@ export default function TimetableManagement() {
                   </div>
 
                   <div className="col-md-2 mb-3">
-                    <label className="form-label fw-bold">End Time *</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.endTime || "End Time"} *
+                    </label>
                     <input
                       type="time"
                       className="form-control"
@@ -662,7 +761,9 @@ export default function TimetableManagement() {
                   </div>
 
                   <div className="col-md-2 mb-3">
-                    <label className="form-label fw-bold">Room</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.room || "Room"}
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -683,13 +784,14 @@ export default function TimetableManagement() {
                     >
                       {checkingAvailability ? (
                         <>
-                          <FaSpinner className="spin me-2" />
-                          Checking...
+                          <FaSpinner className="spin me-2" />{" "}
+                          {t?.common?.checking || "Checking..."}
                         </>
                       ) : (
                         <>
-                          <FaCheckCircle className="me-2" />
-                          Check Availability
+                          <FaCheckCircle className="me-2" />{" "}
+                          {t?.timetableManagement?.checkAvailability ||
+                            "Check Availability"}
                         </>
                       )}
                     </button>
@@ -704,24 +806,25 @@ export default function TimetableManagement() {
                   >
                     {loading ? (
                       <>
-                        <FaSpinner className="spin me-2" />
-                        Saving...
+                        <FaSpinner className="spin me-2" />{" "}
+                        {t?.common?.saving || "Saving..."}
                       </>
                     ) : (
                       <>
-                        <FaSave className="me-2" />
-                        {editingId ? "Update Entry" : "Save Entry"}
+                        <FaSave className="me-2" />{" "}
+                        {editingId
+                          ? t?.common?.update || "Update Entry"
+                          : t?.timetableManagement?.saveEntry || "Save Entry"}
                       </>
                     )}
                   </button>
-
                   {editingId && (
                     <button
                       type="button"
                       className="btn btn-secondary"
                       onClick={startCreate}
                     >
-                      Cancel Edit
+                      {t?.timetableManagement?.cancelEdit || "Cancel Edit"}
                     </button>
                   )}
                 </div>
@@ -731,12 +834,16 @@ export default function TimetableManagement() {
 
           <div className="card mb-4">
             <div className="card-header bg-light">
-              <h5 className="mb-0">View Timetable</h5>
+              <h5 className="mb-0">
+                {t?.timetableManagement?.viewMode || "View Timetable"}
+              </h5>
             </div>
             <div className="card-body">
               <div className="row align-items-end">
                 <div className="col-md-3 mb-2">
-                  <label className="form-label fw-bold">View Mode</label>
+                  <label className="form-label fw-bold">
+                    {t?.timetableManagement?.viewMode || "View Mode"}
+                  </label>
                   <select
                     className="form-select"
                     value={mode}
@@ -746,21 +853,31 @@ export default function TimetableManagement() {
                       setViewTeacherId("");
                     }}
                   >
-                    <option value="class">By Class</option>
-                    <option value="teacher">By Teacher</option>
-                    <option value="school">Whole School</option>
+                    <option value="class">
+                      {t?.timetableManagement?.byClass || "By Class"}
+                    </option>
+                    <option value="teacher">
+                      {t?.timetableManagement?.byTeacher || "By Teacher"}
+                    </option>
+                    <option value="school">
+                      {t?.timetableManagement?.wholeSchool || "Whole School"}
+                    </option>
                   </select>
                 </div>
 
                 {mode === "class" && (
                   <div className="col-md-4 mb-2">
-                    <label className="form-label fw-bold">Select Class</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.selectClass || "Select Class"}
+                    </label>
                     <select
                       className="form-select"
                       value={viewClassId}
                       onChange={(e) => setViewClassId(e.target.value)}
                     >
-                      <option value="">Choose a class...</option>
+                      <option value="">
+                        {t?.common?.select || "Choose a class..."}
+                      </option>
                       {classes.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.className} {c.arm || ""}
@@ -772,13 +889,18 @@ export default function TimetableManagement() {
 
                 {mode === "teacher" && (
                   <div className="col-md-4 mb-2">
-                    <label className="form-label fw-bold">Select Teacher</label>
+                    <label className="form-label fw-bold">
+                      {t?.timetableManagement?.selectTeacher ||
+                        "Select Teacher"}
+                    </label>
                     <select
                       className="form-select"
                       value={viewTeacherId}
                       onChange={(e) => setViewTeacherId(e.target.value)}
                     >
-                      <option value="">Choose a teacher...</option>
+                      <option value="">
+                        {t?.common?.select || "Choose a teacher..."}
+                      </option>
                       {teachers.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.fullName || buildName(t.firstName, t.lastName)}
@@ -794,8 +916,8 @@ export default function TimetableManagement() {
                     onClick={loadTimetable}
                     disabled={loading}
                   >
-                    <FaSyncAlt className={`me-2 ${loading ? "spin" : ""}`} />
-                    Load
+                    <FaSyncAlt className={`me-2 ${loading ? "spin" : ""}`} />{" "}
+                    {t?.timetableManagement?.load || "Load"}
                   </button>
                 </div>
               </div>
@@ -808,18 +930,20 @@ export default function TimetableManagement() {
         <div className="card-header bg-dark text-white">
           <h5 className="mb-0">
             {isTeacher
-              ? "My Timetable"
+              ? t?.timetableManagement?.myTimetable || "My Timetable"
               : isStudent
-                ? "My Timetable"
+                ? t?.timetableManagement?.myTimetable || "My Timetable"
                 : isParent
-                  ? "Ward Timetable"
+                  ? t?.timetableManagement?.wardTimetable || "Ward Timetable"
                   : mode === "class" && viewClassId
-                    ? `Timetable for ${classMap.get(Number(viewClassId)) || "Selected Class"}`
+                    ? `${t?.timetableManagement?.timetableFor || "Timetable for"} ${classMap.get(Number(viewClassId)) || "Selected Class"}`
                     : mode === "teacher" && viewTeacherId
-                      ? `Timetable for ${teacherMap.get(Number(viewTeacherId)) || "Selected Teacher"}`
+                      ? `${t?.timetableManagement?.timetableFor || "Timetable for"} ${teacherMap.get(Number(viewTeacherId)) || "Selected Teacher"}`
                       : mode === "school"
-                        ? "School-Wide Timetable"
-                        : "Timetable Entries"}
+                        ? t?.timetableManagement?.wholeSchoolTimetable ||
+                          "School-Wide Timetable"
+                        : t?.timetableManagement?.entries ||
+                          "Timetable Entries"}
           </h5>
         </div>
 
@@ -829,7 +953,9 @@ export default function TimetableManagement() {
               <div className="spinner-border text-primary" role="status">
                 <span className="visually-hidden">Loading...</span>
               </div>
-              <p className="mt-3">Loading timetable...</p>
+              <p className="mt-3">
+                {t?.common?.loading || "Loading timetable..."}
+              </p>
             </div>
           ) : (
             <div className="table-responsive">
@@ -837,13 +963,13 @@ export default function TimetableManagement() {
                 <thead className="table-light">
                   <tr>
                     <th>#</th>
-                    <th>Day</th>
-                    <th>Time</th>
-                    <th>Class</th>
-                    <th>Teacher</th>
-                    <th>Subject</th>
-                    <th>Room</th>
-                    {isAdmin && <th>Actions</th>}
+                    <th>{t?.timetableManagement?.day || "Day"}</th>
+                    <th>{t?.timetableManagement?.time || "Time"}</th>
+                    <th>{t?.timetableManagement?.classLabel || "Class"}</th>
+                    <th>{t?.timetableManagement?.teacherLabel || "Teacher"}</th>
+                    <th>{t?.timetableManagement?.subjectLabel || "Subject"}</th>
+                    <th>{t?.timetableManagement?.room || "Room"}</th>
+                    {isAdmin && <th>{t?.common?.actions || "Actions"}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -884,14 +1010,14 @@ export default function TimetableManagement() {
                               <button
                                 className="btn btn-outline-primary"
                                 onClick={() => startEdit(entry)}
-                                title="Edit"
+                                title={t?.common?.edit || "Edit"}
                               >
-                                Edit
+                                <FaEdit />
                               </button>
                               <button
                                 className="btn btn-outline-danger"
                                 onClick={() => remove(entry.id)}
-                                title="Delete"
+                                title={t?.common?.delete || "Delete"}
                               >
                                 <FaTrash />
                               </button>
@@ -908,16 +1034,22 @@ export default function TimetableManagement() {
                       >
                         <p className="text-muted mb-0">
                           {!session
-                            ? "Please select a session and term above"
+                            ? t?.timetableManagement?.selectSessionFirst ||
+                              "Please select a session and term above"
                             : isParent && !selectedWardId
-                              ? "Please select a ward to view timetable"
+                              ? t?.timetableManagement?.selectWardFirst ||
+                                "Please select a ward to view timetable"
                               : isAdmin && mode === "class" && !viewClassId
-                                ? "Please select a class to view its timetable"
+                                ? t?.timetableManagement?.selectClassFirst ||
+                                  "Please select a class to view its timetable"
                                 : isAdmin &&
                                     mode === "teacher" &&
                                     !viewTeacherId
-                                  ? "Please select a teacher to view their timetable"
-                                  : "No timetable entries found for the selected criteria"}
+                                  ? t?.timetableManagement
+                                      ?.selectTeacherFirst ||
+                                    "Please select a teacher to view their timetable"
+                                  : t?.timetableManagement?.noEntries ||
+                                    "No timetable entries found for the selected criteria"}
                         </p>
                       </td>
                     </tr>
@@ -929,15 +1061,7 @@ export default function TimetableManagement() {
         </div>
       </div>
 
-      <style>{`
-        .spin {
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

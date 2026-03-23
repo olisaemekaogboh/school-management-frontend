@@ -1,6 +1,9 @@
 // src/components/UserManagement.js
 import React, { useState, useEffect } from "react";
 import { userAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "react-toastify";
 import {
   FaUsers,
@@ -34,6 +37,12 @@ import moment from "moment";
 import "./UserManagement.css";
 
 function UserManagement() {
+  const { user: currentUser } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
+  const isAdmin = currentUser?.role === "ADMIN";
+
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [statistics, setStatistics] = useState(null);
@@ -45,7 +54,6 @@ function UserManagement() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
 
-  // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -54,7 +62,6 @@ function UserManagement() {
   const [expandedRows, setExpandedRows] = useState([]);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  // Form Data
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -71,9 +78,11 @@ function UserManagement() {
   const roles = ["ADMIN", "TEACHER", "PARENT", "STUDENT"];
 
   useEffect(() => {
-    fetchUsers();
-    fetchStatistics();
-  }, []);
+    if (isAdmin) {
+      fetchUsers();
+      fetchStatistics();
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
     applyFilters();
@@ -87,7 +96,7 @@ function UserManagement() {
       setFilteredUsers(response.data);
     } catch (error) {
       console.error("Error fetching users:", error);
-      toast.error("Failed to load users");
+      toast.error(t?.userManagement?.loadFailed || "Failed to load users");
     } finally {
       setLoading(false);
     }
@@ -133,8 +142,6 @@ function UserManagement() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-
-    // Clear error for this field when user starts typing
     if (formErrors[name]) {
       setFormErrors((prev) => ({ ...prev, [name]: null }));
     }
@@ -158,48 +165,59 @@ function UserManagement() {
   const validateForm = () => {
     const errors = {};
 
-    // Username validation
     if (!formData.username) {
-      errors.username = "Username is required";
+      errors.username =
+        t?.userManagement?.usernameRequired || "Username is required";
     } else if (formData.username.length < 3) {
-      errors.username = "Username must be at least 3 characters long";
+      errors.username =
+        t?.userManagement?.usernameMinLength ||
+        "Username must be at least 3 characters long";
     } else if (formData.username.length > 20) {
-      errors.username = "Username must be less than 20 characters";
+      errors.username =
+        t?.userManagement?.usernameMaxLength ||
+        "Username must be less than 20 characters";
     } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
       errors.username =
+        t?.userManagement?.usernameInvalid ||
         "Username can only contain letters, numbers, and underscore";
     }
 
-    // Email validation
     if (!formData.email) {
-      errors.email = "Email is required";
+      errors.email = t?.userManagement?.emailRequired || "Email is required";
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
-        errors.email = "Please enter a valid email address";
+        errors.email =
+          t?.userManagement?.emailInvalid ||
+          "Please enter a valid email address";
       }
     }
 
-    // Password validation
     if (!editingUser && !formData.password) {
-      errors.password = "Password is required for new users";
+      errors.password =
+        t?.userManagement?.passwordRequired ||
+        "Password is required for new users";
     } else if (formData.password && formData.password.length < 6) {
-      errors.password = "Password must be at least 6 characters";
+      errors.password =
+        t?.userManagement?.passwordMinLength ||
+        "Password must be at least 6 characters";
     }
 
-    // Name validation
     if (!formData.firstName) {
-      errors.firstName = "First name is required";
+      errors.firstName =
+        t?.userManagement?.firstNameRequired || "First name is required";
     }
     if (!formData.lastName) {
-      errors.lastName = "Last name is required";
+      errors.lastName =
+        t?.userManagement?.lastNameRequired || "Last name is required";
     }
 
-    // Phone validation (optional but if provided, validate format)
     if (formData.phoneNumber) {
       const phoneRegex = /^[0-9+\-\s()]+$/;
       if (!phoneRegex.test(formData.phoneNumber)) {
-        errors.phoneNumber = "Please enter a valid phone number";
+        errors.phoneNumber =
+          t?.userManagement?.phoneInvalid ||
+          "Please enter a valid phone number";
       }
     }
 
@@ -209,11 +227,16 @@ function UserManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Run validation
+    if (!isAdmin) {
+      toast.error(
+        t?.userManagement?.adminOnly || "Only administrators can manage users",
+      );
+      return;
+    }
+
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
-      // Show first error as toast
       const firstError = Object.values(errors)[0];
       toast.error(firstError);
       return;
@@ -224,10 +247,14 @@ function UserManagement() {
     try {
       if (editingUser) {
         await userAPI.updateUser(editingUser.id, formData);
-        toast.success("User updated successfully");
+        toast.success(
+          t?.userManagement?.updateSuccess || "User updated successfully",
+        );
       } else {
         await userAPI.createUser(formData);
-        toast.success("User created successfully");
+        toast.success(
+          t?.userManagement?.createSuccess || "User created successfully",
+        );
       }
 
       resetForm();
@@ -236,31 +263,30 @@ function UserManagement() {
       fetchStatistics();
     } catch (error) {
       console.error("Error saving user:", error);
-
-      // Handle specific error messages from backend
       const errorMessage = error.response?.data?.message;
       if (errorMessage?.includes("Username already exists")) {
-        toast.error("Username already taken. Please choose another.");
-        setFormErrors({ username: "Username already taken" });
+        toast.error(
+          t?.userManagement?.usernameExists ||
+            "Username already taken. Please choose another.",
+        );
+        setFormErrors({
+          username:
+            t?.userManagement?.usernameExists || "Username already taken",
+        });
       } else if (errorMessage?.includes("Email already exists")) {
-        toast.error("Email already registered. Please use another email.");
-        setFormErrors({ email: "Email already registered" });
-      } else if (errorMessage?.includes("Validation failed")) {
-        // Handle validation errors from backend
-        const validationErrors = error.response?.data?.errors;
-        if (validationErrors) {
-          Object.keys(validationErrors).forEach((field) => {
-            toast.error(validationErrors[field]);
-            setFormErrors((prev) => ({
-              ...prev,
-              [field]: validationErrors[field],
-            }));
-          });
-        } else {
-          toast.error(errorMessage || "Failed to save user");
-        }
+        toast.error(
+          t?.userManagement?.emailExists ||
+            "Email already registered. Please use another email.",
+        );
+        setFormErrors({
+          email: t?.userManagement?.emailExists || "Email already registered",
+        });
       } else {
-        toast.error(errorMessage || "Failed to save user");
+        toast.error(
+          errorMessage ||
+            t?.userManagement?.saveFailed ||
+            "Failed to save user",
+        );
       }
     } finally {
       setLoading(false);
@@ -268,36 +294,48 @@ function UserManagement() {
   };
 
   const handleDelete = async () => {
-    if (!userToDelete) return;
-    setLoading(true);
+    if (!isAdmin || !userToDelete) return;
 
+    setLoading(true);
     try {
       await userAPI.deleteUser(userToDelete.id);
-      toast.success("User deleted successfully");
+      toast.success(
+        t?.userManagement?.deleteSuccess || "User deleted successfully",
+      );
       setShowDeleteModal(false);
       setUserToDelete(null);
       fetchUsers();
       fetchStatistics();
     } catch (error) {
       console.error("Error deleting user:", error);
-      toast.error(error.response?.data?.message || "Failed to delete user");
+      toast.error(
+        error.response?.data?.message ||
+          t?.userManagement?.deleteFailed ||
+          "Failed to delete user",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleToggleStatus = async (userId, currentStatus) => {
+    if (!isAdmin) return;
+
     try {
       await userAPI.toggleUserStatus(userId, !currentStatus);
       toast.success(
-        `User ${!currentStatus ? "activated" : "deactivated"} successfully`,
+        !currentStatus
+          ? t?.userManagement?.activated || "User activated successfully"
+          : t?.userManagement?.deactivated || "User deactivated successfully",
       );
       fetchUsers();
       fetchStatistics();
     } catch (error) {
       console.error("Error toggling user status:", error);
       toast.error(
-        error.response?.data?.message || "Failed to update user status",
+        error.response?.data?.message ||
+          t?.userManagement?.statusUpdateFailed ||
+          "Failed to update user status",
       );
     }
   };
@@ -308,6 +346,8 @@ function UserManagement() {
   };
 
   const handleEdit = (user) => {
+    if (!isAdmin) return;
+
     setFormData({
       firstName: user.firstName || "",
       lastName: user.lastName || "",
@@ -355,78 +395,92 @@ function UserManagement() {
 
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
 
+  if (!isAdmin) {
+    return (
+      <div className="container py-5 text-center">
+        <div className="alert alert-danger">
+          <FaExclamationTriangle className="me-2" />
+          {t?.userManagement?.accessDenied ||
+            "Access denied. Only administrators can access this page."}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="user-management">
-      {/* Header */}
       <div className="header-section">
         <div className="header-top">
           <h1>
-            <FaUsers /> User Management
+            <FaUsers /> {t?.userManagement?.title || "User Management"}
           </h1>
           <div className="header-actions">
             <button
               className="btn-refresh"
               onClick={fetchUsers}
-              title="Refresh"
+              title={t?.common?.refresh || "Refresh"}
             >
               <FaSync />
             </button>
           </div>
         </div>
 
-        {/* Statistics Cards */}
         {statistics && (
           <div className="stats-grid">
             <div className="stat-card primary">
               <FaUsers />
               <div>
                 <h3>{statistics.totalUsers || 0}</h3>
-                <p>Total Users</p>
+                <p>{t?.userManagement?.totalUsers || "Total Users"}</p>
               </div>
             </div>
             <div className="stat-card success">
               <FaCheckCircle />
               <div>
                 <h3>{statistics.activeUsers || 0}</h3>
-                <p>Active Users</p>
+                <p>{t?.userManagement?.activeUsers || "Active Users"}</p>
               </div>
             </div>
             <div className="stat-card warning">
               <FaExclamationTriangle />
               <div>
                 <h3>{statistics.inactiveUsers || 0}</h3>
-                <p>Inactive</p>
+                <p>{t?.userManagement?.inactive || "Inactive"}</p>
               </div>
             </div>
             <div className="stat-card info">
               <FaUserShield />
               <div>
                 <h3>{Object.keys(statistics.roleCount || {}).length}</h3>
-                <p>Roles</p>
+                <p>{t?.userManagement?.roles || "Roles"}</p>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Mobile Filter Toggle */}
       <button
         className="mobile-filter-toggle"
         onClick={() => setShowMobileFilters(!showMobileFilters)}
       >
-        <FaFilter /> {showMobileFilters ? "Hide Filters" : "Show Filters"}
+        <FaFilter />{" "}
+        {showMobileFilters
+          ? t?.common?.hideFilters || "Hide Filters"
+          : t?.common?.showFilters || "Show Filters"}
       </button>
 
-      {/* Filters */}
       <div className={`filters-section ${showMobileFilters ? "show" : ""}`}>
         <div className="filters-grid">
           <div className="filter-group">
-            <label>Search</label>
+            <label>{t?.common?.search || "Search"}</label>
             <div className="search-box">
               <FaSearch />
               <input
                 type="text"
-                placeholder="Search by name, username, email..."
+                placeholder={
+                  t?.userManagement?.searchPlaceholder ||
+                  "Search by name, username, email..."
+                }
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -434,12 +488,12 @@ function UserManagement() {
           </div>
 
           <div className="filter-group">
-            <label>Role</label>
+            <label>{t?.userManagement?.role || "Role"}</label>
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
             >
-              <option value="all">All Roles</option>
+              <option value="all">{t?.common?.allRoles || "All Roles"}</option>
               {roles.map((role) => (
                 <option key={role} value={role}>
                   {role}
@@ -449,32 +503,37 @@ function UserManagement() {
           </div>
 
           <div className="filter-group">
-            <label>Status</label>
+            <label>{t?.userManagement?.status || "Status"}</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="all">
+                {t?.common?.allStatus || "All Status"}
+              </option>
+              <option value="active">
+                {t?.userManagement?.active || "Active"}
+              </option>
+              <option value="inactive">
+                {t?.userManagement?.inactive || "Inactive"}
+              </option>
             </select>
           </div>
 
           <div className="filter-group">
             <label>&nbsp;</label>
             <button className="btn-primary" onClick={() => setShowForm(true)}>
-              <FaPlus /> Add User
+              <FaPlus /> {t?.userManagement?.addUser || "Add User"}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Users Table */}
       <div className="table-section">
         {loading ? (
           <div className="loading-spinner">
             <FaSpinner className="spin" />
-            <p>Loading users...</p>
+            <p>{t?.common?.loading || "Loading users..."}</p>
           </div>
         ) : (
           <>
@@ -483,13 +542,13 @@ function UserManagement() {
                 <thead>
                   <tr>
                     <th></th>
-                    <th>Username</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th>Actions</th>
+                    <th>{t?.userManagement?.username || "Username"}</th>
+                    <th>{t?.userManagement?.name || "Name"}</th>
+                    <th>{t?.common?.email || "Email"}</th>
+                    <th>{t?.userManagement?.role || "Role"}</th>
+                    <th>{t?.userManagement?.status || "Status"}</th>
+                    <th>{t?.userManagement?.created || "Created"}</th>
+                    <th>{t?.common?.actions || "Actions"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -539,7 +598,9 @@ function UserManagement() {
                           <span
                             className={`status-badge ${user.active ? "badge-success" : "badge-danger"}`}
                           >
-                            {user.active ? "Active" : "Inactive"}
+                            {user.active
+                              ? t?.userManagement?.active || "Active"
+                              : t?.userManagement?.inactive || "Inactive"}
                           </span>
                         </td>
                         <td>
@@ -552,14 +613,14 @@ function UserManagement() {
                             <button
                               className="btn-view"
                               onClick={() => handleView(user)}
-                              title="View"
+                              title={t?.common?.view || "View"}
                             >
                               <FaEye />
                             </button>
                             <button
                               className="btn-edit"
                               onClick={() => handleEdit(user)}
-                              title="Edit"
+                              title={t?.common?.edit || "Edit"}
                             >
                               <FaEdit />
                             </button>
@@ -568,7 +629,12 @@ function UserManagement() {
                               onClick={() =>
                                 handleToggleStatus(user.id, user.active)
                               }
-                              title={user.active ? "Deactivate" : "Activate"}
+                              title={
+                                user.active
+                                  ? t?.userManagement?.deactivate ||
+                                    "Deactivate"
+                                  : t?.userManagement?.activate || "Activate"
+                              }
                             >
                               {user.active ? <FaTimes /> : <FaCheckCircle />}
                             </button>
@@ -578,7 +644,7 @@ function UserManagement() {
                                 setUserToDelete(user);
                                 setShowDeleteModal(true);
                               }}
-                              title="Delete"
+                              title={t?.common?.delete || "Delete"}
                             >
                               <FaTrash />
                             </button>
@@ -591,63 +657,127 @@ function UserManagement() {
                             <div className="expanded-content">
                               <div className="detail-grid">
                                 <div>
-                                  <h4>Personal Information</h4>
+                                  <h4>
+                                    {t?.userManagement?.personalInfo ||
+                                      "Personal Information"}
+                                  </h4>
                                   <p>
-                                    <strong>Full Name:</strong> {user.firstName}{" "}
-                                    {user.lastName}
+                                    <strong>
+                                      {t?.userManagement?.fullName ||
+                                        "Full Name"}
+                                      :
+                                    </strong>{" "}
+                                    {user.firstName} {user.lastName}
                                   </p>
                                   <p>
-                                    <strong>Username:</strong> {user.username}
+                                    <strong>
+                                      {t?.userManagement?.username ||
+                                        "Username"}
+                                      :
+                                    </strong>{" "}
+                                    {user.username}
                                   </p>
                                   <p>
-                                    <strong>Email:</strong> {user.email}
+                                    <strong>
+                                      {t?.common?.email || "Email"}:
+                                    </strong>{" "}
+                                    {user.email}
                                   </p>
                                   <p>
-                                    <strong>Phone:</strong>{" "}
+                                    <strong>
+                                      {t?.common?.phone || "Phone"}:
+                                    </strong>{" "}
                                     {user.phoneNumber || "-"}
                                   </p>
                                 </div>
                                 <div>
-                                  <h4>Account Details</h4>
+                                  <h4>
+                                    {t?.userManagement?.accountDetails ||
+                                      "Account Details"}
+                                  </h4>
                                   <p>
-                                    <strong>Role:</strong> {user.role}
+                                    <strong>
+                                      {t?.userManagement?.role || "Role"}:
+                                    </strong>{" "}
+                                    {user.role}
                                   </p>
                                   <p>
-                                    <strong>Status:</strong>{" "}
-                                    {user.active ? "Active" : "Inactive"}
+                                    <strong>
+                                      {t?.userManagement?.status || "Status"}:
+                                    </strong>{" "}
+                                    {user.active
+                                      ? t?.userManagement?.active || "Active"
+                                      : t?.userManagement?.inactive ||
+                                        "Inactive"}
                                   </p>
                                   <p>
-                                    <strong>Email Verified:</strong>{" "}
-                                    {user.emailVerified ? "Yes" : "No"}
+                                    <strong>
+                                      {t?.userManagement?.emailVerified ||
+                                        "Email Verified"}
+                                      :
+                                    </strong>{" "}
+                                    {user.emailVerified
+                                      ? t?.common?.yes || "Yes"
+                                      : t?.common?.no || "No"}
                                   </p>
                                   <p>
-                                    <strong>Last Login:</strong>{" "}
+                                    <strong>
+                                      {t?.userManagement?.lastLogin ||
+                                        "Last Login"}
+                                      :
+                                    </strong>{" "}
                                     {user.lastLogin
                                       ? moment(user.lastLogin).format(
                                           "DD/MM/YYYY HH:mm",
                                         )
-                                      : "Never"}
+                                      : t?.common?.never || "Never"}
                                   </p>
                                 </div>
                                 <div>
-                                  <h4>Linked Accounts</h4>
+                                  <h4>
+                                    {t?.userManagement?.linkedAccounts ||
+                                      "Linked Accounts"}
+                                  </h4>
                                   <p>
-                                    <strong>Teacher ID:</strong>{" "}
-                                    {user.teacherId || "Not linked"}
+                                    <strong>
+                                      {t?.userManagement?.teacherId ||
+                                        "Teacher ID"}
+                                      :
+                                    </strong>{" "}
+                                    {user.teacherId ||
+                                      t?.userManagement?.notLinked ||
+                                      "Not linked"}
                                   </p>
                                   <p>
-                                    <strong>Student ID:</strong>{" "}
-                                    {user.studentId || "Not linked"}
+                                    <strong>
+                                      {t?.userManagement?.studentId ||
+                                        "Student ID"}
+                                      :
+                                    </strong>{" "}
+                                    {user.studentId ||
+                                      t?.userManagement?.notLinked ||
+                                      "Not linked"}
                                   </p>
                                   <p>
-                                    <strong>Parent ID:</strong>{" "}
-                                    {user.parentId || "Not linked"}
+                                    <strong>
+                                      {t?.userManagement?.parentId ||
+                                        "Parent ID"}
+                                      :
+                                    </strong>{" "}
+                                    {user.parentId ||
+                                      t?.userManagement?.notLinked ||
+                                      "Not linked"}
                                   </p>
                                 </div>
                                 <div>
-                                  <h4>Timestamps</h4>
+                                  <h4>
+                                    {t?.userManagement?.timestamps ||
+                                      "Timestamps"}
+                                  </h4>
                                   <p>
-                                    <strong>Created:</strong>{" "}
+                                    <strong>
+                                      {t?.userManagement?.created || "Created"}:
+                                    </strong>{" "}
                                     {user.createdAt
                                       ? moment(user.createdAt).format(
                                           "DD/MM/YYYY HH:mm",
@@ -655,7 +785,9 @@ function UserManagement() {
                                       : "-"}
                                   </p>
                                   <p>
-                                    <strong>Updated:</strong>{" "}
+                                    <strong>
+                                      {t?.userManagement?.updated || "Updated"}:
+                                    </strong>{" "}
                                     {user.updatedAt
                                       ? moment(user.updatedAt).format(
                                           "DD/MM/YYYY HH:mm",
@@ -670,21 +802,23 @@ function UserManagement() {
                       )}
                     </React.Fragment>
                   ))}
-
                   {filteredUsers.length === 0 && (
                     <tr>
                       <td colSpan="8" className="empty-state">
                         <FaUsers size={50} />
-                        <h3>No Users Found</h3>
-                        <p>Click "Add User" to create your first user.</p>
+                        <h3>
+                          {t?.userManagement?.noUsersFound || "No Users Found"}
+                        </h3>
+                        <p>
+                          {t?.userManagement?.addFirstUser ||
+                            'Click "Add User" to create your first user.'}
+                        </p>
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="pagination">
                 <button
@@ -694,7 +828,8 @@ function UserManagement() {
                   <FaArrowLeft />
                 </button>
                 <span>
-                  Page {currentPage} of {totalPages}
+                  {t?.common?.page || "Page"} {currentPage}{" "}
+                  {t?.common?.of || "of"} {totalPages}
                 </span>
                 <button
                   onClick={() =>
@@ -723,7 +858,9 @@ function UserManagement() {
             <div className="modal-header">
               <h2>
                 {editingUser ? <FaEdit /> : <FaPlus />}
-                {editingUser ? " Edit User" : " Add New User"}
+                {editingUser
+                  ? t?.common?.edit || " Edit User"
+                  : t?.userManagement?.addUser || " Add New User"}
               </h2>
               <button
                 className="modal-close"
@@ -735,12 +872,13 @@ function UserManagement() {
                 <FaTimes />
               </button>
             </div>
-
             <div className="modal-body">
               <form onSubmit={handleSubmit} noValidate>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>First Name *</label>
+                    <label>
+                      {t?.userManagement?.firstName || "First Name"} *
+                    </label>
                     <input
                       type="text"
                       name="firstName"
@@ -756,7 +894,9 @@ function UserManagement() {
                     )}
                   </div>
                   <div className="form-group">
-                    <label>Last Name *</label>
+                    <label>
+                      {t?.userManagement?.lastName || "Last Name"} *
+                    </label>
                     <input
                       type="text"
                       name="lastName"
@@ -772,10 +912,9 @@ function UserManagement() {
                     )}
                   </div>
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Username *</label>
+                    <label>{t?.userManagement?.username || "Username"} *</label>
                     <input
                       type="text"
                       name="username"
@@ -793,12 +932,13 @@ function UserManagement() {
                       </small>
                     ) : (
                       <small className="hint-text">
-                        3-20 characters (letters, numbers, underscore only)
+                        {t?.userManagement?.usernameHint ||
+                          "3-20 characters (letters, numbers, underscore only)"}
                       </small>
                     )}
                   </div>
                   <div className="form-group">
-                    <label>Email *</label>
+                    <label>{t?.common?.email || "Email"} *</label>
                     <input
                       type="email"
                       name="email"
@@ -812,15 +952,18 @@ function UserManagement() {
                       <small className="error-text">{formErrors.email}</small>
                     ) : (
                       <small className="hint-text">
-                        Use a unique email address
+                        {t?.userManagement?.emailHint ||
+                          "Use a unique email address"}
                       </small>
                     )}
                   </div>
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Password {!editingUser && "*"}</label>
+                    <label>
+                      {t?.userManagement?.password || "Password"}{" "}
+                      {!editingUser && "*"}
+                    </label>
                     <input
                       type="password"
                       name="password"
@@ -831,8 +974,10 @@ function UserManagement() {
                       minLength="6"
                       placeholder={
                         editingUser
-                          ? "Leave blank to keep current"
-                          : "Enter password (min 6 characters)"
+                          ? t?.userManagement?.leaveBlank ||
+                            "Leave blank to keep current"
+                          : t?.userManagement?.passwordPlaceholder ||
+                            "Enter password (min 6 characters)"
                       }
                     />
                     {formErrors.password && (
@@ -842,7 +987,7 @@ function UserManagement() {
                     )}
                   </div>
                   <div className="form-group">
-                    <label>Phone Number</label>
+                    <label>{t?.common?.phone || "Phone Number"}</label>
                     <input
                       type="tel"
                       name="phoneNumber"
@@ -858,10 +1003,9 @@ function UserManagement() {
                     )}
                   </div>
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Role</label>
+                    <label>{t?.userManagement?.role || "Role"}</label>
                     <select
                       name="role"
                       value={formData.role}
@@ -875,7 +1019,6 @@ function UserManagement() {
                     </select>
                   </div>
                 </div>
-
                 <div className="form-actions">
                   <button
                     type="button"
@@ -885,7 +1028,7 @@ function UserManagement() {
                       setShowForm(false);
                     }}
                   >
-                    Cancel
+                    {t?.common?.cancel || "Cancel"}
                   </button>
                   <button
                     type="submit"
@@ -895,9 +1038,9 @@ function UserManagement() {
                     {loading ? (
                       <FaSpinner className="spin" />
                     ) : editingUser ? (
-                      "Update User"
+                      t?.common?.update || "Update User"
                     ) : (
-                      "Create User"
+                      t?.common?.create || "Create User"
                     )}
                   </button>
                 </div>
@@ -913,7 +1056,7 @@ function UserManagement() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>
-                <FaEye /> User Details
+                <FaEye /> {t?.userManagement?.userDetails || "User Details"}
               </h2>
               <button
                 className="modal-close"
@@ -922,7 +1065,6 @@ function UserManagement() {
                 <FaTimes />
               </button>
             </div>
-
             <div className="modal-body">
               <div className="user-profile">
                 <div className="profile-header">
@@ -939,41 +1081,53 @@ function UserManagement() {
                     </span>
                   </div>
                 </div>
-
                 <div className="detail-section">
-                  <h3>Account Information</h3>
+                  <h3>
+                    {t?.userManagement?.accountInfo || "Account Information"}
+                  </h3>
                   <div className="detail-grid">
                     <div>
-                      <label>Email:</label> <span>{viewingUser.email}</span>
+                      <label>{t?.common?.email || "Email"}:</label>{" "}
+                      <span>{viewingUser.email}</span>
                     </div>
                     <div>
-                      <label>Phone:</label>{" "}
+                      <label>{t?.common?.phone || "Phone"}:</label>{" "}
                       <span>{viewingUser.phoneNumber || "-"}</span>
                     </div>
                     <div>
-                      <label>Status:</label>
+                      <label>{t?.userManagement?.status || "Status"}:</label>{" "}
                       <span
                         className={`status-badge ${viewingUser.active ? "badge-success" : "badge-danger"}`}
                       >
-                        {viewingUser.active ? "Active" : "Inactive"}
+                        {viewingUser.active
+                          ? t?.userManagement?.active || "Active"
+                          : t?.userManagement?.inactive || "Inactive"}
                       </span>
                     </div>
                     <div>
-                      <label>Email Verified:</label>{" "}
-                      <span>{viewingUser.emailVerified ? "Yes" : "No"}</span>
+                      <label>
+                        {t?.userManagement?.emailVerified || "Email Verified"}:
+                      </label>{" "}
+                      <span>
+                        {viewingUser.emailVerified
+                          ? t?.common?.yes || "Yes"
+                          : t?.common?.no || "No"}
+                      </span>
                     </div>
                     <div>
-                      <label>Last Login:</label>{" "}
+                      <label>
+                        {t?.userManagement?.lastLogin || "Last Login"}:
+                      </label>{" "}
                       <span>
                         {viewingUser.lastLogin
                           ? moment(viewingUser.lastLogin).format(
                               "DD/MM/YYYY HH:mm",
                             )
-                          : "Never"}
+                          : t?.common?.never || "Never"}
                       </span>
                     </div>
                     <div>
-                      <label>Created:</label>{" "}
+                      <label>{t?.userManagement?.created || "Created"}:</label>{" "}
                       <span>
                         {viewingUser.createdAt
                           ? moment(viewingUser.createdAt).format(
@@ -983,7 +1137,7 @@ function UserManagement() {
                       </span>
                     </div>
                     <div>
-                      <label>Updated:</label>{" "}
+                      <label>{t?.userManagement?.updated || "Updated"}:</label>{" "}
                       <span>
                         {viewingUser.updatedAt
                           ? moment(viewingUser.updatedAt).format(
@@ -994,33 +1148,51 @@ function UserManagement() {
                     </div>
                   </div>
                 </div>
-
                 <div className="detail-section">
-                  <h3>Linked Accounts</h3>
+                  <h3>
+                    {t?.userManagement?.linkedAccounts || "Linked Accounts"}
+                  </h3>
                   <div className="detail-grid">
                     <div>
-                      <label>Teacher ID:</label>{" "}
-                      <span>{viewingUser.teacherId || "Not linked"}</span>
+                      <label>
+                        {t?.userManagement?.teacherId || "Teacher ID"}:
+                      </label>{" "}
+                      <span>
+                        {viewingUser.teacherId ||
+                          t?.userManagement?.notLinked ||
+                          "Not linked"}
+                      </span>
                     </div>
                     <div>
-                      <label>Student ID:</label>{" "}
-                      <span>{viewingUser.studentId || "Not linked"}</span>
+                      <label>
+                        {t?.userManagement?.studentId || "Student ID"}:
+                      </label>{" "}
+                      <span>
+                        {viewingUser.studentId ||
+                          t?.userManagement?.notLinked ||
+                          "Not linked"}
+                      </span>
                     </div>
                     <div>
-                      <label>Parent ID:</label>{" "}
-                      <span>{viewingUser.parentId || "Not linked"}</span>
+                      <label>
+                        {t?.userManagement?.parentId || "Parent ID"}:
+                      </label>{" "}
+                      <span>
+                        {viewingUser.parentId ||
+                          t?.userManagement?.notLinked ||
+                          "Not linked"}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
             <div className="modal-footer">
               <button
                 className="btn-secondary"
                 onClick={() => setShowViewModal(false)}
               >
-                Close
+                {t?.common?.close || "Close"}
               </button>
               <button
                 className="btn-primary"
@@ -1029,7 +1201,7 @@ function UserManagement() {
                   handleEdit(viewingUser);
                 }}
               >
-                <FaEdit /> Edit User
+                <FaEdit /> {t?.common?.edit || "Edit User"}
               </button>
             </div>
           </div>
@@ -1048,7 +1220,8 @@ function UserManagement() {
           >
             <div className="modal-header danger">
               <h2>
-                <FaExclamationTriangle /> Delete User
+                <FaExclamationTriangle />{" "}
+                {t?.userManagement?.deleteUser || "Delete User"}
               </h2>
               <button
                 className="modal-close"
@@ -1057,31 +1230,37 @@ function UserManagement() {
                 <FaTimes />
               </button>
             </div>
-
             <div className="modal-body">
               <p>
-                Are you sure you want to delete user{" "}
+                {t?.userManagement?.confirmDelete ||
+                  "Are you sure you want to delete user"}{" "}
                 <strong>
                   {userToDelete.firstName} {userToDelete.lastName}
                 </strong>
                 ?
               </p>
-              <p className="text-danger">This action cannot be undone.</p>
+              <p className="text-danger">
+                {t?.userManagement?.cannotUndo ||
+                  "This action cannot be undone."}
+              </p>
             </div>
-
             <div className="modal-footer">
               <button
                 className="btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
               >
-                Cancel
+                {t?.common?.cancel || "Cancel"}
               </button>
               <button
                 className="btn-danger"
                 onClick={handleDelete}
                 disabled={loading}
               >
-                {loading ? <FaSpinner className="spin" /> : "Delete"}
+                {loading ? (
+                  <FaSpinner className="spin" />
+                ) : (
+                  t?.common?.delete || "Delete"
+                )}
               </button>
             </div>
           </div>

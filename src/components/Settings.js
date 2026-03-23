@@ -1,7 +1,10 @@
 // src/components/Settings.js
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
+
 import {
   FaUser,
   FaLock,
@@ -10,12 +13,10 @@ import {
   FaGlobe,
   FaLanguage,
   FaSave,
-  FaTimes,
   FaEye,
   FaEyeSlash,
   FaEnvelope,
   FaPhone,
-  FaAddressCard,
   FaCalendarAlt,
   FaShieldAlt,
   FaKey,
@@ -26,79 +27,488 @@ import {
   FaCheckCircle,
   FaSpinner,
   FaUserCircle,
-  FaEdit,
   FaCamera,
   FaMoneyBill,
+  FaSignOutAlt,
+  FaTrash,
 } from "react-icons/fa";
-import { userAPI } from "../services/api";
+import { authAPI, userAPI } from "../services/api";
 import "./Settings.css";
 
+const STORAGE_KEYS = {
+  notifications: "settings.notifications",
+  appearance: "settings.appearance",
+  language: "settings.language",
+};
+
+const DEFAULT_NOTIFICATION_SETTINGS = {
+  emailNotifications: true,
+  pushNotifications: true,
+  smsNotifications: false,
+  announcementAlerts: true,
+  eventReminders: true,
+  resultAlerts: true,
+  attendanceAlerts: true,
+  feeReminders: true,
+};
+
+const DEFAULT_APPEARANCE_SETTINGS = {
+  theme: "light",
+  compactMode: false,
+  fontSize: "medium",
+  animations: true,
+};
+
+const DEFAULT_LANGUAGE_SETTINGS = {
+  language: "en",
+  dateFormat: "DD/MM/YYYY",
+  timeFormat: "24h",
+};
+
+const translations = {
+  en: {
+    settings: "Settings",
+    manageAccount: "Manage your account preferences and settings",
+    profile: "Profile",
+    security: "Security",
+    notifications: "Notifications",
+    appearance: "Appearance",
+    language: "Language & Region",
+    profileInformation: "Profile Information",
+    updatePersonalInfo: "Update your personal information and contact details",
+    securitySettings: "Security Settings",
+    changePasswordText: "Change your password and manage security preferences",
+    notificationPreferences: "Notification Preferences",
+    notificationText: "Choose how you want to receive notifications",
+    appearanceTitle: "Appearance",
+    appearanceText: "Customize how the application looks",
+    languageTitle: "Language & Region",
+    languageText: "Set your language and regional preferences",
+    firstName: "First Name",
+    lastName: "Last Name",
+    username: "Username",
+    emailAddress: "Email Address",
+    phoneNumber: "Phone Number",
+    dateOfBirth: "Date of Birth",
+    saveChanges: "Save Changes",
+    saving: "Saving...",
+    currentPassword: "Current Password",
+    newPassword: "New Password",
+    confirmNewPassword: "Confirm New Password",
+    changePassword: "Change Password",
+    updating: "Updating...",
+    passwordHint: "Password must be at least 6 characters long",
+    securityTips: "Security Tips",
+    tip1: "Use a strong password with letters, numbers, and symbols.",
+    tip2: "Never share your password with anyone.",
+    tip3: "Change your password regularly.",
+    communicationChannels: "Communication Channels",
+    alertTypes: "Alert Types",
+    emailNotifications: "Email Notifications",
+    emailNotificationsText: "Receive notifications via email",
+    pushNotifications: "Push Notifications",
+    pushNotificationsText: "Receive push notifications in browser",
+    smsNotifications: "SMS Notifications",
+    smsNotificationsText: "Receive notifications via SMS",
+    announcements: "Announcements",
+    announcementsText: "School announcements and news",
+    eventReminders: "Event Reminders",
+    eventRemindersText: "Upcoming school events and activities",
+    resultAlerts: "Results & Grades",
+    resultAlertsText: "When results and grades are published",
+    attendanceAlerts: "Attendance Alerts",
+    attendanceAlertsText: "When attendance is recorded",
+    feeReminders: "Fee Reminders",
+    feeRemindersText: "When fees are due or paid",
+    savePreferences: "Save Preferences",
+    applyChanges: "Apply Changes",
+    theme: "Theme",
+    light: "Light",
+    dark: "Dark",
+    fontSize: "Font Size",
+    small: "Small",
+    medium: "Medium",
+    large: "Large",
+    compactMode: "Compact Mode",
+    compactModeText: "Reduce spacing and make UI more compact",
+    animations: "Animations",
+    animationsText: "Enable smooth animations throughout the app",
+    languageLabel: "Language",
+    dateFormat: "Date Format",
+    timeFormat: "Time Format",
+    profileUpdated: "Profile updated successfully!",
+    passwordChanged: "Password changed successfully!",
+    notificationSaved: "Notification settings saved!",
+    appearanceSaved: "Appearance settings saved!",
+    languageSaved: "Language preferences saved!",
+    profileFailed: "Failed to update profile",
+    passwordFailed: "Failed to change password",
+    notificationFailed: "Failed to save notification settings",
+    appearanceFailed: "Failed to save appearance settings",
+    languageFailed: "Failed to save language settings",
+    currentPasswordRequired: "Current password is required",
+    passwordMin: "Password must be at least 6 characters long",
+    passwordsMismatch: "New passwords do not match",
+    administrator: "Administrator",
+    teacher: "Teacher",
+    student: "Student",
+    parent: "Parent",
+    user: "User",
+    deleteAccount: "Delete Account",
+    deleteAccountWarning:
+      "This action cannot be undone. All your data will be permanently deleted.",
+    confirmDelete: "Confirm Delete",
+    cancel: "Cancel",
+  },
+  fr: {
+    settings: "Paramètres",
+    manageAccount: "Gérez les préférences et paramètres de votre compte",
+    profile: "Profil",
+    security: "Sécurité",
+    notifications: "Notifications",
+    appearance: "Apparence",
+    language: "Langue et région",
+    profileInformation: "Informations du profil",
+    updatePersonalInfo:
+      "Mettez à jour vos informations personnelles et vos coordonnées",
+    securitySettings: "Paramètres de sécurité",
+    changePasswordText:
+      "Modifiez votre mot de passe et gérez vos préférences de sécurité",
+    notificationPreferences: "Préférences de notification",
+    notificationText:
+      "Choisissez comment vous souhaitez recevoir les notifications",
+    appearanceTitle: "Apparence",
+    appearanceText: "Personnalisez l’apparence de l’application",
+    languageTitle: "Langue et région",
+    languageText: "Définissez vos préférences de langue et de région",
+    firstName: "Prénom",
+    lastName: "Nom",
+    username: "Nom d’utilisateur",
+    emailAddress: "Adresse e-mail",
+    phoneNumber: "Numéro de téléphone",
+    dateOfBirth: "Date de naissance",
+    saveChanges: "Enregistrer les modifications",
+    saving: "Enregistrement...",
+    currentPassword: "Mot de passe actuel",
+    newPassword: "Nouveau mot de passe",
+    confirmNewPassword: "Confirmez le nouveau mot de passe",
+    changePassword: "Changer le mot de passe",
+    updating: "Mise à jour...",
+    passwordHint: "Le mot de passe doit contenir au moins 6 caractères",
+    securityTips: "Conseils de sécurité",
+    tip1: "Utilisez un mot de passe fort avec des lettres, des chiffres et des symboles.",
+    tip2: "Ne partagez jamais votre mot de passe avec qui que ce soit.",
+    tip3: "Changez régulièrement votre mot de passe.",
+    communicationChannels: "Canaux de communication",
+    alertTypes: "Types d’alertes",
+    emailNotifications: "Notifications par e-mail",
+    emailNotificationsText: "Recevoir les notifications par e-mail",
+    pushNotifications: "Notifications push",
+    pushNotificationsText: "Recevoir les notifications push dans le navigateur",
+    smsNotifications: "Notifications SMS",
+    smsNotificationsText: "Recevoir les notifications par SMS",
+    announcements: "Annonces",
+    announcementsText: "Annonces et nouvelles de l’école",
+    eventReminders: "Rappels d’événements",
+    eventRemindersText: "Événements et activités scolaires à venir",
+    resultAlerts: "Résultats et notes",
+    resultAlertsText: "Lorsque les résultats et les notes sont publiés",
+    attendanceAlerts: "Alertes de présence",
+    attendanceAlertsText: "Lorsque la présence est enregistrée",
+    feeReminders: "Rappels de frais",
+    feeRemindersText: "Lorsque les frais sont dus ou payés",
+    savePreferences: "Enregistrer les préférences",
+    applyChanges: "Appliquer les modifications",
+    theme: "Thème",
+    light: "Clair",
+    dark: "Sombre",
+    fontSize: "Taille de police",
+    small: "Petit",
+    medium: "Moyen",
+    large: "Grand",
+    compactMode: "Mode compact",
+    compactModeText: "Réduire l’espacement et rendre l’interface plus compacte",
+    animations: "Animations",
+    animationsText: "Activer des animations fluides dans l’application",
+    languageLabel: "Langue",
+    dateFormat: "Format de date",
+    timeFormat: "Format de l’heure",
+    profileUpdated: "Profil mis à jour avec succès !",
+    passwordChanged: "Mot de passe modifié avec succès !",
+    notificationSaved: "Paramètres de notification enregistrés !",
+    appearanceSaved: "Paramètres d’apparence enregistrés !",
+    languageSaved: "Préférences de langue enregistrées !",
+    profileFailed: "Échec de la mise à jour du profil",
+    passwordFailed: "Échec de la modification du mot de passe",
+    notificationFailed: "Échec de l’enregistrement des notifications",
+    appearanceFailed: "Échec de l’enregistrement de l’apparence",
+    languageFailed: "Échec de l’enregistrement de la langue",
+    currentPasswordRequired: "Le mot de passe actuel est requis",
+    passwordMin: "Le mot de passe doit contenir au moins 6 caractères",
+    passwordsMismatch: "Les nouveaux mots de passe ne correspondent pas",
+    administrator: "Administrateur",
+    teacher: "Enseignant",
+    student: "Étudiant",
+    parent: "Parent",
+    user: "Utilisateur",
+    deleteAccount: "Supprimer le compte",
+    deleteAccountWarning:
+      "Cette action est irréversible. Toutes vos données seront définitivement supprimées.",
+    confirmDelete: "Confirmer la suppression",
+    cancel: "Annuler",
+  },
+  ig: {
+    settings: "Ntọala",
+    manageAccount: "Jikwaa nhọrọ na ntọala akaụntụ gị",
+    profile: "Profail",
+    security: "Nchekwa",
+    notifications: "Ọkwa",
+    appearance: "Ọdịdị",
+    language: "Asụsụ na Mpaghara",
+    profileInformation: "Ozi Profail",
+    updatePersonalInfo: "Melite ozi onwe gị na nkọwa kọntaktị",
+    securitySettings: "Ntọala Nchekwa",
+    changePasswordText: "Gbanwee paswọọdụ gị ma jikwaa nhọrọ nchekwa",
+    notificationPreferences: "Nhọrọ Ọkwa",
+    notificationText: "Họrọ otu ị chọrọ ịnweta ọkwa",
+    appearanceTitle: "Ọdịdị",
+    appearanceText: "Hazie otu ngwa ọrụ si adị",
+    languageTitle: "Asụsụ na Mpaghara",
+    languageText: "Tọọ asụsụ na nhọrọ mpaghara gị",
+    firstName: "Aha Mbụ",
+    lastName: "Aha Ikpeazụ",
+    username: "Aha Njirimara",
+    emailAddress: "Adresị Email",
+    phoneNumber: "Nọmba Ekwentị",
+    dateOfBirth: "Ụbọchị Ọmụmụ",
+    saveChanges: "Chekwaa Mgbanwe",
+    saving: "Na-echekwa...",
+    currentPassword: "Paswọọdụ Ugbu a",
+    newPassword: "Paswọọdụ Ọhụrụ",
+    confirmNewPassword: "Kwado Paswọọdụ Ọhụrụ",
+    changePassword: "Gbanwee Paswọọdụ",
+    updating: "Na-emelite...",
+    passwordHint: "Paswọọdụ ga-enwerịrị opekata mpe mkpụrụedemede 6",
+    securityTips: "Ndụmọdụ Nchekwa",
+    tip1: "Jiri paswọọdụ siri ike nke nwere mkpụrụedemede, ọnụọgụ, na akara.",
+    tip2: "Ekekọrịtala paswọọdụ gị na onye ọ bụla.",
+    tip3: "Gbanwee paswọọdụ gị mgbe niile.",
+    communicationChannels: "Ụzọ Nkwurịta Okwu",
+    alertTypes: "Ụdị Ịdọ aka ná ntị",
+    emailNotifications: "Ọkwa Email",
+    emailNotificationsText: "Nata ọkwa site na email",
+    pushNotifications: "Ọkwa Push",
+    pushNotificationsText: "Nata ọkwa push na ihe nchọgharị",
+    smsNotifications: "Ọkwa SMS",
+    smsNotificationsText: "Nata ọkwa site na SMS",
+    announcements: "Ọkwa",
+    announcementsText: "Ọkwa na akụkọ ụlọ akwụkwọ",
+    eventReminders: "Ihe Ncheta Ihe Omume",
+    eventRemindersText: "Ihe omume na mmemme ụlọ akwụkwọ na-abịa",
+    resultAlerts: "Nsonaazụ & Ọkwa",
+    resultAlertsText: "Mgbe e bipụtara nsonaazụ na ọkwa",
+    attendanceAlerts: "Ịdọ aka ná ntị Ịbịa",
+    attendanceAlertsText: "Mgbe edere ọbịa",
+    feeReminders: "Ihe Ncheta Ụgwọ",
+    feeRemindersText: "Mgbe ụgwọ ruru ma ọ bụ kwụrụ ya",
+    savePreferences: "Chekwaa Nhọrọ",
+    applyChanges: "Tinye Mgbanwe",
+    theme: "Isiokwu",
+    light: "Ọkụ",
+    dark: "Ọchịchịrị",
+    fontSize: "Oke Mkpụrụedemede",
+    small: "Nta",
+    medium: "Ọkara",
+    large: "Nnukwu",
+    compactMode: "Ụdị Mkpakọ",
+    compactModeText: "Belata oghere ma mee ka UI dị mkpọkarị",
+    animations: "Ihe ngosi",
+    animationsText: "Gosi ihe ngosi dị nro na ngwa ọrụ",
+    languageLabel: "Asụsụ",
+    dateFormat: "Ụdị Ụbọchị",
+    timeFormat: "Ụdị Oge",
+    profileUpdated: "Emelitere profail nke ọma!",
+    passwordChanged: "Gbanwere paswọọdụ nke ọma!",
+    notificationSaved: "Echekwara ntọala ọkwa!",
+    appearanceSaved: "Echekwara ntọala ọdịdị!",
+    languageSaved: "Echekwara nhọrọ asụsụ!",
+    profileFailed: "Ịmelite profail emeghị nke ọma",
+    passwordFailed: "Ịgbanwe paswọọdụ emeghị nke ọma",
+    notificationFailed: "Ịchekwa ntọala ọkwa emeghị nke ọma",
+    appearanceFailed: "Ịchekwa ntọala ọdịdị emeghị nke ọma",
+    languageFailed: "Ịchekwa ntọala asụsụ emeghị nke ọma",
+    currentPasswordRequired: "Paswọọdụ ugbu a dị mkpa",
+    passwordMin: "Paswọọdụ ga-enwerịrị opekata mpe mkpụrụedemede 6",
+    passwordsMismatch: "Paswọọdụ ọhụrụ adabaghị",
+    administrator: "Onye Nchịkwa",
+    teacher: "Onye Nkụzi",
+    student: "Nwa Akwụkwọ",
+    parent: "Nne/Nna",
+    user: "Onye Ọrụ",
+    deleteAccount: "Hichapụ Akaụntụ",
+    deleteAccountWarning:
+      "Enweghị ike ịgbanwe ihe a. A ga-ehichapụ data gị niile kpamkpam.",
+    confirmDelete: "Kwado Nhichapụ",
+    cancel: "Kagbuo",
+  },
+};
+
+const safeRead = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return { ...fallback, ...JSON.parse(raw) };
+  } catch {
+    return fallback;
+  }
+};
+
+const normalizeDateInput = (value) => {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().split("T")[0];
+};
+
 function Settings() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
+  const { t: langT, language, setLanguage } = useLanguage();
+  const { darkMode, setDarkMode, toggleDarkMode } = useDarkMode();
+
   const [activeTab, setActiveTab] = useState("profile");
-  const [loading, setLoading] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [savingNotifications, setSavingNotifications] = useState(false);
+  const [savingAppearance, setSavingAppearance] = useState(false);
+  const [savingLanguage, setSavingLanguage] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Profile Form State
   const [profileForm, setProfileForm] = useState({
     firstName: "",
     lastName: "",
+    username: "",
     email: "",
-    phone: "",
+    phoneNumber: "",
     address: "",
     dateOfBirth: "",
-    bio: "",
   });
 
-  // Password Form State
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
 
-  // Notification Settings
-  const [notificationSettings, setNotificationSettings] = useState({
-    emailNotifications: true,
-    pushNotifications: true,
-    smsNotifications: false,
-    announcementAlerts: true,
-    eventReminders: true,
-    resultAlerts: true,
-    attendanceAlerts: true,
-    feeReminders: true,
-  });
+  const [notificationSettings, setNotificationSettings] = useState(
+    DEFAULT_NOTIFICATION_SETTINGS,
+  );
+  const [appearanceSettings, setAppearanceSettings] = useState(
+    DEFAULT_APPEARANCE_SETTINGS,
+  );
+  const [languageSettings, setLanguageSettings] = useState(
+    DEFAULT_LANGUAGE_SETTINGS,
+  );
 
-  // Appearance Settings
-  const [appearanceSettings, setAppearanceSettings] = useState({
-    theme: "dark",
-    compactMode: false,
-    fontSize: "medium",
-    animations: true,
-  });
+  const currentLanguage = languageSettings.language || "en";
+  const t = translations[currentLanguage] || translations.en;
 
-  // Language Settings
-  const [languageSettings, setLanguageSettings] = useState({
-    language: "en",
-    dateFormat: "DD/MM/YYYY",
-    timeFormat: "24h",
-  });
-
+  // Load saved settings on mount
   useEffect(() => {
-    if (user) {
-      setProfileForm({
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        email: user.email || "",
-        phone: user.phone || "",
-        address: user.address || "",
-        dateOfBirth: user.dateOfBirth || "",
-        bio: user.bio || "",
-      });
-    }
+    const savedNotifications = safeRead(
+      STORAGE_KEYS.notifications,
+      DEFAULT_NOTIFICATION_SETTINGS,
+    );
+    const savedAppearance = safeRead(
+      STORAGE_KEYS.appearance,
+      DEFAULT_APPEARANCE_SETTINGS,
+    );
+    const savedLanguage = safeRead(
+      STORAGE_KEYS.language,
+      DEFAULT_LANGUAGE_SETTINGS,
+    );
+
+    setNotificationSettings(savedNotifications);
+    setAppearanceSettings(savedAppearance);
+    setLanguageSettings(savedLanguage);
+  }, []);
+
+  // Sync with user data
+  useEffect(() => {
+    if (!user) return;
+
+    setProfileForm({
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      username: user.username || "",
+      email: user.email || "",
+      phoneNumber: user.phoneNumber || user.phone || "",
+      address: user.address || "",
+      dateOfBirth: normalizeDateInput(user.dateOfBirth),
+    });
   }, [user]);
+
+  // Apply appearance settings
+  useEffect(() => {
+    const theme = darkMode ? "dark" : "light";
+    const compact = appearanceSettings.compactMode ? "true" : "false";
+    const animations = appearanceSettings.animations ? "true" : "false";
+
+    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-bs-theme", theme);
+    document.documentElement.setAttribute("data-compact", compact);
+    document.documentElement.setAttribute("data-animations", animations);
+
+    document.body.setAttribute("data-theme", theme);
+    document.body.setAttribute("data-bs-theme", theme);
+    document.body.setAttribute("data-compact", compact);
+    document.body.setAttribute("data-animations", animations);
+
+    document.documentElement.style.fontSize =
+      appearanceSettings.fontSize === "small"
+        ? "14px"
+        : appearanceSettings.fontSize === "large"
+          ? "18px"
+          : "16px";
+  }, [darkMode, appearanceSettings]);
+
+  // Apply language settings
+  useEffect(() => {
+    const lang = languageSettings.language || "en";
+    document.documentElement.lang = lang;
+    document.body.setAttribute("data-language", lang);
+    setLanguage(lang);
+  }, [languageSettings, setLanguage]);
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case "ADMIN":
+        return t.administrator;
+      case "TEACHER":
+        return t.teacher;
+      case "STUDENT":
+        return t.student;
+      case "PARENT":
+        return t.parent;
+      default:
+        return t.user;
+    }
+  };
+
+  const tabs = useMemo(
+    () => [
+      { id: "profile", label: t.profile, icon: <FaUser /> },
+      { id: "security", label: t.security, icon: <FaLock /> },
+      { id: "notifications", label: t.notifications, icon: <FaBell /> },
+      { id: "appearance", label: t.appearance, icon: <FaPalette /> },
+      { id: "language", label: t.language, icon: <FaLanguage /> },
+    ],
+    [t],
+  );
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
@@ -131,159 +541,184 @@ function Settings() {
     }));
   };
 
+  const handleThemeChange = (theme) => {
+    setDarkMode(theme === "dark");
+    setAppearanceSettings((prev) => ({
+      ...prev,
+      theme,
+    }));
+  };
+
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setSavingProfile(true);
 
     try {
-      // Update profile API call
-      const response = await userAPI.updateProfile(profileForm);
-      if (response.data) {
-        updateUser(response.data);
-        toast.success("Profile updated successfully!");
-      }
+      const payload = {
+        ...user,
+        firstName: profileForm.firstName.trim(),
+        lastName: profileForm.lastName.trim(),
+        username: profileForm.username.trim(),
+        email: profileForm.email.trim(),
+        phoneNumber: profileForm.phoneNumber.trim(),
+        dateOfBirth: profileForm.dateOfBirth || null,
+      };
+
+      const response = await userAPI.updateCurrentUser(payload);
+      updateUser(response.data);
+      toast.success(t.profileUpdated);
     } catch (error) {
       console.error("Error updating profile:", error);
-      toast.error(error?.response?.data?.message || "Failed to update profile");
+      toast.error(error?.response?.data?.message || t.profileFailed);
     } finally {
-      setLoading(false);
+      setSavingProfile(false);
     }
   };
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
 
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error("New passwords do not match");
+    if (!passwordForm.currentPassword) {
+      toast.error(t.currentPasswordRequired);
       return;
     }
 
     if (passwordForm.newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters long");
+      toast.error(t.passwordMin);
       return;
     }
 
-    setLoading(true);
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error(t.passwordsMismatch);
+      return;
+    }
+
+    setSavingPassword(true);
 
     try {
-      await userAPI.changePassword({
+      await authAPI.changePassword({
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
-      toast.success("Password changed successfully!");
+
       setPasswordForm({
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       });
+
+      toast.success(t.passwordChanged);
     } catch (error) {
       console.error("Error changing password:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to change password",
-      );
+      toast.error(error?.response?.data?.message || t.passwordFailed);
     } finally {
-      setLoading(false);
+      setSavingPassword(false);
     }
   };
 
   const handleNotificationSubmit = async () => {
-    setLoading(true);
+    setSavingNotifications(true);
     try {
-      // Save notification settings
-      await userAPI.updateNotificationSettings(notificationSettings);
-      toast.success("Notification settings saved!");
+      localStorage.setItem(
+        STORAGE_KEYS.notifications,
+        JSON.stringify(notificationSettings),
+      );
+      toast.success(t.notificationSaved);
     } catch (error) {
       console.error("Error saving notification settings:", error);
-      toast.error("Failed to save notification settings");
+      toast.error(t.notificationFailed);
     } finally {
-      setLoading(false);
+      setSavingNotifications(false);
     }
   };
 
   const handleAppearanceSubmit = async () => {
-    setLoading(true);
+    setSavingAppearance(true);
     try {
-      // Save appearance settings
-      localStorage.setItem("appearance", JSON.stringify(appearanceSettings));
-      document.body.className = appearanceSettings.theme;
-      document.body.style.fontSize =
-        appearanceSettings.fontSize === "small"
-          ? "14px"
-          : appearanceSettings.fontSize === "large"
-            ? "18px"
-            : "16px";
-      toast.success("Appearance settings saved!");
+      localStorage.setItem(
+        STORAGE_KEYS.appearance,
+        JSON.stringify(appearanceSettings),
+      );
+      toast.success(t.appearanceSaved);
     } catch (error) {
       console.error("Error saving appearance settings:", error);
-      toast.error("Failed to save appearance settings");
+      toast.error(t.appearanceFailed);
     } finally {
-      setLoading(false);
+      setSavingAppearance(false);
     }
   };
 
   const handleLanguageSubmit = async () => {
-    setLoading(true);
+    setSavingLanguage(true);
     try {
-      // Save language settings
-      localStorage.setItem("language", JSON.stringify(languageSettings));
-      toast.success("Language settings saved!");
+      localStorage.setItem(
+        STORAGE_KEYS.language,
+        JSON.stringify(languageSettings),
+      );
+
+      toast.success(t.languageSaved);
     } catch (error) {
       console.error("Error saving language settings:", error);
-      toast.error("Failed to save language settings");
+      toast.error(t.languageFailed);
     } finally {
-      setLoading(false);
+      setSavingLanguage(false);
     }
   };
 
-  const tabs = [
-    { id: "profile", label: "Profile", icon: <FaUser /> },
-    { id: "security", label: "Security", icon: <FaLock /> },
-    { id: "notifications", label: "Notifications", icon: <FaBell /> },
-    { id: "appearance", label: "Appearance", icon: <FaPalette /> },
-    { id: "language", label: "Language", icon: <FaLanguage /> },
-  ];
+  const handleDeleteAccount = async () => {
+    try {
+      await userAPI.deleteCurrentUser();
+      toast.success("Account deleted successfully");
+      logout();
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      toast.error("Failed to delete account");
+    }
+  };
 
   return (
     <div className="settings-container">
       <div className="settings-header">
-        <h1>Settings</h1>
-        <p>Manage your account preferences and settings</p>
+        <h1>{t.settings}</h1>
+        <p>{t.manageAccount}</p>
       </div>
 
       <div className="settings-content">
-        {/* Sidebar */}
         <div className="settings-sidebar">
           <div className="user-info-card">
             <div className="user-avatar-large">
-              {user?.profilePicture ? (
-                <img src={user.profilePicture} alt={user.firstName} />
+              {user?.profilePictureUrl ? (
+                <img
+                  src={user.profilePictureUrl}
+                  alt={user?.firstName || "User"}
+                />
               ) : (
                 <FaUserCircle />
               )}
-              <button className="change-avatar-btn">
+              <button
+                type="button"
+                className="change-avatar-btn"
+                title="Profile picture"
+              >
                 <FaCamera />
               </button>
             </div>
+
             <h3>
               {user?.firstName} {user?.lastName}
             </h3>
             <p className="user-email">{user?.email}</p>
-            <p className="user-role">
-              {user?.role === "ADMIN"
-                ? "Administrator"
-                : user?.role === "TEACHER"
-                  ? "Teacher"
-                  : user?.role === "STUDENT"
-                    ? "Student"
-                    : "Parent"}
-            </p>
+            <p className="user-role">{getRoleLabel(user?.role)}</p>
           </div>
 
           <div className="settings-tabs">
             {tabs.map((tab) => (
               <button
+                type="button"
                 key={tab.id}
-                className={`settings-tab ${activeTab === tab.id ? "active" : ""}`}
+                className={`settings-tab ${
+                  activeTab === tab.id ? "active" : ""
+                }`}
                 onClick={() => setActiveTab(tab.id)}
               >
                 <span className="tab-icon">{tab.icon}</span>
@@ -293,20 +728,18 @@ function Settings() {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="settings-main">
-          {/* Profile Settings */}
           {activeTab === "profile" && (
             <div className="settings-section">
               <div className="section-header">
-                <h2>Profile Information</h2>
-                <p>Update your personal information and contact details</p>
+                <h2>{t.profileInformation}</h2>
+                <p>{t.updatePersonalInfo}</p>
               </div>
 
               <form onSubmit={handleProfileSubmit} className="settings-form">
                 <div className="form-row">
                   <div className="form-group">
-                    <label>First Name</label>
+                    <label>{t.firstName}</label>
                     <div className="input-icon">
                       <FaUser />
                       <input
@@ -314,13 +747,14 @@ function Settings() {
                         name="firstName"
                         value={profileForm.firstName}
                         onChange={handleProfileChange}
-                        placeholder="Enter your first name"
+                        placeholder={t.firstName}
+                        required
                       />
                     </div>
                   </div>
 
                   <div className="form-group">
-                    <label>Last Name</label>
+                    <label>{t.lastName}</label>
                     <div className="input-icon">
                       <FaUser />
                       <input
@@ -328,7 +762,8 @@ function Settings() {
                         name="lastName"
                         value={profileForm.lastName}
                         onChange={handleProfileChange}
-                        placeholder="Enter your last name"
+                        placeholder={t.lastName}
+                        required
                       />
                     </div>
                   </div>
@@ -336,7 +771,22 @@ function Settings() {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Email Address</label>
+                    <label>{t.username}</label>
+                    <div className="input-icon">
+                      <FaUser />
+                      <input
+                        type="text"
+                        name="username"
+                        value={profileForm.username}
+                        onChange={handleProfileChange}
+                        placeholder={t.username}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>{t.emailAddress}</label>
                     <div className="input-icon">
                       <FaEnvelope />
                       <input
@@ -344,44 +794,30 @@ function Settings() {
                         name="email"
                         value={profileForm.email}
                         onChange={handleProfileChange}
-                        placeholder="Enter your email"
-                        disabled
+                        placeholder={t.emailAddress}
+                        required
                       />
                     </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Phone Number</label>
-                    <div className="input-icon">
-                      <FaPhone />
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={profileForm.phone}
-                        onChange={handleProfileChange}
-                        placeholder="Enter your phone number"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Address</label>
-                  <div className="input-icon">
-                    <FaAddressCard />
-                    <input
-                      type="text"
-                      name="address"
-                      value={profileForm.address}
-                      onChange={handleProfileChange}
-                      placeholder="Enter your address"
-                    />
                   </div>
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Date of Birth</label>
+                    <label>{t.phoneNumber}</label>
+                    <div className="input-icon">
+                      <FaPhone />
+                      <input
+                        type="tel"
+                        name="phoneNumber"
+                        value={profileForm.phoneNumber}
+                        onChange={handleProfileChange}
+                        placeholder={t.phoneNumber}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>{t.dateOfBirth}</label>
                     <div className="input-icon">
                       <FaCalendarAlt />
                       <input
@@ -392,50 +828,58 @@ function Settings() {
                       />
                     </div>
                   </div>
-
-                  <div className="form-group">
-                    <label>Bio</label>
-                    <div className="input-icon">
-                      <FaUser />
-                      <textarea
-                        name="bio"
-                        value={profileForm.bio}
-                        onChange={handleProfileChange}
-                        placeholder="Tell us about yourself"
-                        rows="3"
-                      />
-                    </div>
-                  </div>
                 </div>
 
                 <div className="form-actions">
-                  <button type="submit" className="btn-save" disabled={loading}>
-                    {loading ? (
+                  <button
+                    type="submit"
+                    className="btn-save"
+                    disabled={savingProfile}
+                  >
+                    {savingProfile ? (
                       <>
-                        <FaSpinner className="spinner" /> Saving...
+                        <FaSpinner className="spinner" /> {t.saving}
                       </>
                     ) : (
                       <>
-                        <FaSave /> Save Changes
+                        <FaSave /> {t.saveChanges}
                       </>
                     )}
                   </button>
                 </div>
               </form>
+
+              <div className="danger-zone">
+                <h3>Danger Zone</h3>
+                <div className="danger-card">
+                  <div className="danger-info">
+                    <FaTrash className="danger-icon" />
+                    <div>
+                      <strong>{t.deleteAccount}</strong>
+                      <p>{t.deleteAccountWarning}</p>
+                    </div>
+                  </div>
+                  <button
+                    className="btn-danger"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    {t.deleteAccount}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Security Settings */}
           {activeTab === "security" && (
             <div className="settings-section">
               <div className="section-header">
-                <h2>Security Settings</h2>
-                <p>Change your password and manage security preferences</p>
+                <h2>{t.securitySettings}</h2>
+                <p>{t.changePasswordText}</p>
               </div>
 
               <form onSubmit={handlePasswordSubmit} className="settings-form">
                 <div className="form-group">
-                  <label>Current Password</label>
+                  <label>{t.currentPassword}</label>
                   <div className="input-icon">
                     <FaKey />
                     <input
@@ -443,14 +887,12 @@ function Settings() {
                       name="currentPassword"
                       value={passwordForm.currentPassword}
                       onChange={handlePasswordChange}
-                      placeholder="Enter your current password"
+                      placeholder={t.currentPassword}
                     />
                     <button
                       type="button"
                       className="password-toggle"
-                      onClick={() =>
-                        setShowCurrentPassword(!showCurrentPassword)
-                      }
+                      onClick={() => setShowCurrentPassword((prev) => !prev)}
                     >
                       {showCurrentPassword ? <FaEyeSlash /> : <FaEye />}
                     </button>
@@ -458,7 +900,7 @@ function Settings() {
                 </div>
 
                 <div className="form-group">
-                  <label>New Password</label>
+                  <label>{t.newPassword}</label>
                   <div className="input-icon">
                     <FaLock />
                     <input
@@ -466,23 +908,21 @@ function Settings() {
                       name="newPassword"
                       value={passwordForm.newPassword}
                       onChange={handlePasswordChange}
-                      placeholder="Enter your new password"
+                      placeholder={t.newPassword}
                     />
                     <button
                       type="button"
                       className="password-toggle"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      onClick={() => setShowNewPassword((prev) => !prev)}
                     >
                       {showNewPassword ? <FaEyeSlash /> : <FaEye />}
                     </button>
                   </div>
-                  <small className="form-hint">
-                    Password must be at least 6 characters long
-                  </small>
+                  <small className="form-hint">{t.passwordHint}</small>
                 </div>
 
                 <div className="form-group">
-                  <label>Confirm New Password</label>
+                  <label>{t.confirmNewPassword}</label>
                   <div className="input-icon">
                     <FaShieldAlt />
                     <input
@@ -490,14 +930,12 @@ function Settings() {
                       name="confirmPassword"
                       value={passwordForm.confirmPassword}
                       onChange={handlePasswordChange}
-                      placeholder="Confirm your new password"
+                      placeholder={t.confirmNewPassword}
                     />
                     <button
                       type="button"
                       className="password-toggle"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
                     >
                       {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
                     </button>
@@ -505,14 +943,18 @@ function Settings() {
                 </div>
 
                 <div className="form-actions">
-                  <button type="submit" className="btn-save" disabled={loading}>
-                    {loading ? (
+                  <button
+                    type="submit"
+                    className="btn-save"
+                    disabled={savingPassword}
+                  >
+                    {savingPassword ? (
                       <>
-                        <FaSpinner className="spinner" /> Updating...
+                        <FaSpinner className="spinner" /> {t.updating}
                       </>
                     ) : (
                       <>
-                        <FaLock /> Change Password
+                        <FaLock /> {t.changePassword}
                       </>
                     )}
                   </button>
@@ -523,17 +965,11 @@ function Settings() {
                 <div className="info-card">
                   <FaShieldAlt className="info-icon" />
                   <div>
-                    <h4>Security Tips</h4>
+                    <h4>{t.securityTips}</h4>
                     <ul>
-                      <li>
-                        Use a strong password with mix of letters, numbers, and
-                        symbols
-                      </li>
-                      <li>Never share your password with anyone</li>
-                      <li>
-                        Enable two-factor authentication for extra security
-                      </li>
-                      <li>Regularly update your password</li>
+                      <li>{t.tip1}</li>
+                      <li>{t.tip2}</li>
+                      <li>{t.tip3}</li>
                     </ul>
                   </div>
                 </div>
@@ -541,23 +977,23 @@ function Settings() {
             </div>
           )}
 
-          {/* Notification Settings */}
           {activeTab === "notifications" && (
             <div className="settings-section">
               <div className="section-header">
-                <h2>Notification Preferences</h2>
-                <p>Choose how you want to receive notifications</p>
+                <h2>{t.notificationPreferences}</h2>
+                <p>{t.notificationText}</p>
               </div>
 
               <div className="notification-settings">
                 <div className="notification-group">
-                  <h3>Communication Channels</h3>
+                  <h3>{t.communicationChannels}</h3>
+
                   <div className="notification-option">
                     <div className="option-info">
                       <FaEnvelope />
                       <div>
-                        <strong>Email Notifications</strong>
-                        <p>Receive notifications via email</p>
+                        <strong>{t.emailNotifications}</strong>
+                        <p>{t.emailNotificationsText}</p>
                       </div>
                     </div>
                     <label className="toggle-switch">
@@ -576,8 +1012,8 @@ function Settings() {
                     <div className="option-info">
                       <FaMobileAlt />
                       <div>
-                        <strong>Push Notifications</strong>
-                        <p>Receive push notifications in browser</p>
+                        <strong>{t.pushNotifications}</strong>
+                        <p>{t.pushNotificationsText}</p>
                       </div>
                     </div>
                     <label className="toggle-switch">
@@ -596,8 +1032,8 @@ function Settings() {
                     <div className="option-info">
                       <FaPhone />
                       <div>
-                        <strong>SMS Notifications</strong>
-                        <p>Receive notifications via SMS</p>
+                        <strong>{t.smsNotifications}</strong>
+                        <p>{t.smsNotificationsText}</p>
                       </div>
                     </div>
                     <label className="toggle-switch">
@@ -614,13 +1050,14 @@ function Settings() {
                 </div>
 
                 <div className="notification-group">
-                  <h3>Alert Types</h3>
+                  <h3>{t.alertTypes}</h3>
+
                   <div className="notification-option">
                     <div className="option-info">
                       <FaBell />
                       <div>
-                        <strong>Announcements</strong>
-                        <p>School announcements and news</p>
+                        <strong>{t.announcements}</strong>
+                        <p>{t.announcementsText}</p>
                       </div>
                     </div>
                     <label className="toggle-switch">
@@ -639,8 +1076,8 @@ function Settings() {
                     <div className="option-info">
                       <FaCalendarAlt />
                       <div>
-                        <strong>Event Reminders</strong>
-                        <p>Upcoming school events and activities</p>
+                        <strong>{t.eventReminders}</strong>
+                        <p>{t.eventRemindersText}</p>
                       </div>
                     </div>
                     <label className="toggle-switch">
@@ -659,8 +1096,8 @@ function Settings() {
                     <div className="option-info">
                       <FaCheckCircle />
                       <div>
-                        <strong>Results & Grades</strong>
-                        <p>When results and grades are published</p>
+                        <strong>{t.resultAlerts}</strong>
+                        <p>{t.resultAlertsText}</p>
                       </div>
                     </div>
                     <label className="toggle-switch">
@@ -679,8 +1116,8 @@ function Settings() {
                     <div className="option-info">
                       <FaClock />
                       <div>
-                        <strong>Attendance Alerts</strong>
-                        <p>When attendance is recorded</p>
+                        <strong>{t.attendanceAlerts}</strong>
+                        <p>{t.attendanceAlertsText}</p>
                       </div>
                     </div>
                     <label className="toggle-switch">
@@ -699,8 +1136,8 @@ function Settings() {
                     <div className="option-info">
                       <FaMoneyBill />
                       <div>
-                        <strong>Fee Reminders</strong>
-                        <p>When fees are due or paid</p>
+                        <strong>{t.feeReminders}</strong>
+                        <p>{t.feeRemindersText}</p>
                       </div>
                     </div>
                     <label className="toggle-switch">
@@ -718,17 +1155,18 @@ function Settings() {
 
                 <div className="form-actions">
                   <button
+                    type="button"
                     className="btn-save"
                     onClick={handleNotificationSubmit}
-                    disabled={loading}
+                    disabled={savingNotifications}
                   >
-                    {loading ? (
+                    {savingNotifications ? (
                       <>
-                        <FaSpinner className="spinner" /> Saving...
+                        <FaSpinner className="spinner" /> {t.saving}
                       </>
                     ) : (
                       <>
-                        <FaSave /> Save Preferences
+                        <FaSave /> {t.savePreferences}
                       </>
                     )}
                   </button>
@@ -737,69 +1175,80 @@ function Settings() {
             </div>
           )}
 
-          {/* Appearance Settings */}
           {activeTab === "appearance" && (
             <div className="settings-section">
               <div className="section-header">
-                <h2>Appearance</h2>
-                <p>Customize how the application looks</p>
+                <h2>{t.appearanceTitle}</h2>
+                <p>{t.appearanceText}</p>
               </div>
 
               <div className="appearance-settings">
                 <div className="setting-group">
-                  <label>Theme</label>
+                  <label>{t.theme}</label>
                   <div className="theme-options">
                     <button
-                      className={`theme-option ${appearanceSettings.theme === "light" ? "active" : ""}`}
-                      onClick={() => handleAppearanceChange("theme", "light")}
+                      type="button"
+                      className={`theme-option ${!darkMode ? "active" : ""}`}
+                      onClick={() => handleThemeChange("light")}
                     >
                       <FaSun />
-                      <span>Light</span>
+                      <span>{t.light}</span>
                     </button>
+
                     <button
-                      className={`theme-option ${appearanceSettings.theme === "dark" ? "active" : ""}`}
-                      onClick={() => handleAppearanceChange("theme", "dark")}
+                      type="button"
+                      className={`theme-option ${darkMode ? "active" : ""}`}
+                      onClick={() => handleThemeChange("dark")}
                     >
                       <FaMoon />
-                      <span>Dark</span>
+                      <span>{t.dark}</span>
                     </button>
                   </div>
                 </div>
 
                 <div className="setting-group">
-                  <label>Font Size</label>
+                  <label>{t.fontSize}</label>
                   <div className="font-options">
                     <button
-                      className={`font-option ${appearanceSettings.fontSize === "small" ? "active" : ""}`}
+                      type="button"
+                      className={`font-option ${
+                        appearanceSettings.fontSize === "small" ? "active" : ""
+                      }`}
                       onClick={() =>
                         handleAppearanceChange("fontSize", "small")
                       }
                     >
-                      A<small>Small</small>
+                      A<small>{t.small}</small>
                     </button>
                     <button
-                      className={`font-option ${appearanceSettings.fontSize === "medium" ? "active" : ""}`}
+                      type="button"
+                      className={`font-option ${
+                        appearanceSettings.fontSize === "medium" ? "active" : ""
+                      }`}
                       onClick={() =>
                         handleAppearanceChange("fontSize", "medium")
                       }
                     >
-                      A<small>Medium</small>
+                      A<small>{t.medium}</small>
                     </button>
                     <button
-                      className={`font-option ${appearanceSettings.fontSize === "large" ? "active" : ""}`}
+                      type="button"
+                      className={`font-option ${
+                        appearanceSettings.fontSize === "large" ? "active" : ""
+                      }`}
                       onClick={() =>
                         handleAppearanceChange("fontSize", "large")
                       }
                     >
-                      A<small>Large</small>
+                      A<small>{t.large}</small>
                     </button>
                   </div>
                 </div>
 
                 <div className="setting-group">
-                  <label>Compact Mode</label>
+                  <label>{t.compactMode}</label>
                   <div className="toggle-setting">
-                    <span>Reduce spacing and make UI more compact</span>
+                    <span>{t.compactModeText}</span>
                     <label className="toggle-switch">
                       <input
                         type="checkbox"
@@ -817,9 +1266,9 @@ function Settings() {
                 </div>
 
                 <div className="setting-group">
-                  <label>Animations</label>
+                  <label>{t.animations}</label>
                   <div className="toggle-setting">
-                    <span>Enable smooth animations throughout the app</span>
+                    <span>{t.animationsText}</span>
                     <label className="toggle-switch">
                       <input
                         type="checkbox"
@@ -838,17 +1287,18 @@ function Settings() {
 
                 <div className="form-actions">
                   <button
+                    type="button"
                     className="btn-save"
                     onClick={handleAppearanceSubmit}
-                    disabled={loading}
+                    disabled={savingAppearance}
                   >
-                    {loading ? (
+                    {savingAppearance ? (
                       <>
-                        <FaSpinner className="spinner" /> Saving...
+                        <FaSpinner className="spinner" /> {t.saving}
                       </>
                     ) : (
                       <>
-                        <FaSave /> Apply Changes
+                        <FaSave /> {t.applyChanges}
                       </>
                     )}
                   </button>
@@ -857,17 +1307,16 @@ function Settings() {
             </div>
           )}
 
-          {/* Language Settings */}
           {activeTab === "language" && (
             <div className="settings-section">
               <div className="section-header">
-                <h2>Language & Region</h2>
-                <p>Set your language and regional preferences</p>
+                <h2>{t.languageTitle}</h2>
+                <p>{t.languageText}</p>
               </div>
 
               <div className="language-settings">
                 <div className="setting-group">
-                  <label>Language</label>
+                  <label>{t.languageLabel}</label>
                   <select
                     value={languageSettings.language}
                     onChange={(e) =>
@@ -876,16 +1325,13 @@ function Settings() {
                     className="language-select"
                   >
                     <option value="en">English</option>
-                    <option value="fr">French</option>
-                    <option value="es">Spanish</option>
-                    <option value="pt">Portuguese</option>
-                    <option value="ar">Arabic</option>
-                    <option value="zh">Chinese</option>
+                    <option value="fr">Français</option>
+                    <option value="ig">Igbo</option>
                   </select>
                 </div>
 
                 <div className="setting-group">
-                  <label>Date Format</label>
+                  <label>{t.dateFormat}</label>
                   <select
                     value={languageSettings.dateFormat}
                     onChange={(e) =>
@@ -900,7 +1346,7 @@ function Settings() {
                 </div>
 
                 <div className="setting-group">
-                  <label>Time Format</label>
+                  <label>{t.timeFormat}</label>
                   <select
                     value={languageSettings.timeFormat}
                     onChange={(e) =>
@@ -915,17 +1361,18 @@ function Settings() {
 
                 <div className="form-actions">
                   <button
+                    type="button"
                     className="btn-save"
                     onClick={handleLanguageSubmit}
-                    disabled={loading}
+                    disabled={savingLanguage}
                   >
-                    {loading ? (
+                    {savingLanguage ? (
                       <>
-                        <FaSpinner className="spinner" /> Saving...
+                        <FaSpinner className="spinner" /> {t.saving}
                       </>
                     ) : (
                       <>
-                        <FaGlobe /> Save Preferences
+                        <FaGlobe /> {t.savePreferences}
                       </>
                     )}
                   </button>
@@ -935,6 +1382,50 @@ function Settings() {
           )}
         </div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header danger">
+              <h3>
+                <FaTrash /> {t.deleteAccount}
+              </h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>{t.deleteAccountWarning}</p>
+              <p className="text-danger mt-3">
+                This action is permanent and cannot be undone.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                {t.cancel}
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={handleDeleteAccount}
+              >
+                {t.confirmDelete}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

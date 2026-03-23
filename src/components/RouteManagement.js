@@ -1,5 +1,8 @@
+// src/components/RouteManagement.js
 import React, { useEffect, useMemo, useState } from "react";
 import { studentAPI, transportAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaPlus,
@@ -8,6 +11,11 @@ import {
   FaUserPlus,
   FaUsers,
   FaSyncAlt,
+  FaSpinner,
+  FaMapMarkerAlt,
+  FaClock,
+  FaPhone,
+  FaDollarSign,
 } from "react-icons/fa";
 
 const initialForm = {
@@ -27,6 +35,9 @@ const initialForm = {
 };
 
 function RouteManagement() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [routes, setRoutes] = useState([]);
   const [students, setStudents] = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState("");
@@ -49,7 +60,10 @@ function RouteManagement() {
       setRoutes(routesRes.data || []);
       setStudents(studentsRes.data || []);
     } catch (error) {
-      toast.error("Failed to load routes or students");
+      console.error("Error loading data:", error);
+      toast.error(
+        t?.routeManagement?.loadFailed || "Failed to load routes or students",
+      );
     } finally {
       setLoading(false);
     }
@@ -65,7 +79,11 @@ function RouteManagement() {
       const res = await transportAPI.getRouteStudents(routeId);
       setRouteStudents(res.data || []);
     } catch (error) {
-      toast.error("Failed to load students on this route");
+      console.error("Error loading route students:", error);
+      toast.error(
+        t?.routeManagement?.loadStudentsFailed ||
+          "Failed to load students on this route",
+      );
     }
   };
 
@@ -142,16 +160,25 @@ function RouteManagement() {
       setSaving(true);
       if (editingId) {
         await transportAPI.updateRoute(editingId, payload);
-        toast.success("Route updated successfully");
+        toast.success(
+          t?.routeManagement?.updateSuccess || "Route updated successfully",
+        );
       } else {
         await transportAPI.createRoute(payload);
-        toast.success("Route created successfully");
+        toast.success(
+          t?.routeManagement?.createSuccess || "Route created successfully",
+        );
       }
 
       resetForm();
       loadData();
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to save route");
+      console.error("Error saving route:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          t?.routeManagement?.saveFailed ||
+          "Failed to save route",
+      );
     } finally {
       setSaving(false);
     }
@@ -159,26 +186,36 @@ function RouteManagement() {
 
   const handleDelete = async (routeId) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this route?",
+      t?.routeManagement?.confirmDelete ||
+        "Are you sure you want to delete this route?",
     );
     if (!confirmed) return;
 
     try {
       await transportAPI.deleteRoute(routeId);
-      toast.success("Route deleted successfully");
+      toast.success(
+        t?.routeManagement?.deleteSuccess || "Route deleted successfully",
+      );
       if (selectedRouteId === String(routeId)) {
         setSelectedRouteId("");
         setRouteStudents([]);
       }
       loadData();
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to delete route");
+      console.error("Error deleting route:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          t?.routeManagement?.deleteFailed ||
+          "Failed to delete route",
+      );
     }
   };
 
   const handleAssignStudent = async () => {
     if (!selectedStudentId || !selectedRouteId) {
-      toast.error("Please select a route and a student");
+      toast.error(
+        t?.routeManagement?.selectBoth || "Please select a route and a student",
+      );
       return;
     }
 
@@ -188,42 +225,71 @@ function RouteManagement() {
         selectedRouteId,
         0,
       );
-      toast.success("Student assigned successfully");
+      toast.success(
+        t?.routeManagement?.assignSuccess || "Student assigned successfully",
+      );
       setSelectedStudentId("");
       loadData();
       loadRouteStudents(selectedRouteId);
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to assign student");
+      console.error("Error assigning student:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          t?.routeManagement?.assignFailed ||
+          "Failed to assign student",
+      );
     }
   };
 
   const handleRemoveStudent = async (studentId) => {
-    const confirmed = window.confirm("Remove this student from the route?");
+    const confirmed = window.confirm(
+      t?.routeManagement?.confirmRemove ||
+        "Remove this student from the route?",
+    );
     if (!confirmed) return;
 
     try {
       await transportAPI.removeStudentFromRoute(studentId);
-      toast.success("Student removed from route");
+      toast.success(
+        t?.routeManagement?.removeSuccess || "Student removed from route",
+      );
       loadData();
       loadRouteStudents(selectedRouteId);
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to remove student");
+      console.error("Error removing student:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          t?.routeManagement?.removeFailed ||
+          "Failed to remove student",
+      );
     }
   };
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{t?.common?.loading || "Loading..."}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-4">
       <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
         <div>
-          <h2 className="mb-1">Route Management</h2>
+          <h2 className="mb-1">
+            {t?.routeManagement?.title || "Route Management"}
+          </h2>
           <p className="text-muted mb-0">
-            Create routes and assign students to transport routes.
+            {t?.routeManagement?.description ||
+              "Create routes and assign students to transport routes."}
           </p>
         </div>
 
         <button className="btn btn-outline-primary" onClick={loadData}>
           <FaSyncAlt className="me-2" />
-          Refresh
+          {t?.common?.refresh || "Refresh"}
         </button>
       </div>
 
@@ -232,14 +298,18 @@ function RouteManagement() {
           <div className="card shadow-sm border-0">
             <div className="card-header bg-white">
               <h5 className="mb-0">
-                {editingId ? "Edit Route" : "Create Route"}
+                {editingId
+                  ? t?.routeManagement?.editRoute || "Edit Route"
+                  : t?.routeManagement?.createRoute || "Create Route"}
               </h5>
             </div>
             <div className="card-body">
               <form onSubmit={handleSubmit}>
                 <div className="row g-3">
                   <div className="col-md-6">
-                    <label className="form-label">Route Name</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.routeName || "Route Name"} *
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -251,7 +321,9 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Route Code</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.routeCode || "Route Code"} *
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -263,7 +335,10 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Pickup Location</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.pickupLocation || "Pickup Location"}{" "}
+                      *
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -275,7 +350,11 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Drop-off Location</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.dropoffLocation ||
+                        "Drop-off Location"}{" "}
+                      *
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -287,7 +366,9 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Pickup Time</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.pickupTime || "Pickup Time"} *
+                    </label>
                     <input
                       type="time"
                       className="form-control"
@@ -299,7 +380,9 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Drop-off Time</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.dropoffTime || "Drop-off Time"} *
+                    </label>
                     <input
                       type="time"
                       className="form-control"
@@ -311,7 +394,9 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Driver Name</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.driverName || "Driver Name"} *
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -323,9 +408,11 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Driver Phone</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.driverPhone || "Driver Phone"} *
+                    </label>
                     <input
-                      type="text"
+                      type="tel"
                       className="form-control"
                       name="driverPhone"
                       value={form.driverPhone}
@@ -335,7 +422,9 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Assistant Name</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.assistantName || "Assistant Name"}
+                    </label>
                     <input
                       type="text"
                       className="form-control"
@@ -346,9 +435,11 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Assistant Phone</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.assistantPhone || "Assistant Phone"}
+                    </label>
                     <input
-                      type="text"
+                      type="tel"
                       className="form-control"
                       name="assistantPhone"
                       value={form.assistantPhone}
@@ -357,7 +448,9 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Monthly Fee</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.monthlyFee || "Monthly Fee"} *
+                    </label>
                     <input
                       type="number"
                       className="form-control"
@@ -370,7 +463,9 @@ function RouteManagement() {
                   </div>
 
                   <div className="col-md-6">
-                    <label className="form-label">Capacity</label>
+                    <label className="form-label">
+                      {t?.routeManagement?.capacity || "Capacity"} *
+                    </label>
                     <input
                       type="number"
                       className="form-control"
@@ -393,7 +488,7 @@ function RouteManagement() {
                         id="activeCheck"
                       />
                       <label className="form-check-label" htmlFor="activeCheck">
-                        Active Route
+                        {t?.routeManagement?.activeRoute || "Active Route"}
                       </label>
                     </div>
                   </div>
@@ -404,25 +499,29 @@ function RouteManagement() {
                       className="btn btn-primary"
                       disabled={saving}
                     >
-                      {editingId ? (
+                      {saving ? (
                         <>
-                          <FaEdit className="me-2" />
-                          Update Route
+                          <FaSpinner className="spin me-2" />{" "}
+                          {t?.common?.saving || "Saving..."}
+                        </>
+                      ) : editingId ? (
+                        <>
+                          <FaEdit className="me-2" />{" "}
+                          {t?.routeManagement?.updateRoute || "Update Route"}
                         </>
                       ) : (
                         <>
-                          <FaPlus className="me-2" />
-                          Create Route
+                          <FaPlus className="me-2" />{" "}
+                          {t?.routeManagement?.createRoute || "Create Route"}
                         </>
                       )}
                     </button>
-
                     <button
                       type="button"
                       className="btn btn-outline-secondary"
                       onClick={resetForm}
                     >
-                      Reset
+                      {t?.routeManagement?.reset || "Reset"}
                     </button>
                   </div>
                 </div>
@@ -432,34 +531,45 @@ function RouteManagement() {
 
           <div className="card shadow-sm border-0 mt-4">
             <div className="card-header bg-white">
-              <h5 className="mb-0">Assign Student to Route</h5>
+              <h5 className="mb-0">
+                {t?.routeManagement?.assignStudent || "Assign Student to Route"}
+              </h5>
             </div>
             <div className="card-body">
               <div className="mb-3">
-                <label className="form-label">Select Route</label>
+                <label className="form-label">
+                  {t?.routeManagement?.selectRoute || "Select Route"}
+                </label>
                 <select
                   className="form-select"
                   value={selectedRouteId}
                   onChange={(e) => setSelectedRouteId(e.target.value)}
                 >
-                  <option value="">Choose route</option>
+                  <option value="">
+                    {t?.common?.select || "Choose route"}
+                  </option>
                   {routes.map((route) => (
                     <option key={route.id} value={route.id}>
                       {route.routeName} ({route.routeCode}) -{" "}
-                      {route.availableSlots} slots left
+                      {route.capacity - (route.assignedStudents || 0)}{" "}
+                      {t?.routeManagement?.slotsLeft || "slots left"}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="mb-3">
-                <label className="form-label">Select Student</label>
+                <label className="form-label">
+                  {t?.routeManagement?.selectStudent || "Select Student"}
+                </label>
                 <select
                   className="form-select"
                   value={selectedStudentId}
                   onChange={(e) => setSelectedStudentId(e.target.value)}
                 >
-                  <option value="">Choose student</option>
+                  <option value="">
+                    {t?.common?.select || "Choose student"}
+                  </option>
                   {students.map((student) => (
                     <option key={student.id} value={student.id}>
                       {student.firstName} {student.lastName} (
@@ -471,7 +581,7 @@ function RouteManagement() {
 
               <button className="btn btn-success" onClick={handleAssignStudent}>
                 <FaUserPlus className="me-2" />
-                Assign Student
+                {t?.routeManagement?.assign || "Assign Student"}
               </button>
             </div>
           </div>
@@ -480,32 +590,32 @@ function RouteManagement() {
         <div className="col-lg-7">
           <div className="card shadow-sm border-0">
             <div className="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
-              <h5 className="mb-0">Routes</h5>
+              <h5 className="mb-0">{t?.routeManagement?.routes || "Routes"}</h5>
               <input
                 type="text"
                 className="form-control"
                 style={{ maxWidth: "280px" }}
-                placeholder="Search routes..."
+                placeholder={t?.common?.search || "Search routes..."}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
 
             <div className="card-body">
-              {loading ? (
-                <div className="alert alert-info mb-0">Loading routes...</div>
-              ) : filteredRoutes.length === 0 ? (
-                <div className="alert alert-warning mb-0">No routes found.</div>
+              {filteredRoutes.length === 0 ? (
+                <div className="alert alert-warning mb-0">
+                  {t?.routeManagement?.noRoutes || "No routes found."}
+                </div>
               ) : (
                 <div className="table-responsive">
                   <table className="table table-hover align-middle">
                     <thead>
                       <tr>
-                        <th>Route</th>
-                        <th>Driver</th>
-                        <th>Students</th>
-                        <th>Fee</th>
-                        <th>Actions</th>
+                        <th>{t?.routeManagement?.route || "Route"}</th>
+                        <th>{t?.routeManagement?.driver || "Driver"}</th>
+                        <th>{t?.routeManagement?.students || "Students"}</th>
+                        <th>{t?.routeManagement?.fee || "Fee"}</th>
+                        <th>{t?.common?.actions || "Actions"}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -514,30 +624,35 @@ function RouteManagement() {
                           <td>
                             <div className="fw-bold">{route.routeName}</div>
                             <small className="text-muted">
+                              <FaMapMarkerAlt className="me-1" />{" "}
                               {route.pickupLocation} → {route.dropoffLocation}
                             </small>
                           </td>
                           <td>
                             <div>{route.driverName}</div>
                             <small className="text-muted">
-                              {route.driverPhone}
+                              <FaPhone className="me-1" /> {route.driverPhone}
                             </small>
                           </td>
                           <td>
-                            <FaUsers className="me-1" />
-                            {route.assignedStudents}/{route.capacity}
+                            <FaUsers className="me-1" />{" "}
+                            {route.assignedStudents || 0}/{route.capacity}
                           </td>
-                          <td>₦{route.monthlyFee}</td>
+                          <td>
+                            <FaDollarSign className="me-1" /> {route.monthlyFee}
+                          </td>
                           <td className="d-flex gap-2 flex-wrap">
                             <button
                               className="btn btn-sm btn-outline-primary"
                               onClick={() => handleEdit(route)}
+                              title={t?.common?.edit || "Edit"}
                             >
                               <FaEdit />
                             </button>
                             <button
                               className="btn btn-sm btn-outline-danger"
                               onClick={() => handleDelete(route.id)}
+                              title={t?.common?.delete || "Delete"}
                             >
                               <FaTrash />
                             </button>
@@ -547,8 +662,12 @@ function RouteManagement() {
                                 setSelectedRouteId(String(route.id));
                                 loadRouteStudents(route.id);
                               }}
+                              title={
+                                t?.routeManagement?.viewStudents ||
+                                "View Students"
+                              }
                             >
-                              View Students
+                              <FaUsers />
                             </button>
                           </td>
                         </tr>
@@ -562,27 +681,34 @@ function RouteManagement() {
 
           <div className="card shadow-sm border-0 mt-4">
             <div className="card-header bg-white">
-              <h5 className="mb-0">Students on Selected Route</h5>
+              <h5 className="mb-0">
+                {t?.routeManagement?.studentsOnRoute ||
+                  "Students on Selected Route"}
+              </h5>
             </div>
             <div className="card-body">
               {!selectedRouteId ? (
                 <div className="alert alert-secondary mb-0">
-                  Select a route to see assigned students.
+                  {t?.routeManagement?.selectRouteToView ||
+                    "Select a route to see assigned students."}
                 </div>
               ) : routeStudents.length === 0 ? (
                 <div className="alert alert-warning mb-0">
-                  No students assigned to this route yet.
+                  {t?.routeManagement?.noStudentsAssigned ||
+                    "No students assigned to this route yet."}
                 </div>
               ) : (
                 <div className="table-responsive">
                   <table className="table table-striped align-middle">
                     <thead>
                       <tr>
-                        <th>Name</th>
-                        <th>Admission No.</th>
-                        <th>Class</th>
-                        <th>Parent</th>
-                        <th>Action</th>
+                        <th>{t?.studentManagement?.studentName || "Name"}</th>
+                        <th>
+                          {t?.studentManagement?.admissionNo || "Admission No."}
+                        </th>
+                        <th>{t?.studentManagement?.class || "Class"}</th>
+                        <th>{t?.studentManagement?.parentName || "Parent"}</th>
+                        <th>{t?.common?.action || "Action"}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -608,7 +734,7 @@ function RouteManagement() {
                               className="btn btn-sm btn-outline-danger"
                               onClick={() => handleRemoveStudent(student.id)}
                             >
-                              Remove
+                              {t?.routeManagement?.remove || "Remove"}
                             </button>
                           </td>
                         </tr>
@@ -621,6 +747,11 @@ function RouteManagement() {
           </div>
         </div>
       </div>
+
+      <style>{`
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

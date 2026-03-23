@@ -1,6 +1,8 @@
 // src/components/SubjectManagement.js
 import React, { useEffect, useMemo, useState } from "react";
 import { subjectAPI, teacherAPI, classAPI } from "../services/api";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FaBook,
@@ -13,9 +15,16 @@ import {
   FaTimesCircle,
   FaChalkboardTeacher,
   FaSchool,
+  FaInfoCircle,
+  FaExclamationTriangle,
+  FaUserTie,
 } from "react-icons/fa";
+import "./SubjectManagement.css";
 
 function SubjectManagement() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
+
   const [subjects, setSubjects] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [schoolClasses, setSchoolClasses] = useState([]);
@@ -115,7 +124,9 @@ function SubjectManagement() {
       }
     } catch (error) {
       console.error("Error loading subject module:", error);
-      toast.error("Failed to load subject data");
+      toast.error(
+        t?.subjectManagement?.loadFailed || "Failed to load subject data",
+      );
     } finally {
       setLoading(false);
     }
@@ -175,12 +186,16 @@ function SubjectManagement() {
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      toast.warning("Subject name is required");
+      toast.warning(
+        t?.subjectManagement?.nameRequired || "Subject name is required",
+      );
       return;
     }
 
     if (!formData.code.trim()) {
-      toast.warning("Subject code is required");
+      toast.warning(
+        t?.subjectManagement?.codeRequired || "Subject code is required",
+      );
       return;
     }
 
@@ -194,17 +209,25 @@ function SubjectManagement() {
 
       if (editingId) {
         await subjectAPI.updateSubject(editingId, payload);
-        toast.success("Subject updated successfully");
+        toast.success(
+          t?.subjectManagement?.updateSuccess || "Subject updated successfully",
+        );
       } else {
         await subjectAPI.createSubject(payload);
-        toast.success("Subject created successfully");
+        toast.success(
+          t?.subjectManagement?.createSuccess || "Subject created successfully",
+        );
       }
 
       resetForm();
       await loadInitialData();
     } catch (error) {
       console.error("Error saving subject:", error);
-      toast.error(error?.response?.data?.message || "Failed to save subject");
+      toast.error(
+        error?.response?.data?.message ||
+          t?.subjectManagement?.saveFailed ||
+          "Failed to save subject",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -222,17 +245,29 @@ function SubjectManagement() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete subject "${name}"?`)) return;
+    if (
+      !window.confirm(
+        t?.subjectManagement?.confirmDelete?.replace("{name}", name) ||
+          `Delete subject "${name}"?`,
+      )
+    )
+      return;
 
     setDeletingId(id);
     try {
       await subjectAPI.deleteSubject(id);
-      toast.success("Subject deleted successfully");
+      toast.success(
+        t?.subjectManagement?.deleteSuccess || "Subject deleted successfully",
+      );
       if (editingId === id) resetForm();
       await loadInitialData();
     } catch (error) {
       console.error("Error deleting subject:", error);
-      toast.error(error?.response?.data?.message || "Failed to delete subject");
+      toast.error(
+        error?.response?.data?.message ||
+          t?.subjectManagement?.deleteFailed ||
+          "Failed to delete subject",
+      );
     } finally {
       setDeletingId(null);
     }
@@ -242,12 +277,17 @@ function SubjectManagement() {
     try {
       await subjectAPI.toggleStatus(subject.id, !subject.active);
       toast.success(
-        `Subject ${subject.active ? "deactivated" : "activated"} successfully`,
+        subject.active
+          ? t?.subjectManagement?.deactivated ||
+              "Subject deactivated successfully"
+          : t?.subjectManagement?.activated || "Subject activated successfully",
       );
       await loadInitialData();
     } catch (error) {
       console.error("Error toggling subject status:", error);
-      toast.error("Failed to update subject status");
+      toast.error(
+        t?.subjectManagement?.statusFailed || "Failed to update subject status",
+      );
     }
   };
 
@@ -255,12 +295,16 @@ function SubjectManagement() {
     e.preventDefault();
 
     if (!classAssignData.classId) {
-      toast.warning("Please select a class");
+      toast.warning(
+        t?.subjectManagement?.selectClass || "Please select a class",
+      );
       return;
     }
 
     if (!classAssignData.subjectId) {
-      toast.warning("Please select a subject");
+      toast.warning(
+        t?.subjectManagement?.selectSubject || "Please select a subject",
+      );
       return;
     }
 
@@ -269,7 +313,9 @@ function SubjectManagement() {
     );
 
     if (!schoolClass) {
-      toast.warning("Selected class not found");
+      toast.warning(
+        t?.subjectManagement?.classNotFound || "Selected class not found",
+      );
       return;
     }
 
@@ -280,7 +326,10 @@ function SubjectManagement() {
         subjectId: Number(classAssignData.subjectId),
       });
 
-      toast.success("Subject assigned to class successfully");
+      toast.success(
+        t?.subjectManagement?.assignSuccess ||
+          "Subject assigned to class successfully",
+      );
 
       if (String(selectedClassId) === String(schoolClass.id)) {
         await loadClassSubjects(schoolClass.className, schoolClass.arm);
@@ -288,21 +337,34 @@ function SubjectManagement() {
     } catch (error) {
       console.error("Error assigning subject to class:", error);
       toast.error(
-        error?.response?.data?.message || "Failed to assign subject to class",
+        error?.response?.data?.message ||
+          t?.subjectManagement?.assignFailed ||
+          "Failed to assign subject to class",
       );
     }
   };
 
   const handleRemoveFromClass = async (className, classArm, subjectId) => {
-    if (!window.confirm("Remove this subject from class?")) return;
+    if (
+      !window.confirm(
+        t?.subjectManagement?.confirmRemove ||
+          "Remove this subject from class?",
+      )
+    )
+      return;
 
     try {
       await subjectAPI.removeSubjectFromClass(className, classArm, subjectId);
-      toast.success("Subject removed from class");
+      toast.success(
+        t?.subjectManagement?.removeSuccess || "Subject removed from class",
+      );
       await loadClassSubjects(className, classArm);
     } catch (error) {
       console.error("Error removing subject from class:", error);
-      toast.error("Failed to remove subject from class");
+      toast.error(
+        t?.subjectManagement?.removeFailed ||
+          "Failed to remove subject from class",
+      );
     }
   };
 
@@ -310,12 +372,17 @@ function SubjectManagement() {
     e.preventDefault();
 
     if (!teacherAssignData.teacherId || !teacherAssignData.subjectId) {
-      toast.warning("Please select teacher and subject");
+      toast.warning(
+        t?.subjectManagement?.selectTeacherSubject ||
+          "Please select teacher and subject",
+      );
       return;
     }
 
     if (!teacherAssignData.classId) {
-      toast.warning("Please select a class");
+      toast.warning(
+        t?.subjectManagement?.selectClass || "Please select a class",
+      );
       return;
     }
 
@@ -324,7 +391,9 @@ function SubjectManagement() {
     );
 
     if (!schoolClass) {
-      toast.warning("Selected class not found");
+      toast.warning(
+        t?.subjectManagement?.classNotFound || "Selected class not found",
+      );
       return;
     }
 
@@ -336,155 +405,196 @@ function SubjectManagement() {
         classArm: schoolClass.arm,
       });
 
-      toast.success("Subject assigned to teacher successfully");
+      toast.success(
+        t?.subjectManagement?.teacherAssignSuccess ||
+          "Subject assigned to teacher successfully",
+      );
       await loadTeacherAssignments(teacherAssignData.teacherId);
     } catch (error) {
       console.error("Error assigning subject to teacher:", error);
       toast.error(
-        error?.response?.data?.message || "Failed to assign subject to teacher",
+        error?.response?.data?.message ||
+          t?.subjectManagement?.teacherAssignFailed ||
+          "Failed to assign subject to teacher",
       );
     }
   };
 
   const handleRemoveTeacherAssignment = async (id) => {
-    if (!window.confirm("Remove this teacher subject assignment?")) return;
+    if (
+      !window.confirm(
+        t?.subjectManagement?.confirmRemoveAssignment ||
+          "Remove this teacher subject assignment?",
+      )
+    )
+      return;
 
     try {
       await subjectAPI.removeTeacherSubject(id);
-      toast.success("Assignment removed successfully");
+      toast.success(
+        t?.subjectManagement?.removeAssignmentSuccess ||
+          "Assignment removed successfully",
+      );
       await loadTeacherAssignments(teacherAssignData.teacherId);
     } catch (error) {
       console.error("Error removing assignment:", error);
-      toast.error("Failed to remove assignment");
+      toast.error(
+        t?.subjectManagement?.removeAssignmentFailed ||
+          "Failed to remove assignment",
+      );
     }
   };
 
+  if (loading && subjects.length === 0) {
+    return (
+      <div className={`text-center py-5 ${darkMode ? "dark-mode" : ""}`}>
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{t?.common?.loading || "Loading..."}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="container-fluid py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-        <div>
-          <h2 className="mb-1">Subject Management</h2>
-          <p className="text-muted mb-0">
-            Manage subjects, class subject lists, and teacher subject
-            assignments
+    <div className={`subject-management ${darkMode ? "dark-mode" : ""}`}>
+      <div className="subject-header">
+        <div className="subject-header-info">
+          <h2>
+            <FaBook className="me-2" />
+            {t?.subjectManagement?.title || "Subject Management"}
+          </h2>
+          <p className="subject-description">
+            {t?.subjectManagement?.subtitle ||
+              "Manage subjects, class subject lists, and teacher subject assignments"}
           </p>
         </div>
 
-        <button className="btn btn-outline-primary" onClick={loadInitialData}>
+        <button className="btn-refresh" onClick={loadInitialData}>
           <FaSyncAlt className="me-2" />
-          Refresh
+          {t?.common?.refresh || "Refresh"}
         </button>
       </div>
 
-      <div className="row">
-        <div className="col-lg-4 mb-4">
-          <div className="card shadow-sm">
-            <div className="card-header bg-primary text-white">
-              <h5 className="mb-0">
+      <div className="subject-grid">
+        <div className="subject-left-col">
+          <div className="subject-card">
+            <div className="subject-card-header primary">
+              <h5>
                 {editingId ? (
                   <>
                     <FaEdit className="me-2" />
-                    Edit Subject
+                    {t?.subjectManagement?.editSubject || "Edit Subject"}
                   </>
                 ) : (
                   <>
                     <FaPlus className="me-2" />
-                    Create Subject
+                    {t?.subjectManagement?.createSubject || "Create Subject"}
                   </>
                 )}
               </h5>
             </div>
 
-            <div className="card-body">
+            <div className="subject-card-body">
               <form onSubmit={handleSubmit}>
-                <div className="mb-3">
-                  <label className="form-label">Subject Name</label>
+                <div className="form-group">
+                  <label>
+                    {t?.subjectManagement?.subjectName || "Subject Name"}
+                  </label>
                   <input
                     type="text"
-                    className="form-control"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    placeholder="e.g. Mathematics"
+                    placeholder={
+                      t?.subjectManagement?.subjectNamePlaceholder ||
+                      "e.g. Mathematics"
+                    }
                   />
                 </div>
 
-                <div className="mb-3">
-                  <label className="form-label">Subject Code</label>
+                <div className="form-group">
+                  <label>
+                    {t?.subjectManagement?.subjectCode || "Subject Code"}
+                  </label>
                   <input
                     type="text"
-                    className="form-control"
                     name="code"
                     value={formData.code}
                     onChange={handleChange}
-                    placeholder="e.g. MTH"
+                    placeholder={
+                      t?.subjectManagement?.subjectCodePlaceholder || "e.g. MTH"
+                    }
                   />
                 </div>
 
-                <div className="form-check mb-3">
+                <div className="form-check">
                   <input
                     id="activeSubject"
                     type="checkbox"
-                    className="form-check-input"
                     name="active"
                     checked={formData.active}
                     onChange={handleChange}
                   />
-                  <label htmlFor="activeSubject" className="form-check-label">
-                    Active
+                  <label htmlFor="activeSubject">
+                    {t?.subjectManagement?.active || "Active"}
                   </label>
                 </div>
 
-                <div className="d-grid gap-2">
+                <div className="form-actions">
                   <button
                     type="submit"
-                    className="btn btn-primary"
+                    className="btn-primary"
                     disabled={submitting}
                   >
                     {submitting ? (
                       <>
-                        <FaSpinner className="me-2 spin" />
-                        {editingId ? "Updating..." : "Creating..."}
+                        <FaSpinner className="spin" />
+                        {editingId
+                          ? t?.common?.updating || "Updating..."
+                          : t?.common?.creating || "Creating..."}
                       </>
                     ) : editingId ? (
                       <>
-                        <FaEdit className="me-2" />
-                        Update Subject
+                        <FaEdit />
+                        {t?.common?.update || "Update Subject"}
                       </>
                     ) : (
                       <>
-                        <FaPlus className="me-2" />
-                        Create Subject
+                        <FaPlus />
+                        {t?.common?.create || "Create Subject"}
                       </>
                     )}
                   </button>
 
                   <button
                     type="button"
-                    className="btn btn-outline-secondary"
+                    className="btn-secondary"
                     onClick={resetForm}
                     disabled={submitting}
                   >
-                    {editingId ? "Cancel Edit" : "Clear"}
+                    {editingId
+                      ? t?.common?.cancelEdit || "Cancel Edit"
+                      : t?.common?.clear || "Clear"}
                   </button>
                 </div>
               </form>
             </div>
           </div>
 
-          <div className="card shadow-sm mt-4">
-            <div className="card-header bg-success text-white">
-              <h5 className="mb-0">
+          <div className="subject-card">
+            <div className="subject-card-header success">
+              <h5>
                 <FaSchool className="me-2" />
-                Assign Subject to Class
+                {t?.subjectManagement?.assignToClass ||
+                  "Assign Subject to Class"}
               </h5>
             </div>
-            <div className="card-body">
+            <div className="subject-card-body">
               <form onSubmit={handleAssignToClass}>
-                <div className="mb-3">
-                  <label className="form-label">Class and Arm</label>
+                <div className="form-group">
+                  <label>
+                    {t?.subjectManagement?.classAndArm || "Class and Arm"}
+                  </label>
                   <select
-                    className="form-select"
                     value={classAssignData.classId}
                     onChange={(e) => {
                       const classId = e.target.value;
@@ -495,7 +605,9 @@ function SubjectManagement() {
                       setSelectedClassId(classId);
                     }}
                   >
-                    <option value="">Select Class</option>
+                    <option value="">
+                      {t?.common?.select || "Select Class"}
+                    </option>
                     {classOptions.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.className} {c.arm}
@@ -504,10 +616,9 @@ function SubjectManagement() {
                   </select>
                 </div>
 
-                <div className="mb-3">
-                  <label className="form-label">Subject</label>
+                <div className="form-group">
+                  <label>{t?.subjectManagement?.subject || "Subject"}</label>
                   <select
-                    className="form-select"
                     value={classAssignData.subjectId}
                     onChange={(e) =>
                       setClassAssignData((prev) => ({
@@ -516,7 +627,9 @@ function SubjectManagement() {
                       }))
                     }
                   >
-                    <option value="">Select Subject</option>
+                    <option value="">
+                      {t?.common?.select || "Select Subject"}
+                    </option>
                     {sortedSubjects
                       .filter((s) => s.active)
                       .map((s) => (
@@ -527,26 +640,26 @@ function SubjectManagement() {
                   </select>
                 </div>
 
-                <button type="submit" className="btn btn-success w-100">
-                  Assign to Class
+                <button type="submit" className="btn-success w-100">
+                  {t?.subjectManagement?.assignToClass || "Assign to Class"}
                 </button>
               </form>
             </div>
           </div>
 
-          <div className="card shadow-sm mt-4">
-            <div className="card-header bg-warning">
-              <h5 className="mb-0">
+          <div className="subject-card">
+            <div className="subject-card-header warning">
+              <h5>
                 <FaChalkboardTeacher className="me-2" />
-                Assign Subject to Teacher
+                {t?.subjectManagement?.assignToTeacher ||
+                  "Assign Subject to Teacher"}
               </h5>
             </div>
-            <div className="card-body">
+            <div className="subject-card-body">
               <form onSubmit={handleAssignToTeacher}>
-                <div className="mb-3">
-                  <label className="form-label">Teacher</label>
+                <div className="form-group">
+                  <label>{t?.subjectManagement?.teacher || "Teacher"}</label>
                   <select
-                    className="form-select"
                     value={teacherAssignData.teacherId}
                     onChange={(e) => {
                       const teacherId = e.target.value;
@@ -557,7 +670,9 @@ function SubjectManagement() {
                       loadTeacherAssignments(teacherId);
                     }}
                   >
-                    <option value="">Select Teacher</option>
+                    <option value="">
+                      {t?.common?.select || "Select Teacher"}
+                    </option>
                     {teachers.map((t) => (
                       <option key={t.id} value={t.id}>
                         {(
@@ -569,10 +684,9 @@ function SubjectManagement() {
                   </select>
                 </div>
 
-                <div className="mb-3">
-                  <label className="form-label">Subject</label>
+                <div className="form-group">
+                  <label>{t?.subjectManagement?.subject || "Subject"}</label>
                   <select
-                    className="form-select"
                     value={teacherAssignData.subjectId}
                     onChange={(e) =>
                       setTeacherAssignData((prev) => ({
@@ -581,7 +695,9 @@ function SubjectManagement() {
                       }))
                     }
                   >
-                    <option value="">Select Subject</option>
+                    <option value="">
+                      {t?.common?.select || "Select Subject"}
+                    </option>
                     {sortedSubjects
                       .filter((s) => s.active)
                       .map((s) => (
@@ -592,10 +708,11 @@ function SubjectManagement() {
                   </select>
                 </div>
 
-                <div className="mb-3">
-                  <label className="form-label">Class and Arm</label>
+                <div className="form-group">
+                  <label>
+                    {t?.subjectManagement?.classAndArm || "Class and Arm"}
+                  </label>
                   <select
-                    className="form-select"
                     value={teacherAssignData.classId}
                     onChange={(e) =>
                       setTeacherAssignData((prev) => ({
@@ -604,7 +721,9 @@ function SubjectManagement() {
                       }))
                     }
                   >
-                    <option value="">Select Class</option>
+                    <option value="">
+                      {t?.common?.select || "Select Class"}
+                    </option>
                     {classOptions.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.className} {c.arm}
@@ -613,40 +732,39 @@ function SubjectManagement() {
                   </select>
                 </div>
 
-                <button type="submit" className="btn btn-dark w-100">
-                  Assign to Teacher
+                <button type="submit" className="btn-dark w-100">
+                  {t?.subjectManagement?.assignToTeacher || "Assign to Teacher"}
                 </button>
               </form>
             </div>
           </div>
         </div>
 
-        <div className="col-lg-8 mb-4">
-          <div className="card shadow-sm mb-4">
-            <div className="card-header bg-dark text-white">
-              <h5 className="mb-0">
+        <div className="subject-right-col">
+          <div className="subject-card">
+            <div className="subject-card-header dark">
+              <h5>
                 <FaBook className="me-2" />
-                All Subjects
+                {t?.subjectManagement?.allSubjects || "All Subjects"}
               </h5>
             </div>
 
-            <div className="card-body">
-              {loading ? (
-                <div className="text-center py-5">
-                  <FaSpinner className="spin mb-3" size={32} />
-                  <div>Loading subjects...</div>
+            <div className="subject-card-body">
+              {sortedSubjects.length === 0 ? (
+                <div className="empty-state">
+                  {t?.subjectManagement?.noSubjects || "No subjects found."}
                 </div>
-              ) : sortedSubjects.length === 0 ? (
-                <div className="alert alert-info mb-0">No subjects found.</div>
               ) : (
                 <div className="table-responsive">
-                  <table className="table table-hover align-middle">
+                  <table className="subject-table">
                     <thead>
                       <tr>
-                        <th>Name</th>
-                        <th>Code</th>
-                        <th>Status</th>
-                        <th className="text-end">Actions</th>
+                        <th>{t?.subjectManagement?.name || "Name"}</th>
+                        <th>{t?.subjectManagement?.code || "Code"}</th>
+                        <th>{t?.subjectManagement?.status || "Status"}</th>
+                        <th className="text-end">
+                          {t?.common?.actions || "Actions"}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -656,59 +774,51 @@ function SubjectManagement() {
                           <td>{subject.code}</td>
                           <td>
                             {subject.active ? (
-                              <span className="badge bg-success">Active</span>
+                              <span className="badge success">
+                                {t?.subjectManagement?.active || "Active"}
+                              </span>
                             ) : (
-                              <span className="badge bg-danger">Inactive</span>
+                              <span className="badge danger">
+                                {t?.subjectManagement?.inactive || "Inactive"}
+                              </span>
                             )}
                           </td>
-                          <td>
-                            <div className="d-flex justify-content-end gap-2 flex-wrap">
+                          <td className="text-end">
+                            <div className="action-buttons">
                               <button
-                                className="btn btn-sm btn-outline-primary"
+                                className="btn-icon edit"
                                 onClick={() => handleEdit(subject)}
+                                title={t?.common?.edit || "Edit"}
                               >
-                                <FaEdit className="me-1" />
-                                Edit
+                                <FaEdit />
                               </button>
 
                               <button
-                                className={`btn btn-sm ${
-                                  subject.active
-                                    ? "btn-outline-warning"
-                                    : "btn-outline-success"
-                                }`}
+                                className={`btn-icon ${subject.active ? "warning" : "success"}`}
                                 onClick={() => handleToggleStatus(subject)}
+                                title={
+                                  subject.active ? "Deactivate" : "Activate"
+                                }
                               >
                                 {subject.active ? (
-                                  <>
-                                    <FaTimesCircle className="me-1" />
-                                    Deactivate
-                                  </>
+                                  <FaTimesCircle />
                                 ) : (
-                                  <>
-                                    <FaCheckCircle className="me-1" />
-                                    Activate
-                                  </>
+                                  <FaCheckCircle />
                                 )}
                               </button>
 
                               <button
-                                className="btn btn-sm btn-danger"
+                                className="btn-icon delete"
                                 onClick={() =>
                                   handleDelete(subject.id, subject.name)
                                 }
                                 disabled={deletingId === subject.id}
+                                title={t?.common?.delete || "Delete"}
                               >
                                 {deletingId === subject.id ? (
-                                  <>
-                                    <FaSpinner className="me-1 spin" />
-                                    Deleting
-                                  </>
+                                  <FaSpinner className="spin" />
                                 ) : (
-                                  <>
-                                    <FaTrash className="me-1" />
-                                    Delete
-                                  </>
+                                  <FaTrash />
                                 )}
                               </button>
                             </div>
@@ -722,21 +832,22 @@ function SubjectManagement() {
             </div>
           </div>
 
-          <div className="card shadow-sm mb-4">
-            <div className="card-header bg-info text-white d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">
-                Subjects for{" "}
-                {selectedClass
-                  ? `${selectedClass.className} ${selectedClass.arm}`
-                  : "Selected Class"}
-              </h5>
+          <div className="subject-card">
+            <div className="subject-card-header info">
+              <div className="header-left">
+                <h5>
+                  {t?.subjectManagement?.subjectsFor || "Subjects for"}{" "}
+                  {selectedClass
+                    ? `${selectedClass.className} ${selectedClass.arm}`
+                    : t?.subjectManagement?.selectedClass || "Selected Class"}
+                </h5>
+              </div>
               <select
-                className="form-select form-select-sm"
-                style={{ width: "220px" }}
+                className="class-select"
                 value={selectedClassId}
                 onChange={(e) => setSelectedClassId(e.target.value)}
               >
-                <option value="">Select Class</option>
+                <option value="">{t?.common?.select || "Select Class"}</option>
                 {classOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.className} {c.arm}
@@ -745,25 +856,29 @@ function SubjectManagement() {
               </select>
             </div>
 
-            <div className="card-body">
+            <div className="subject-card-body">
               {!selectedClass ? (
-                <div className="alert alert-info mb-0">
-                  Select a class and arm first.
+                <div className="empty-state">
+                  {t?.subjectManagement?.selectClassFirst ||
+                    "Select a class and arm first."}
                 </div>
               ) : classSubjects.length === 0 ? (
-                <div className="alert alert-info mb-0">
-                  No subjects assigned to this class arm yet.
+                <div className="empty-state">
+                  {t?.subjectManagement?.noSubjectsAssigned ||
+                    "No subjects assigned to this class arm yet."}
                 </div>
               ) : (
                 <div className="table-responsive">
-                  <table className="table table-bordered align-middle">
+                  <table className="subject-table striped">
                     <thead>
                       <tr>
-                        <th>Class</th>
-                        <th>Arm</th>
-                        <th>Subject</th>
-                        <th>Code</th>
-                        <th className="text-end">Actions</th>
+                        <th>{t?.subjectManagement?.class || "Class"}</th>
+                        <th>{t?.subjectManagement?.arm || "Arm"}</th>
+                        <th>{t?.subjectManagement?.subject || "Subject"}</th>
+                        <th>{t?.subjectManagement?.code || "Code"}</th>
+                        <th className="text-end">
+                          {t?.common?.actions || "Actions"}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -775,7 +890,7 @@ function SubjectManagement() {
                           <td>{item.subjectCode}</td>
                           <td className="text-end">
                             <button
-                              className="btn btn-sm btn-danger"
+                              className="btn-icon delete"
                               onClick={() =>
                                 handleRemoveFromClass(
                                   item.className,
@@ -783,9 +898,9 @@ function SubjectManagement() {
                                   item.subjectId,
                                 )
                               }
+                              title={t?.common?.remove || "Remove"}
                             >
-                              <FaTrash className="me-1" />
-                              Remove
+                              <FaTrash />
                             </button>
                           </td>
                         </tr>
@@ -797,30 +912,38 @@ function SubjectManagement() {
             </div>
           </div>
 
-          <div className="card shadow-sm">
-            <div className="card-header bg-secondary text-white">
-              <h5 className="mb-0">Selected Teacher Assignments</h5>
+          <div className="subject-card">
+            <div className="subject-card-header secondary">
+              <h5>
+                <FaUserTie className="me-2" />
+                {t?.subjectManagement?.teacherAssignments ||
+                  "Selected Teacher Assignments"}
+              </h5>
             </div>
 
-            <div className="card-body">
+            <div className="subject-card-body">
               {!teacherAssignData.teacherId ? (
-                <div className="alert alert-info mb-0">
-                  Select a teacher to view subject assignments.
+                <div className="empty-state">
+                  {t?.subjectManagement?.selectTeacherToView ||
+                    "Select a teacher to view subject assignments."}
                 </div>
               ) : teacherAssignments.length === 0 ? (
-                <div className="alert alert-warning mb-0">
-                  No subject assignments found for this teacher.
+                <div className="empty-state warning">
+                  {t?.subjectManagement?.noTeacherAssignments ||
+                    "No subject assignments found for this teacher."}
                 </div>
               ) : (
                 <div className="table-responsive">
-                  <table className="table table-striped align-middle">
+                  <table className="subject-table striped">
                     <thead>
                       <tr>
-                        <th>Teacher</th>
-                        <th>Subject</th>
-                        <th>Class</th>
-                        <th>Arm</th>
-                        <th className="text-end">Actions</th>
+                        <th>{t?.subjectManagement?.teacher || "Teacher"}</th>
+                        <th>{t?.subjectManagement?.subject || "Subject"}</th>
+                        <th>{t?.subjectManagement?.class || "Class"}</th>
+                        <th>{t?.subjectManagement?.arm || "Arm"}</th>
+                        <th className="text-end">
+                          {t?.common?.actions || "Actions"}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -834,13 +957,13 @@ function SubjectManagement() {
                           <td>{item.classArm || "-"}</td>
                           <td className="text-end">
                             <button
-                              className="btn btn-sm btn-danger"
+                              className="btn-icon delete"
                               onClick={() =>
                                 handleRemoveTeacherAssignment(item.id)
                               }
+                              title={t?.common?.remove || "Remove"}
                             >
-                              <FaTrash className="me-1" />
-                              Remove
+                              <FaTrash />
                             </button>
                           </td>
                         </tr>
@@ -853,16 +976,6 @@ function SubjectManagement() {
           </div>
         </div>
       </div>
-
-      <style>{`
-        .spin {
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

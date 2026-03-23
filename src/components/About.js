@@ -12,15 +12,11 @@ import {
   FaGraduationCap,
   FaBookOpen,
   FaChalkboardTeacher,
-  FaHeart,
   FaQuoteLeft,
   FaQuoteRight,
   FaStar,
   FaRocket,
   FaShieldAlt,
-  FaLeaf,
-  FaHandshake,
-  FaUserTie,
   FaLinkedin,
   FaTwitter,
   FaEnvelope,
@@ -28,57 +24,50 @@ import {
   FaMapMarkerAlt,
   FaArrowRight,
   FaCheckCircle,
-  FaCrown,
-  FaGem,
-  FaInfinity,
 } from "react-icons/fa";
+import { useLanguage } from "../contexts/LanguageContext";
 import "./About.css";
 
 function About() {
   const [animated, setAnimated] = useState(false);
   const statsRef = useRef(null);
+  const { t } = useLanguage();
 
   const values = [
     {
       icon: <FaRegLightbulb />,
-      title: "Innovation",
-      description:
-        "Embracing modern technology and innovative teaching methods to enhance learning experiences.",
+      title: t.about.values.innovation,
+      description: t.about.values.innovationDesc,
       color: "#FFD700",
     },
     {
       icon: <FaUsers />,
-      title: "Community",
-      description:
-        "Building a strong, supportive community of learners, educators, and parents.",
+      title: t.about.values.community,
+      description: t.about.values.communityDesc,
       color: "#FF6B6B",
     },
     {
       icon: <FaGlobe />,
-      title: "Global Perspective",
-      description:
-        "Preparing students for a globalized world with international standards.",
+      title: t.about.values.globalPerspective,
+      description: t.about.values.globalPerspectiveDesc,
       color: "#4ECDC4",
     },
     {
       icon: <FaHandsHelping />,
-      title: "Excellence",
-      description:
-        "Striving for excellence in everything we do, from academics to extracurricular activities.",
+      title: t.about.values.excellence,
+      description: t.about.values.excellenceDesc,
       color: "#B83B5E",
     },
     {
       icon: <FaShieldAlt />,
-      title: "Integrity",
-      description:
-        "Upholding the highest standards of honesty and moral principles.",
+      title: t.about.values.integrity,
+      description: t.about.values.integrityDesc,
       color: "#F9D56E",
     },
     {
-      icon: <FaCrown />,
-      title: "Leadership",
-      description:
-        "Developing confident leaders who will shape tomorrow's world.",
+      icon: <FaAward />,
+      title: t.about.values.leadership,
+      description: t.about.values.leadershipDesc,
       color: "#E84545",
     },
   ];
@@ -179,59 +168,40 @@ function About() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          setAnimated(true);
-        }
+        if (entries[0].isIntersecting) setAnimated(true);
       },
       { threshold: 0.3 },
     );
 
-    if (statsRef.current) {
-      observer.observe(statsRef.current);
-    }
-
+    if (statsRef.current) observer.observe(statsRef.current);
     return () => observer.disconnect();
   }, []);
 
   return (
     <div className="about-container-dark">
-      {/* Hero Section with Dark Gradient */}
       <section className="about-hero-dark">
         <div className="hero-bg-dark"></div>
         <div className="container">
           <div className="hero-content-dark">
-            <div className="hero-badge">Est. 2015</div>
+            <div className="hero-badge">{t.about.est}</div>
             <h1 className="hero-title-dark">
-              <span className="title-gradient-dark">Faith Foundation</span>
+              <span className="title-gradient-dark">{t.about.heroTitle1}</span>
               <br />
-              International School
+              {t.about.heroTitle2}
             </h1>
-            <p className="hero-subtitle-dark">
-              Empowering the next generation of African leaders through quality
-              education and innovation
-            </p>
+            <p className="hero-subtitle-dark">{t.about.heroSubtitle}</p>
             <div className="hero-buttons-dark">
               <Link to="/register" className="btn-primary-dark">
-                Join Our Family <FaArrowRight className="btn-icon" />
+                {t.common.joinOurFamily} <FaArrowRight className="btn-icon" />
               </Link>
               <Link to="/contact" className="btn-outline-dark">
-                Contact Us
+                {t.common.contactUs}
               </Link>
             </div>
           </div>
         </div>
-        <div className="hero-wave-dark">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
-            <path
-              fill="#0a0a0a"
-              fillOpacity="1"
-              d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
-            ></path>
-          </svg>
-        </div>
       </section>
 
-      {/* Stats Section */}
       <section className="stats-section-dark" ref={statsRef}>
         <div className="container">
           <div className="stats-grid-dark">
@@ -249,7 +219,6 @@ function About() {
         </div>
       </section>
 
-      {/* Mission & Vision Cards */}
       <section className="mission-vision-dark">
         <div className="container">
           <div className="mv-grid-dark">
@@ -258,71 +227,44 @@ function About() {
               <div className="card-icon-dark">
                 <FaBullhorn />
               </div>
-              <h3>Our Mission</h3>
-              <p>
-                To provide a nurturing and innovative learning environment that
-                empowers students to reach their full potential, fostering
-                critical thinking, creativity, and lifelong learning skills.
-              </p>
+              <h3>{t.about.mission}</h3>
+              <p>{t.about.missionText}</p>
             </div>
             <div className="mv-card-dark vision-card-dark">
               <div className="card-glow"></div>
               <div className="card-icon-dark">
                 <FaRegLightbulb />
               </div>
-              <h3>Our Vision</h3>
-              <p>
-                To be a world-class educational institution that prepares
-                students to become responsible global citizens and future
-                leaders who make a positive impact on society.
-              </p>
+              <h3>{t.about.vision}</h3>
+              <p>{t.about.visionText}</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Our Story Section */}
       <section className="story-section-dark">
         <div className="container">
           <div className="story-wrapper-dark">
             <div className="story-text-dark">
-              <div className="section-badge-dark">Our Journey</div>
-              <h2 className="section-title-dark">
-                The Story of Faith Foundation
-              </h2>
+              <div className="section-badge-dark">{t.about.ourJourney}</div>
+              <h2 className="section-title-dark">{t.about.storyTitle}</h2>
               <div className="story-content-dark">
-                <p>
-                  Faith Foundation International School (FFIS) was founded in
-                  2015 with a vision to revolutionize education. What started as
-                  a small institution with just 100 students has grown into a
-                  thriving community of over 1000 learners, educators, and
-                  staff.
-                </p>
-                <p>
-                  Our journey has been marked by continuous innovation and a
-                  commitment to excellence. We've embraced technology to enhance
-                  learning, built state-of-the-art facilities, and assembled a
-                  team of passionate educators dedicated to student success.
-                </p>
-                <p>
-                  Today, FFIS stands as a beacon of modern education, combining
-                  traditional African values with contemporary teaching
-                  methodologies to prepare students for the challenges of
-                  tomorrow.
-                </p>
+                <p>{t.about.storyP1}</p>
+                <p>{t.about.storyP2}</p>
+                <p>{t.about.storyP3}</p>
               </div>
               <div className="story-features-dark">
                 <div className="feature-dark">
                   <FaCheckCircle className="feature-icon-dark" />
-                  <span>Accredited Institution</span>
+                  <span>{t.about.accredited}</span>
                 </div>
                 <div className="feature-dark">
                   <FaCheckCircle className="feature-icon-dark" />
-                  <span>Modern Facilities</span>
+                  <span>{t.about.facilities}</span>
                 </div>
                 <div className="feature-dark">
                   <FaCheckCircle className="feature-icon-dark" />
-                  <span>Expert Faculty</span>
+                  <span>{t.about.faculty}</span>
                 </div>
               </div>
             </div>
@@ -331,7 +273,7 @@ function About() {
               <div className="image-content-dark">
                 <div className="floating-card-dark">
                   <FaCalendarAlt />
-                  <span>Est. 2015</span>
+                  <span>{t.about.est}</span>
                 </div>
                 <div className="floating-card-dark second">
                   <FaMapMarkerAlt />
@@ -343,15 +285,12 @@ function About() {
         </div>
       </section>
 
-      {/* Core Values Section */}
       <section className="values-section-dark">
         <div className="container">
           <div className="section-header-dark">
-            <div className="section-badge-dark">What We Believe</div>
-            <h2 className="section-title-dark">Our Core Values</h2>
-            <p className="section-subtitle-dark">
-              The principles that guide everything we do
-            </p>
+            <div className="section-badge-dark">{t.about.whatWeBelieve}</div>
+            <h2 className="section-title-dark">{t.about.coreValues}</h2>
+            <p className="section-subtitle-dark">{t.about.valuesSubtitle}</p>
           </div>
           <div className="values-grid-dark">
             {values.map((value, index) => (
@@ -371,14 +310,13 @@ function About() {
         </div>
       </section>
 
-      {/* Timeline Section */}
       <section className="timeline-section-dark">
         <div className="container">
           <div className="section-header-dark">
-            <div className="section-badge-dark">Our History</div>
-            <h2 className="section-title-dark">Key Milestones</h2>
+            <div className="section-badge-dark">{t.about.history}</div>
+            <h2 className="section-title-dark">{t.about.milestones}</h2>
             <p className="section-subtitle-dark">
-              Celebrating our journey of growth and excellence
+              {t.about.milestonesSubtitle}
             </p>
           </div>
           <div className="timeline-dark">
@@ -401,15 +339,12 @@ function About() {
         </div>
       </section>
 
-      {/* Leadership Team Section */}
       <section className="leadership-section-dark">
         <div className="container">
           <div className="section-header-dark">
-            <div className="section-badge-dark">Meet Our Leaders</div>
-            <h2 className="section-title-dark">Leadership Team</h2>
-            <p className="section-subtitle-dark">
-              Dedicated professionals shaping the future of education
-            </p>
+            <div className="section-badge-dark">{t.about.leadersBadge}</div>
+            <h2 className="section-title-dark">{t.about.leadersTitle}</h2>
+            <p className="section-subtitle-dark">{t.about.leadersSubtitle}</p>
           </div>
           <div className="leadership-grid-dark">
             {leadership.map((leader, index) => (
@@ -442,23 +377,17 @@ function About() {
         </div>
       </section>
 
-      {/* Testimonial Section */}
       <section className="testimonial-section-dark">
         <div className="container">
           <div className="testimonial-wrapper-dark">
             <FaQuoteLeft className="quote-icon-left-dark" />
             <div className="testimonial-content-dark">
-              <p className="testimonial-text-dark">
-                "Faith Foundation International School has transformed our
-                community. The dedication of the teachers and the quality of
-                education is unparalleled. Our children are not just learning;
-                they are becoming future leaders."
-              </p>
+              <p className="testimonial-text-dark">{t.about.testimonial}</p>
               <div className="testimonial-author-dark">
                 <div className="author-avatar-dark">👨‍👩‍👧‍👦</div>
                 <div className="author-info-dark">
-                  <h4>The Okafor Family</h4>
-                  <p>Parents of 3 Students</p>
+                  <h4>{t.about.testimonialAuthor}</h4>
+                  <p>{t.about.testimonialRole}</p>
                   <div className="author-stars">
                     {[...Array(5)].map((_, i) => (
                       <FaStar key={i} className="star-filled-dark" />
@@ -472,17 +401,13 @@ function About() {
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="cta-section-dark">
         <div className="container">
           <div className="cta-wrapper-dark">
-            <h2>Ready to Join Our Community?</h2>
-            <p>
-              Take the first step towards an exceptional education for your
-              child
-            </p>
+            <h2>{t.about.ctaTitle}</h2>
+            <p>{t.about.ctaText}</p>
             <Link to="/register" className="btn-cta-dark">
-              Enroll Now <FaArrowRight />
+              {t.common.enrollNow} <FaArrowRight />
             </Link>
           </div>
         </div>

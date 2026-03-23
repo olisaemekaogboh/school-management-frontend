@@ -1,12 +1,31 @@
 // src/components/parent/ParentRegistration.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { useDarkMode } from "../../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import parentService from "../../services/ParentService";
+import {
+  FaUserPlus,
+  FaUserEdit,
+  FaSave,
+  FaTimes,
+  FaSpinner,
+  FaUser,
+  FaEnvelope,
+  FaPhone,
+  FaMapMarkerAlt,
+  FaBriefcase,
+  FaBuilding,
+  FaUserFriends,
+  FaExclamationTriangle,
+} from "react-icons/fa";
 
 const ParentRegistration = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -53,7 +72,8 @@ const ParentRegistration = () => {
       });
     } catch (error) {
       toast.error(
-        "Error fetching parent: " + (error.message || "Unknown error"),
+        t?.parentRegistration?.fetchError ||
+          "Error fetching parent: " + (error.message || "Unknown error"),
       );
     } finally {
       setLoading(false);
@@ -75,14 +95,23 @@ const ParentRegistration = () => {
     try {
       if (id) {
         await parentService.updateParent(id, formData);
-        toast.success("Parent updated successfully!");
+        toast.success(
+          t?.parentRegistration?.updateSuccess ||
+            "Parent updated successfully!",
+        );
       } else {
         await parentService.createParent(formData);
-        toast.success("Parent registered successfully!");
+        toast.success(
+          t?.parentRegistration?.registerSuccess ||
+            "Parent registered successfully!",
+        );
       }
       navigate("/parents");
     } catch (error) {
-      toast.error("Error: " + (error.message || "Unknown error"));
+      toast.error(
+        t?.parentRegistration?.error ||
+          "Error: " + (error.message || "Unknown error"),
+      );
     } finally {
       setLoading(false);
     }
@@ -94,9 +123,8 @@ const ParentRegistration = () => {
         className="d-flex justify-content-center align-items-center"
         style={{ height: "400px" }}
       >
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
+        <FaSpinner className="spin" size={40} />
+        <p className="ms-3">{t?.common?.loading || "Loading..."}</p>
       </div>
     );
   }
@@ -106,8 +134,15 @@ const ParentRegistration = () => {
       <div className="row mb-4">
         <div className="col">
           <h2>
-            <i className="bi bi-person-plus-fill me-2"></i>
-            {id ? "Edit Parent" : "Register New Parent"}
+            {id ? (
+              <FaUserEdit className="me-2" />
+            ) : (
+              <FaUserPlus className="me-2" />
+            )}
+            {id
+              ? t?.parentRegistration?.editParent || "Edit Parent"
+              : t?.parentRegistration?.registerNewParent ||
+                "Register New Parent"}
           </h2>
         </div>
       </div>
@@ -116,11 +151,15 @@ const ParentRegistration = () => {
         <div className="card-body">
           <form onSubmit={handleSubmit}>
             {/* Personal Information */}
-            <h5 className="border-bottom pb-2 mb-3">Personal Information</h5>
+            <h5 className="border-bottom pb-2 mb-3">
+              <FaUser className="me-2" />
+              {t?.parentRegistration?.personalInfo || "Personal Information"}
+            </h5>
             <div className="row mb-3">
               <div className="col-md-4">
                 <label className="form-label">
-                  First Name <span className="text-danger">*</span>
+                  {t?.parentRegistration?.firstName || "First Name"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <input
                   type="text"
@@ -133,7 +172,8 @@ const ParentRegistration = () => {
               </div>
               <div className="col-md-4">
                 <label className="form-label">
-                  Last Name <span className="text-danger">*</span>
+                  {t?.parentRegistration?.lastName || "Last Name"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <input
                   type="text"
@@ -145,7 +185,9 @@ const ParentRegistration = () => {
                 />
               </div>
               <div className="col-md-4">
-                <label className="form-label">Middle Name</label>
+                <label className="form-label">
+                  {t?.parentRegistration?.middleName || "Middle Name"}
+                </label>
                 <input
                   type="text"
                   className="form-control"
@@ -159,32 +201,46 @@ const ParentRegistration = () => {
             <div className="row mb-3">
               <div className="col-md-4">
                 <label className="form-label">
-                  Email <span className="text-danger">*</span>
+                  {t?.common?.email || "Email"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
-                <input
-                  type="email"
-                  className="form-control"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                />
+                <div className="input-group">
+                  <span className="input-group-text">
+                    <FaEnvelope />
+                  </span>
+                  <input
+                    type="email"
+                    className="form-control"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
               </div>
               <div className="col-md-4">
                 <label className="form-label">
-                  Phone Number <span className="text-danger">*</span>
+                  {t?.common?.phone || "Phone Number"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
-                <input
-                  type="tel"
-                  className="form-control"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  required
-                />
+                <div className="input-group">
+                  <span className="input-group-text">
+                    <FaPhone />
+                  </span>
+                  <input
+                    type="tel"
+                    className="form-control"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
               </div>
               <div className="col-md-4">
-                <label className="form-label">Alternate Phone</label>
+                <label className="form-label">
+                  {t?.parentRegistration?.alternatePhone || "Alternate Phone"}
+                </label>
                 <input
                   type="tel"
                   className="form-control"
@@ -197,18 +253,26 @@ const ParentRegistration = () => {
 
             <div className="row mb-3">
               <div className="col-md-6">
-                <label className="form-label">Address</label>
-                <textarea
-                  className="form-control"
-                  name="address"
-                  rows="2"
-                  value={formData.address}
-                  onChange={handleChange}
-                ></textarea>
+                <label className="form-label">
+                  {t?.parentRegistration?.address || "Address"}
+                </label>
+                <div className="input-group">
+                  <span className="input-group-text">
+                    <FaMapMarkerAlt />
+                  </span>
+                  <textarea
+                    className="form-control"
+                    name="address"
+                    rows="2"
+                    value={formData.address}
+                    onChange={handleChange}
+                  ></textarea>
+                </div>
               </div>
               <div className="col-md-6">
                 <label className="form-label">
-                  Relationship <span className="text-danger">*</span>
+                  {t?.parentRegistration?.relationship || "Relationship"}{" "}
+                  <span className="text-danger">*</span>
                 </label>
                 <select
                   className="form-select"
@@ -217,20 +281,30 @@ const ParentRegistration = () => {
                   onChange={handleChange}
                   required
                 >
-                  <option value="FATHER">Father</option>
-                  <option value="MOTHER">Mother</option>
-                  <option value="GUARDIAN">Guardian</option>
+                  <option value="FATHER">
+                    {t?.parentRegistration?.father || "Father"}
+                  </option>
+                  <option value="MOTHER">
+                    {t?.parentRegistration?.mother || "Mother"}
+                  </option>
+                  <option value="GUARDIAN">
+                    {t?.parentRegistration?.guardian || "Guardian"}
+                  </option>
                 </select>
               </div>
             </div>
 
             {/* Occupation Information */}
             <h5 className="border-bottom pb-2 mb-3 mt-4">
-              Occupation Information
+              <FaBriefcase className="me-2" />
+              {t?.parentRegistration?.occupationInfo ||
+                "Occupation Information"}
             </h5>
             <div className="row mb-3">
               <div className="col-md-4">
-                <label className="form-label">Occupation</label>
+                <label className="form-label">
+                  {t?.parentRegistration?.occupation || "Occupation"}
+                </label>
                 <input
                   type="text"
                   className="form-control"
@@ -240,17 +314,26 @@ const ParentRegistration = () => {
                 />
               </div>
               <div className="col-md-4">
-                <label className="form-label">Company Name</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  name="companyName"
-                  value={formData.companyName}
-                  onChange={handleChange}
-                />
+                <label className="form-label">
+                  {t?.parentRegistration?.companyName || "Company Name"}
+                </label>
+                <div className="input-group">
+                  <span className="input-group-text">
+                    <FaBuilding />
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control"
+                    name="companyName"
+                    value={formData.companyName}
+                    onChange={handleChange}
+                  />
+                </div>
               </div>
               <div className="col-md-4">
-                <label className="form-label">Office Address</label>
+                <label className="form-label">
+                  {t?.parentRegistration?.officeAddress || "Office Address"}
+                </label>
                 <input
                   type="text"
                   className="form-control"
@@ -262,10 +345,15 @@ const ParentRegistration = () => {
             </div>
 
             {/* Emergency Contact */}
-            <h5 className="border-bottom pb-2 mb-3 mt-4">Emergency Contact</h5>
+            <h5 className="border-bottom pb-2 mb-3 mt-4">
+              <FaExclamationTriangle className="me-2" />
+              {t?.parentRegistration?.emergencyContact || "Emergency Contact"}
+            </h5>
             <div className="row mb-3">
               <div className="col-md-4">
-                <label className="form-label">Contact Name</label>
+                <label className="form-label">
+                  {t?.parentRegistration?.contactName || "Contact Name"}
+                </label>
                 <input
                   type="text"
                   className="form-control"
@@ -275,7 +363,9 @@ const ParentRegistration = () => {
                 />
               </div>
               <div className="col-md-4">
-                <label className="form-label">Contact Phone</label>
+                <label className="form-label">
+                  {t?.parentRegistration?.contactPhone || "Contact Phone"}
+                </label>
                 <input
                   type="tel"
                   className="form-control"
@@ -285,7 +375,9 @@ const ParentRegistration = () => {
                 />
               </div>
               <div className="col-md-4">
-                <label className="form-label">Relationship</label>
+                <label className="form-label">
+                  {t?.parentRegistration?.relationship || "Relationship"}
+                </label>
                 <input
                   type="text"
                   className="form-control"
@@ -304,8 +396,8 @@ const ParentRegistration = () => {
                   className="btn btn-secondary me-2"
                   onClick={() => navigate("/parents")}
                 >
-                  <i className="bi bi-x-circle me-2"></i>
-                  Cancel
+                  <FaTimes className="me-2" />
+                  {t?.common?.cancel || "Cancel"}
                 </button>
                 <button
                   type="submit"
@@ -314,13 +406,17 @@ const ParentRegistration = () => {
                 >
                   {loading ? (
                     <>
-                      <span className="spinner-border spinner-border-sm me-2"></span>
-                      {id ? "Updating..." : "Registering..."}
+                      <FaSpinner className="spin me-2" />
+                      {id
+                        ? t?.common?.updating || "Updating..."
+                        : t?.common?.registering || "Registering..."}
                     </>
                   ) : (
                     <>
-                      <i className="bi bi-check-circle me-2"></i>
-                      {id ? "Update Parent" : "Register Parent"}
+                      <FaSave className="me-2" />
+                      {id
+                        ? t?.common?.update || "Update Parent"
+                        : t?.common?.register || "Register Parent"}
                     </>
                   )}
                 </button>
@@ -329,6 +425,11 @@ const ParentRegistration = () => {
           </form>
         </div>
       </div>
+
+      <style>{`
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 };

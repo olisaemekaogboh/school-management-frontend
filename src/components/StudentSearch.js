@@ -1,12 +1,17 @@
+// src/components/StudentSearch.js
 import React, { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { studentAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
+import { useDarkMode } from "../context/DarkModeContext";
 import { FaSearch, FaEye, FaSpinner } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 function StudentSearch() {
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,7 +29,7 @@ function StudentSearch() {
 
     const term = searchTerm.trim();
     if (!term) {
-      toast.warning("Enter a search term");
+      toast.warning(t?.studentSearch?.enterTerm || "Enter a search term");
       return;
     }
 
@@ -36,7 +41,9 @@ function StudentSearch() {
       setSearchResults(response.data || []);
     } catch (error) {
       console.error("Error searching students:", error);
-      toast.error("Failed to search students");
+      toast.error(
+        t?.studentSearch?.searchFailed || "Failed to search students",
+      );
       setSearchResults([]);
     } finally {
       setLoading(false);
@@ -45,7 +52,7 @@ function StudentSearch() {
 
   return (
     <div className="student-search container py-4">
-      <h2 className="mb-4">Search Students</h2>
+      <h2 className="mb-4">{t?.studentSearch?.title || "Search Students"}</h2>
 
       <div className="row justify-content-center mb-4">
         <div className="col-md-9 col-lg-8">
@@ -53,7 +60,10 @@ function StudentSearch() {
             <input
               type="text"
               className="form-control form-control-lg"
-              placeholder="Search by name, admission number, or parent name..."
+              placeholder={
+                t?.studentSearch?.placeholder ||
+                "Search by name, admission number, or parent name..."
+              }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -65,12 +75,12 @@ function StudentSearch() {
               {loading ? (
                 <>
                   <FaSpinner className="me-2 spin" />
-                  Searching...
+                  {t?.common?.searching || "Searching..."}
                 </>
               ) : (
                 <>
                   <FaSearch className="me-2" />
-                  Search
+                  {t?.common?.search || "Search"}
                 </>
               )}
             </button>
@@ -82,10 +92,13 @@ function StudentSearch() {
         <div className="search-results">
           <h4 className="mb-3">
             {loading
-              ? "Searching..."
+              ? t?.common?.searching || "Searching..."
               : searchResults.length > 0
-                ? `Found ${searchResults.length} student(s)`
-                : "No students found"}
+                ? t?.studentSearch?.foundResults?.replace(
+                    "{count}",
+                    searchResults.length,
+                  ) || `Found ${searchResults.length} student(s)`
+                : t?.studentSearch?.noResults || "No students found"}
           </h4>
 
           {!loading && searchResults.length > 0 && (
@@ -93,13 +106,13 @@ function StudentSearch() {
               <table className="table table-striped table-hover">
                 <thead>
                   <tr>
-                    <th>Admission No.</th>
-                    <th>Full Name</th>
-                    <th>Class</th>
-                    <th>Parent Name</th>
-                    <th>Parent Phone</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                    <th>{t?.studentSearch?.admissionNo || "Admission No."}</th>
+                    <th>{t?.studentSearch?.fullName || "Full Name"}</th>
+                    <th>{t?.studentSearch?.class || "Class"}</th>
+                    <th>{t?.studentSearch?.parentName || "Parent Name"}</th>
+                    <th>{t?.studentSearch?.parentPhone || "Parent Phone"}</th>
+                    <th>{t?.studentSearch?.status || "Status"}</th>
+                    <th>{t?.common?.action || "Action"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -131,7 +144,7 @@ function StudentSearch() {
                           to={`/students/view/${student.id}`}
                           className="btn btn-sm btn-info"
                         >
-                          <FaEye className="me-1" /> View
+                          <FaEye className="me-1" /> {t?.common?.view || "View"}
                         </Link>
                       </td>
                     </tr>
@@ -142,7 +155,9 @@ function StudentSearch() {
           )}
 
           {!loading && searched && searchResults.length === 0 && (
-            <div className="alert alert-info">No students matched your search.</div>
+            <div className="alert alert-info">
+              {t?.studentSearch?.noMatch || "No students matched your search."}
+            </div>
           )}
         </div>
       )}

@@ -1,5 +1,8 @@
+// src/components/StudentDashboard.js
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import {
   authAPI,
   studentAPI,
@@ -18,6 +21,7 @@ import {
 } from "react-icons/fa";
 import moment from "moment";
 import useActiveSession from "../hooks/useActiveSession";
+import "./StudentDashboard.css";
 
 const getFirstDefined = (...values) => {
   for (const value of values) {
@@ -336,6 +340,8 @@ const getStatusBadgeClass = (status) => {
 
 function StudentDashboard() {
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
 
   const [studentData, setStudentData] = useState(null);
   const [recentResults, setRecentResults] = useState([]);
@@ -481,8 +487,9 @@ function StudentDashboard() {
 
   if (loading || loadingSession) {
     return (
-      <div className="text-center py-5">
+      <div className="student-dashboard text-center py-5">
         <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{t?.common?.loading || "Loading dashboard..."}</p>
       </div>
     );
   }
@@ -492,7 +499,7 @@ function StudentDashboard() {
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h2 className="mb-0">
           <FaUserGraduate className="me-2" />
-          Welcome, {welcomeName}!
+          {t?.studentDashboard?.welcome || "Welcome"}, {welcomeName}!
         </h2>
 
         <button
@@ -501,34 +508,43 @@ function StudentDashboard() {
           type="button"
         >
           <FaSyncAlt className="me-2" />
-          Refresh Session
+          {t?.common?.refresh || "Refresh Session"}
         </button>
       </div>
 
       <div className="mb-3 text-muted">
-        Active Session: <strong>{session || "No active session"}</strong> |
-        Term: <strong>{term || "N/A"}</strong>
+        {t?.feeManagement?.activeSession || "Active Session"}:{" "}
+        <strong>
+          {session || t?.common?.noActiveSession || "No active session"}
+        </strong>{" "}
+        |{t?.feeManagement?.term || "Term"}: <strong>{term || "N/A"}</strong>
       </div>
 
       <div className="row">
         <div className="col-md-4 mb-4">
           <div className="card h-100 shadow-sm">
             <div className="card-header bg-primary text-white">
-              <h5 className="mb-0">My Information</h5>
+              <h5 className="mb-0">
+                {t?.studentDashboard?.myInfo || "My Information"}
+              </h5>
             </div>
             <div className="card-body">
               <p>
-                <strong>Name:</strong> {displayName || "N/A"}
+                <strong>{t?.studentDashboard?.name || "Name"}:</strong>{" "}
+                {displayName || "N/A"}
               </p>
               <p>
-                <strong>Admission:</strong>{" "}
+                <strong>
+                  {t?.studentDashboard?.admission || "Admission"}:
+                </strong>{" "}
                 {studentData?.admissionNumber || "N/A"}
               </p>
               <p>
-                <strong>Class:</strong> {classDisplay}
+                <strong>{t?.studentDashboard?.class || "Class"}:</strong>{" "}
+                {classDisplay}
               </p>
               <p>
-                <strong>Status:</strong>{" "}
+                <strong>{t?.studentDashboard?.status || "Status"}:</strong>{" "}
                 <span
                   className={`badge bg-${getStatusBadgeClass(studentData?.status)}`}
                 >
@@ -542,13 +558,15 @@ function StudentDashboard() {
         <div className="col-md-4 mb-4">
           <div className="card h-100 shadow-sm">
             <div className="card-header bg-success text-white">
-              <h5 className="mb-0">Attendance</h5>
+              <h5 className="mb-0">
+                {t?.studentDashboard?.attendance || "Attendance"}
+              </h5>
             </div>
             <div className="card-body text-center">
               <h1 className="display-1 text-success">
                 {attendancePercentage.toFixed(1)}%
               </h1>
-              <p>Attendance Rate</p>
+              <p>{t?.studentDashboard?.attendanceRate || "Attendance Rate"}</p>
 
               <div className="progress" style={{ height: "10px" }}>
                 <div
@@ -558,7 +576,9 @@ function StudentDashboard() {
               </div>
 
               <p className="mt-3 mb-0">
-                Present: {toNumber(attendance?.daysPresent, 0)} | Absent:{" "}
+                {t?.studentDashboard?.present || "Present"}:{" "}
+                {toNumber(attendance?.daysPresent, 0)} |{" "}
+                {t?.studentDashboard?.absent || "Absent"}:{" "}
                 {toNumber(attendance?.daysAbsent, 0)}
               </p>
             </div>
@@ -568,11 +588,15 @@ function StudentDashboard() {
         <div className="col-md-4 mb-4">
           <div className="card h-100 shadow-sm">
             <div className="card-header bg-warning">
-              <h5 className="mb-0">Fee Status</h5>
+              <h5 className="mb-0">
+                {t?.studentDashboard?.feeStatus || "Fee Status"}
+              </h5>
             </div>
             <div className="card-body">
               {fees.length === 0 ? (
-                <p className="text-muted mb-0">No fee records found.</p>
+                <p className="text-muted mb-0">
+                  {t?.studentDashboard?.noFeeRecords || "No fee records found."}
+                </p>
               ) : (
                 fees.map((fee) => {
                   const paidPercent =
@@ -603,7 +627,7 @@ function StudentDashboard() {
                       </div>
 
                       <small className="text-muted">
-                        Due:{" "}
+                        {t?.studentDashboard?.due || "Due"}:{" "}
                         {fee.dueDate
                           ? moment(fee.dueDate).format("DD/MM/YYYY")
                           : "-"}
@@ -621,47 +645,52 @@ function StudentDashboard() {
         <div className="col-12">
           <div className="card shadow-sm">
             <div className="card-header bg-info text-white">
-              <h5 className="mb-0">Recent Results</h5>
+              <h5 className="mb-0">
+                {t?.studentDashboard?.recentResults || "Recent Results"}
+              </h5>
             </div>
             <div className="card-body">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Subject</th>
-                    <th>CA</th>
-                    <th>Exam</th>
-                    <th>Total</th>
-                    <th>Grade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentResults.length === 0 ? (
+              <div className="table-responsive">
+                <table className="table">
+                  <thead>
                     <tr>
-                      <td colSpan="5" className="text-center text-muted">
-                        No result available yet.
-                      </td>
+                      <th>{t?.studentDashboard?.subject || "Subject"}</th>
+                      <th>{t?.studentDashboard?.ca || "CA"}</th>
+                      <th>{t?.studentDashboard?.exam || "Exam"}</th>
+                      <th>{t?.studentDashboard?.total || "Total"}</th>
+                      <th>{t?.studentDashboard?.grade || "Grade"}</th>
                     </tr>
-                  ) : (
-                    recentResults.map((subject) => (
-                      <tr key={subject.id}>
-                        <td>{subject.subject || "-"}</td>
-                        <td>{toNumber(subject.continuousAssessment, 0)}</td>
-                        <td>{toNumber(subject.examination, 0)}</td>
-                        <td>
-                          <strong>{toNumber(subject.total, 0)}</strong>
-                        </td>
-                        <td>
-                          <span
-                            className={`badge bg-${getGradeBadgeClass(subject.grade)}`}
-                          >
-                            {subject.grade || "-"}
-                          </span>
+                  </thead>
+                  <tbody>
+                    {recentResults.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="text-center text-muted">
+                          {t?.studentDashboard?.noResults ||
+                            "No result available yet."}
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      recentResults.map((subject) => (
+                        <tr key={subject.id}>
+                          <td>{subject.subject || "-"}</td>
+                          <td>{toNumber(subject.continuousAssessment, 0)}</td>
+                          <td>{toNumber(subject.examination, 0)}</td>
+                          <td>
+                            <strong>{toNumber(subject.total, 0)}</strong>
+                          </td>
+                          <td>
+                            <span
+                              className={`badge bg-${getGradeBadgeClass(subject.grade)}`}
+                            >
+                              {subject.grade || "-"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -671,16 +700,21 @@ function StudentDashboard() {
         <div className="col-12">
           <div className="card shadow-sm">
             <div className="card-body">
-              <h5 className="mb-3">Quick Links</h5>
+              <h5 className="mb-3">
+                {t?.studentDashboard?.quickLinks || "Quick Links"}
+              </h5>
               <div className="d-flex gap-2 flex-wrap">
                 <Link to="/results" className="btn btn-outline-primary">
-                  <FaChartBar className="me-2" /> View My Results
+                  <FaChartBar className="me-2" />{" "}
+                  {t?.studentDashboard?.viewResults || "View My Results"}
                 </Link>
                 <Link to="/attendance" className="btn btn-outline-success">
-                  <FaCalendarAlt className="me-2" /> My Attendance
+                  <FaCalendarAlt className="me-2" />{" "}
+                  {t?.studentDashboard?.myAttendance || "My Attendance"}
                 </Link>
                 <Link to="/fees" className="btn btn-outline-warning">
-                  <FaMoneyBill className="me-2" /> Fee Details
+                  <FaMoneyBill className="me-2" />{" "}
+                  {t?.studentDashboard?.feeDetails || "Fee Details"}
                 </Link>
               </div>
             </div>

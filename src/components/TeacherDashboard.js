@@ -1,6 +1,9 @@
+// src/components/TeacherDashboard.js
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { teacherAPI } from "../services/api";
 import {
   FaChalkboardTeacher,
@@ -14,6 +17,8 @@ import "./TeacherDashboard.css";
 
 function TeacherDashboard() {
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [assignedClasses, setAssignedClasses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,11 +60,12 @@ function TeacherDashboard() {
     const allSubjects = assignedClasses.flatMap((cls) => cls.subjects || []);
     return new Set(allSubjects).size;
   }, [assignedClasses]);
+
   if (loading) {
     return (
       <div className="teacher-dashboard-loading">
         <FaSpinner className="spin" />
-        <p>Loading your dashboard...</p>
+        <p>{t?.common?.loading || "Loading your dashboard..."}</p>
       </div>
     );
   }
@@ -68,10 +74,19 @@ function TeacherDashboard() {
     <div className="teacher-dashboard">
       <div className="dashboard-header">
         <div>
-          <h2>Welcome back, {teacherProfile?.firstName || user?.firstName}!</h2>
+          <h2>
+            {t?.teacherDashboard?.welcomeBack || "Welcome back"}{" "}
+            {teacherProfile?.firstName || user?.firstName}!
+          </h2>
           <p>
-            {teacherProfile?.department || "Teacher"} •{" "}
-            {teacherProfile?.employeeId || teacherProfile?.teacherId || "Staff"}
+            {teacherProfile?.department ||
+              t?.teacherDashboard?.teacher ||
+              "Teacher"}{" "}
+            •{" "}
+            {teacherProfile?.employeeId ||
+              teacherProfile?.teacherId ||
+              t?.teacherDashboard?.staff ||
+              "Staff"}
           </p>
         </div>
       </div>
@@ -81,7 +96,7 @@ function TeacherDashboard() {
           <FaUsers className="stat-icon" />
           <div>
             <h3>{totalStudents}</h3>
-            <p>Total Students</p>
+            <p>{t?.teacherDashboard?.totalStudents || "Total Students"}</p>
           </div>
         </div>
 
@@ -89,7 +104,7 @@ function TeacherDashboard() {
           <FaBookOpen className="stat-icon" />
           <div>
             <h3>{totalSubjects}</h3>
-            <p>Subjects Taught</p>
+            <p>{t?.teacherDashboard?.subjectsTaught || "Subjects Taught"}</p>
           </div>
         </div>
 
@@ -97,17 +112,22 @@ function TeacherDashboard() {
           <FaChalkboardTeacher className="stat-icon" />
           <div>
             <h3>{assignedClasses.length}</h3>
-            <p>Classes Assigned</p>
+            <p>{t?.teacherDashboard?.classesAssigned || "Classes Assigned"}</p>
           </div>
         </div>
       </div>
 
       <div className="assigned-classes-section">
-        <h3>My Assigned Classes</h3>
+        <h3>
+          {t?.teacherDashboard?.myAssignedClasses || "My Assigned Classes"}
+        </h3>
 
         {assignedClasses.length === 0 ? (
           <div className="empty-state">
-            <p>No class has been assigned to you yet.</p>
+            <p>
+              {t?.teacherDashboard?.noClassesAssigned ||
+                "No class has been assigned to you yet."}
+            </p>
           </div>
         ) : (
           <div className="classes-grid">
@@ -126,17 +146,23 @@ function TeacherDashboard() {
                         schoolClass.students?.length ||
                         0}
                     </div>
-                    <div className="stat-label">Students</div>
+                    <div className="stat-label">
+                      {t?.teacherDashboard?.students || "Students"}
+                    </div>
                   </div>
 
                   <div className="stat-item">
                     <div className="stat-value">{totalSubjects}</div>
-                    <div className="stat-label">Subjects</div>
+                    <div className="stat-label">
+                      {t?.teacherDashboard?.subjects || "Subjects"}
+                    </div>
                   </div>
 
                   <div className="stat-item">
                     <div className="stat-value">{schoolClass.arm || "-"}</div>
-                    <div className="stat-label">Section</div>
+                    <div className="stat-label">
+                      {t?.teacherDashboard?.section || "Section"}
+                    </div>
                   </div>
                 </div>
 
@@ -146,7 +172,9 @@ function TeacherDashboard() {
                     className="action-btn students"
                   >
                     <FaUsers className="btn-icon" />
-                    <span>My Students</span>
+                    <span>
+                      {t?.teacherDashboard?.myStudents || "My Students"}
+                    </span>
                   </Link>
 
                   <Link
@@ -154,7 +182,7 @@ function TeacherDashboard() {
                     className="action-btn results"
                   >
                     <FaChartBar className="btn-icon" />
-                    <span>Results</span>
+                    <span>{t?.teacherDashboard?.results || "Results"}</span>
                   </Link>
 
                   <Link
@@ -162,7 +190,9 @@ function TeacherDashboard() {
                     className="action-btn attendance"
                   >
                     <FaCalendarAlt className="btn-icon" />
-                    <span>Attendance</span>
+                    <span>
+                      {t?.teacherDashboard?.attendance || "Attendance"}
+                    </span>
                   </Link>
                 </div>
               </div>

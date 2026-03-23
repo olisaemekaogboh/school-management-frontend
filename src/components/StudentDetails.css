@@ -1,10 +1,37 @@
 /* src/components/StudentDetails.css */
 
+/* ===== THEME VARIABLES ===== */
+.student-details {
+  --sd-bg: var(--app-bg, #f3f6fb);
+  --sd-card: var(--app-card, #ffffff);
+  --sd-text: var(--app-text, #1f2937);
+  --sd-text-soft: var(--app-text-soft, #6b7280);
+  --sd-border: var(--app-border, #e5e7eb);
+  --sd-accent: var(--app-accent, #2563eb);
+  --sd-accent-soft: var(--app-accent-soft, rgba(37, 99, 235, 0.08));
+  --sd-shadow: var(--app-shadow, 0 10px 30px rgba(15, 23, 42, 0.08));
+  --sd-transition: all 0.3s ease;
+  --sd-radius-sm: 0.375rem;
+  --sd-radius-md: 0.5rem;
+  --sd-radius-lg: 0.75rem;
+  --sd-radius-xl: 1rem;
+  --sd-radius-2xl: 1.5rem;
+
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: var(--sd-bg);
+  color: var(--sd-text);
+  transition: var(--sd-transition);
+  min-height: 100vh;
+}
+
 .profile-header-card {
-  border: none;
-  border-radius: 15px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-radius-xl);
+  box-shadow: var(--sd-shadow);
+  background: linear-gradient(135deg, var(--app-surface-2) 0%, var(--sd-card) 100%);
+  color: var(--sd-text);
 }
 
 .profile-image-container {
@@ -18,20 +45,20 @@
   object-fit: cover;
   border-radius: 50%;
   border: 4px solid #008753;
-  box-shadow: 0 8px 16px rgba(0,135,83,0.2);
+  box-shadow: 0 8px 16px rgba(0, 135, 83, 0.2);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .profile-image:hover {
   transform: scale(1.05);
-  box-shadow: 0 12px 24px rgba(0,135,83,0.3);
+  box-shadow: 0 12px 24px rgba(0, 135, 83, 0.3);
 }
 
 .profile-image-placeholder {
   width: 200px;
   height: 200px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%);
+  background: linear-gradient(135deg, var(--sd-hover) 0%, var(--app-surface-2) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,7 +85,7 @@
   border: 2px solid white;
   color: white;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .profile-image-edit-btn:hover {
@@ -67,37 +94,40 @@
 }
 
 .student-id-badge {
-  background-color: #f8f9fa;
+  background-color: var(--app-surface-2);
+  color: var(--sd-text);
   padding: 5px 15px;
   border-radius: 20px;
   display: inline-block;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--sd-border);
 }
 
 .quick-info-card {
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 12px;
+  background: var(--sd-card);
+  border: 1px solid var(--sd-border);
+  border-radius: var(--sd-radius-lg);
   padding: 20px 15px;
   text-align: center;
-  transition: all 0.3s ease;
+  transition: var(--sd-transition);
   height: 100%;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: var(--sd-shadow);
+  color: var(--sd-text);
 }
 
 .quick-info-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0,135,83,0.15);
+  box-shadow: var(--sd-shadow);
   border-color: #008753;
 }
 
 .quick-info-icon {
   font-size: 32px;
   margin-bottom: 12px;
+  color: var(--sd-accent);
 }
 
 .quick-info-card h6 {
-  color: #6c757d;
+  color: var(--sd-text-soft);
   margin-bottom: 8px;
   font-size: 14px;
 }
@@ -105,24 +135,70 @@
 .quick-info-card p {
   margin-bottom: 5px;
   font-size: 18px;
+  color: var(--sd-text);
 }
 
-/* Responsive adjustments */
+/* Arabic language support */
+body[data-language="ar"] .profile-header-card,
+body[data-language="ar"] .quick-info-card {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
+  .student-details {
+    padding: 1rem;
+  }
+  
   .profile-image,
   .profile-image-placeholder {
     width: 150px;
     height: 150px;
   }
-  
+
   .profile-placeholder-icon {
     font-size: 75px;
   }
-  
+
   .profile-image-edit-btn {
     width: 35px;
     height: 35px;
     bottom: 15px;
     right: 15px;
+  }
+  
+  .quick-info-card {
+    padding: 15px 10px;
+  }
+  
+  .quick-info-icon {
+    font-size: 24px;
+  }
+  
+  .quick-info-card p {
+    font-size: 16px;
+  }
+}
+
+/* Print styles */
+@media print {
+  .student-details {
+    padding: 0;
+    background: white;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+  
+  .card {
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  
+  .profile-image {
+    border: 2px solid #000;
   }
 }

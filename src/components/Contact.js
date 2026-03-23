@@ -16,10 +16,11 @@ import {
   FaCheckCircle,
   FaSpinner,
   FaHeadset,
-  FaWhatsapp,
   FaGlobe,
+  FaComments,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
+import { useLanguage } from "../contexts/LanguageContext";
 import "./Contact.css";
 
 function Contact() {
@@ -31,6 +32,7 @@ function Contact() {
   });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const { t } = useLanguage();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -41,17 +43,16 @@ function Contact() {
     e.preventDefault();
 
     if (!formData.name || !formData.email || !formData.message) {
-      toast.error("Please fill in all required fields");
+      toast.error(t.contact.requiredFields);
       return;
     }
 
     setLoading(true);
 
-    // Simulate API call
     setTimeout(() => {
       setLoading(false);
       setSubmitted(true);
-      toast.success("Message sent successfully! We'll get back to you soon.");
+      toast.success(t.contact.messageSent);
       setFormData({ name: "", email: "", subject: "", message: "" });
 
       setTimeout(() => {
@@ -63,7 +64,7 @@ function Contact() {
   const contactInfo = [
     {
       icon: <FaMapMarkerAlt />,
-      title: "Visit Us",
+      title: t.contact.visitUs,
       details: [
         "12 Bishop Shanahan Fegge",
         "Onitsha, Anambra State",
@@ -73,13 +74,13 @@ function Contact() {
     },
     {
       icon: <FaPhone />,
-      title: "Call Us",
+      title: t.contact.callUs,
       details: ["+234 903 017 5230", "+234 816 547 3400", "+234 802 345 6789"],
       color: "#ff6b6b",
     },
     {
       icon: <FaEnvelope />,
-      title: "Email Us",
+      title: t.contact.emailUs,
       details: [
         "info@ffis.edu.ng",
         "admissions@ffis.edu.ng",
@@ -89,7 +90,7 @@ function Contact() {
     },
     {
       icon: <FaClock />,
-      title: "Office Hours",
+      title: t.contact.officeHours,
       details: [
         "Monday - Friday: 8:00 AM - 5:00 PM",
         "Saturday: 9:00 AM - 1:00 PM",
@@ -131,7 +132,7 @@ function Contact() {
       color: "#ff0000",
     },
     {
-      icon: <FaWhatsapp />,
+      icon: <FaComments />,
       url: "https://wa.me/2349030175230",
       label: "WhatsApp",
       color: "#25D366",
@@ -139,55 +140,25 @@ function Contact() {
   ];
 
   const faqs = [
-    {
-      question: "How can I apply for admission?",
-      answer:
-        "You can apply online through our admissions portal or visit our campus for assistance. The application process includes filling out the form, submitting required documents, and attending an interview.",
-    },
-    {
-      question: "What are the school fees?",
-      answer:
-        "School fees vary by grade level. Please contact our admissions office for detailed fee structure and payment plans.",
-    },
-    {
-      question: "Does the school offer transportation?",
-      answer:
-        "Yes, we provide school bus services for students. Bus routes cover major areas within Onitsha and surrounding communities.",
-    },
-    {
-      question: "What extracurricular activities are available?",
-      answer:
-        "We offer sports, arts, music, STEM clubs, debate, cultural activities, and various leadership programs.",
-    },
+    { question: t.contact.faqs.q1, answer: t.contact.faqs.a1 },
+    { question: t.contact.faqs.q2, answer: t.contact.faqs.a2 },
+    { question: t.contact.faqs.q3, answer: t.contact.faqs.a3 },
+    { question: t.contact.faqs.q4, answer: t.contact.faqs.a4 },
   ];
 
   return (
     <div className="contact-container-dark">
-      {/* Hero Section */}
       <section className="contact-hero-dark">
         <div className="hero-bg-dark"></div>
         <div className="container">
           <div className="hero-content-dark">
-            <div className="hero-badge">Get In Touch</div>
-            <h1 className="hero-title-dark">Contact Us</h1>
-            <p className="hero-subtitle-dark">
-              We'd love to hear from you. Reach out with any questions,
-              feedback, or inquiries.
-            </p>
+            <div className="hero-badge">{t.contact.badge}</div>
+            <h1 className="hero-title-dark">{t.contact.title}</h1>
+            <p className="hero-subtitle-dark">{t.contact.subtitle}</p>
           </div>
-        </div>
-        <div className="hero-wave-dark">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
-            <path
-              fill="#0a0a0a"
-              fillOpacity="1"
-              d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
-            ></path>
-          </svg>
         </div>
       </section>
 
-      {/* Contact Info Cards */}
       <section className="contact-info-section">
         <div className="container">
           <div className="contact-info-grid">
@@ -206,18 +177,13 @@ function Contact() {
         </div>
       </section>
 
-      {/* Contact Form and Map Section */}
       <section className="contact-form-section">
         <div className="container">
           <div className="form-map-wrapper">
-            {/* Contact Form */}
             <div className="contact-form-container">
               <div className="form-header">
-                <h2>Send Us a Message</h2>
-                <p>
-                  Fill out the form below and we'll get back to you as soon as
-                  possible.
-                </p>
+                <h2>{t.contact.sendMessage}</h2>
+                <p>{t.contact.sendMessageText}</p>
               </div>
 
               <form onSubmit={handleSubmit} className="contact-form">
@@ -228,7 +194,7 @@ function Contact() {
                   <input
                     type="text"
                     name="name"
-                    placeholder="Your Name *"
+                    placeholder={t.contact.yourName}
                     value={formData.name}
                     onChange={handleChange}
                     className="form-input"
@@ -242,7 +208,7 @@ function Contact() {
                   <input
                     type="email"
                     name="email"
-                    placeholder="Your Email *"
+                    placeholder={t.contact.yourEmail}
                     value={formData.email}
                     onChange={handleChange}
                     className="form-input"
@@ -256,7 +222,7 @@ function Contact() {
                   <input
                     type="text"
                     name="subject"
-                    placeholder="Subject"
+                    placeholder={t.contact.subject}
                     value={formData.subject}
                     onChange={handleChange}
                     className="form-input"
@@ -269,7 +235,7 @@ function Contact() {
                   </div>
                   <textarea
                     name="message"
-                    placeholder="Your Message *"
+                    placeholder={t.contact.yourMessage}
                     rows="5"
                     value={formData.message}
                     onChange={handleChange}
@@ -280,25 +246,24 @@ function Contact() {
                 <button type="submit" className="submit-btn" disabled={loading}>
                   {loading ? (
                     <>
-                      <FaSpinner className="spinner" /> Sending...
+                      <FaSpinner className="spinner" /> {t.contact.sending}
                     </>
                   ) : submitted ? (
                     <>
-                      <FaCheckCircle /> Sent!
+                      <FaCheckCircle /> {t.contact.sent}
                     </>
                   ) : (
                     <>
-                      Send Message <FaPaperPlane />
+                      {t.contact.sendMessageBtn} <FaPaperPlane />
                     </>
                   )}
                 </button>
               </form>
             </div>
 
-            {/* Google Maps */}
             <div className="map-container">
               <div className="map-header">
-                <h3>Find Us Here</h3>
+                <h3>{t.contact.findUs}</h3>
                 <p>12 Bishop Shanahan Fegge, Onitsha</p>
               </div>
               <iframe
@@ -316,15 +281,12 @@ function Contact() {
         </div>
       </section>
 
-      {/* FAQ Section */}
       <section className="faq-section">
         <div className="container">
           <div className="section-header-dark">
-            <div className="section-badge-dark">FAQ</div>
-            <h2 className="section-title-dark">Frequently Asked Questions</h2>
-            <p className="section-subtitle-dark">
-              Find answers to common questions about our school
-            </p>
+            <div className="section-badge-dark">{t.contact.faqBadge}</div>
+            <h2 className="section-title-dark">{t.contact.faqTitle}</h2>
+            <p className="section-subtitle-dark">{t.contact.faqSubtitle}</p>
           </div>
           <div className="faq-grid">
             {faqs.map((faq, index) => (
@@ -340,12 +302,11 @@ function Contact() {
         </div>
       </section>
 
-      {/* Social Media Section */}
       <section className="social-section">
         <div className="container">
           <div className="social-wrapper">
-            <h2>Connect With Us</h2>
-            <p>Follow us on social media for updates, news, and events</p>
+            <h2>{t.contact.connectTitle}</h2>
+            <p>{t.contact.connectText}</p>
             <div className="social-links-grid">
               {socialLinks.map((social, index) => (
                 <a
@@ -365,14 +326,13 @@ function Contact() {
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="cta-section-dark">
         <div className="container">
           <div className="cta-wrapper-dark">
-            <h2>Visit Our Campus</h2>
-            <p>Schedule a tour and see our facilities firsthand</p>
+            <h2>{t.contact.campusTitle}</h2>
+            <p>{t.contact.campusText}</p>
             <Link to="/register" className="btn-cta-dark">
-              Schedule a Visit <FaGlobe />
+              {t.common.scheduleVisit} <FaGlobe />
             </Link>
           </div>
         </div>

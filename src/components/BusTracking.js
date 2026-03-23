@@ -13,14 +13,53 @@ import {
   FaClock,
   FaMoneyBill,
 } from "react-icons/fa";
+import { useLanguage } from "../contexts/LanguageContext";
 
 function BusTracking() {
+  const { t } = useLanguage();
+
   const [user, setUser] = useState(null);
   const [route, setRoute] = useState(null);
   const [location, setLocation] = useState(null);
   const [wards, setWards] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const ui = {
+    loadFailed:
+      t?.busTracking?.loadFailed || "Failed to load transport tracking",
+    noRouteAssigned: t?.busTracking?.noRouteAssigned || "No route assigned yet",
+    loading: t?.busTracking?.loading || "Loading bus tracking...",
+    title: t?.busTracking?.title || "Bus Tracking",
+    subtitle:
+      t?.busTracking?.subtitle ||
+      "View assigned transport route and latest bus location.",
+    selectWard: t?.busTracking?.selectWard || "Select Ward",
+    chooseWard: t?.busTracking?.chooseWard || "Choose ward",
+    noTransportRoute:
+      t?.busTracking?.noTransportRoute ||
+      "No transport route is assigned to this student yet.",
+    assignedRoute: t?.busTracking?.assignedRoute || "Assigned Route",
+    pickup: t?.busTracking?.pickup || "Pickup",
+    dropOff: t?.busTracking?.dropOff || "Drop-off",
+    pickupTime: t?.busTracking?.pickupTime || "Pickup Time",
+    dropOffTime: t?.busTracking?.dropOffTime || "Drop-off Time",
+    driver: t?.busTracking?.driver || "Driver",
+    assistant: t?.busTracking?.assistant || "Assistant",
+    notAssigned: t?.busTracking?.notAssigned || "Not assigned",
+    noPhone: t?.busTracking?.noPhone || "No phone",
+    monthlyFee: t?.busTracking?.monthlyFee || "Monthly Fee",
+    currentBusLocation:
+      t?.busTracking?.currentBusLocation || "Current Bus Location",
+    latitude: t?.busTracking?.latitude || "Latitude",
+    longitude: t?.busTracking?.longitude || "Longitude",
+    latestLocationRecorded:
+      t?.busTracking?.latestLocationRecorded ||
+      "Latest location has been recorded for this bus route.",
+    locationNotUpdated:
+      t?.busTracking?.locationNotUpdated ||
+      "Bus location has not been updated yet.",
+  };
 
   useEffect(() => {
     loadInitial();
@@ -51,7 +90,7 @@ function BusTracking() {
         }
       }
     } catch (error) {
-      toast.error("Failed to load transport tracking");
+      toast.error(ui.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -75,7 +114,7 @@ function BusTracking() {
     } catch (error) {
       setRoute(null);
       setLocation(null);
-      toast.info("No route assigned yet");
+      toast.info(ui.noRouteAssigned);
     }
   };
 
@@ -90,7 +129,7 @@ function BusTracking() {
   if (loading) {
     return (
       <div className="container py-4">
-        <div className="alert alert-info">Loading bus tracking...</div>
+        <div className="alert alert-info">{ui.loading}</div>
       </div>
     );
   }
@@ -100,23 +139,21 @@ function BusTracking() {
       <div className="mb-4">
         <h2 className="mb-1">
           <FaBus className="me-2" />
-          Bus Tracking
+          {ui.title}
         </h2>
-        <p className="text-muted mb-0">
-          View assigned transport route and latest bus location.
-        </p>
+        <p className="text-muted mb-0">{ui.subtitle}</p>
       </div>
 
       {user?.role === "PARENT" && (
         <div className="card shadow-sm border-0 mb-4">
           <div className="card-body">
-            <label className="form-label fw-bold">Select Ward</label>
+            <label className="form-label fw-bold">{ui.selectWard}</label>
             <select
               className="form-select"
               value={selectedStudentId}
               onChange={handleWardChange}
             >
-              <option value="">Choose ward</option>
+              <option value="">{ui.chooseWard}</option>
               {wards.map((ward) => (
                 <option key={ward.id} value={ward.id}>
                   {ward.firstName} {ward.lastName}
@@ -128,15 +165,13 @@ function BusTracking() {
       )}
 
       {!route ? (
-        <div className="alert alert-warning">
-          No transport route is assigned to this student yet.
-        </div>
+        <div className="alert alert-warning">{ui.noTransportRoute}</div>
       ) : (
         <div className="row g-4">
           <div className="col-lg-7">
             <div className="card shadow-sm border-0 h-100">
               <div className="card-header bg-white">
-                <h5 className="mb-0">Assigned Route</h5>
+                <h5 className="mb-0">{ui.assignedRoute}</h5>
               </div>
               <div className="card-body">
                 <h4>{route.routeName}</h4>
@@ -144,35 +179,35 @@ function BusTracking() {
 
                 <p>
                   <FaMapMarkerAlt className="me-2 text-primary" />
-                  <strong>Pickup:</strong> {route.pickupLocation}
+                  <strong>{ui.pickup}:</strong> {route.pickupLocation}
                 </p>
                 <p>
                   <FaMapMarkerAlt className="me-2 text-success" />
-                  <strong>Drop-off:</strong> {route.dropoffLocation}
+                  <strong>{ui.dropOff}:</strong> {route.dropoffLocation}
                 </p>
                 <p>
                   <FaClock className="me-2 text-warning" />
-                  <strong>Pickup Time:</strong> {route.pickupTime}
+                  <strong>{ui.pickupTime}:</strong> {route.pickupTime}
                 </p>
                 <p>
                   <FaClock className="me-2 text-warning" />
-                  <strong>Drop-off Time:</strong> {route.dropoffTime}
+                  <strong>{ui.dropOffTime}:</strong> {route.dropoffTime}
                 </p>
                 <p>
                   <FaPhone className="me-2 text-info" />
-                  <strong>Driver:</strong> {route.driverName} (
+                  <strong>{ui.driver}:</strong> {route.driverName} (
                   {route.driverPhone})
                 </p>
                 <p>
                   <FaPhone className="me-2 text-info" />
-                  <strong>Assistant:</strong>{" "}
+                  <strong>{ui.assistant}:</strong>{" "}
                   {route.assistantName
-                    ? `${route.assistantName} (${route.assistantPhone || "No phone"})`
-                    : "Not assigned"}
+                    ? `${route.assistantName} (${route.assistantPhone || ui.noPhone})`
+                    : ui.notAssigned}
                 </p>
                 <p className="mb-0">
                   <FaMoneyBill className="me-2 text-success" />
-                  <strong>Monthly Fee:</strong> ₦{route.monthlyFee}
+                  <strong>{ui.monthlyFee}:</strong> ₦{route.monthlyFee}
                 </p>
               </div>
             </div>
@@ -181,24 +216,24 @@ function BusTracking() {
           <div className="col-lg-5">
             <div className="card shadow-sm border-0 h-100">
               <div className="card-header bg-white">
-                <h5 className="mb-0">Current Bus Location</h5>
+                <h5 className="mb-0">{ui.currentBusLocation}</h5>
               </div>
               <div className="card-body">
                 {location?.latitude != null && location?.longitude != null ? (
                   <>
                     <p>
-                      <strong>Latitude:</strong> {location.latitude}
+                      <strong>{ui.latitude}:</strong> {location.latitude}
                     </p>
                     <p>
-                      <strong>Longitude:</strong> {location.longitude}
+                      <strong>{ui.longitude}:</strong> {location.longitude}
                     </p>
                     <div className="alert alert-success mb-0">
-                      Latest location has been recorded for this bus route.
+                      {ui.latestLocationRecorded}
                     </div>
                   </>
                 ) : (
                   <div className="alert alert-secondary mb-0">
-                    Bus location has not been updated yet.
+                    {ui.locationNotUpdated}
                   </div>
                 )}
               </div>

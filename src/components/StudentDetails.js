@@ -1,7 +1,10 @@
+// src/components/StudentDetails.js
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, resultAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import {
   FaEdit,
   FaTrash,
@@ -39,6 +42,8 @@ function StudentDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
 
   const isAdmin = user?.role === "ADMIN";
   const isTeacher = user?.role === "TEACHER";
@@ -68,7 +73,6 @@ function StudentDetails() {
 
   useEffect(() => {
     fetchStudentDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -81,7 +85,6 @@ function StudentDetails() {
     } else if (activeTab === "history") {
       fetchAllResults();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, session, term, student]);
 
   const fetchStudentDetails = async () => {
@@ -91,7 +94,9 @@ function StudentDetails() {
       setImageError(false);
     } catch (error) {
       console.error("Error fetching student details:", error);
-      toast.error("Failed to load student details");
+      toast.error(
+        t?.studentDetails?.loadFailed || "Failed to load student details",
+      );
       navigate(backPath);
     } finally {
       setLoading(false);
@@ -145,18 +150,23 @@ function StudentDetails() {
 
     if (
       window.confirm(
-        `Are you sure you want to delete ${
-          student.fullName || `${student.firstName} ${student.lastName}`
-        }? This action cannot be undone.`,
+        t?.studentDetails?.confirmDelete ||
+          `Are you sure you want to delete ${
+            student.fullName || `${student.firstName} ${student.lastName}`
+          }? This action cannot be undone.`,
       )
     ) {
       try {
         await studentAPI.deleteStudent(id);
-        toast.success("Student deleted successfully");
+        toast.success(
+          t?.studentDetails?.deleteSuccess || "Student deleted successfully",
+        );
         navigate(backPath);
       } catch (error) {
         console.error("Error deleting student:", error);
-        toast.error("Failed to delete student");
+        toast.error(
+          t?.studentDetails?.deleteFailed || "Failed to delete student",
+        );
       }
     }
   };
@@ -167,18 +177,42 @@ function StudentDetails() {
 
   const getStatusBadge = (status) => {
     const badges = {
-      ACTIVE: { class: "bg-success", icon: <FaCheckCircle /> },
-      GRADUATED: { class: "bg-primary", icon: <FaAward /> },
-      TRANSFERRED: { class: "bg-info", icon: <FaHistory /> },
-      SUSPENDED: { class: "bg-warning", icon: <FaExclamationTriangle /> },
-      WITHDRAWN: { class: "bg-danger", icon: <FaTimesCircle /> },
+      ACTIVE: {
+        class: "bg-success",
+        icon: <FaCheckCircle />,
+        label: t?.studentDetails?.statusActive || "Active",
+      },
+      GRADUATED: {
+        class: "bg-primary",
+        icon: <FaAward />,
+        label: t?.studentDetails?.statusGraduated || "Graduated",
+      },
+      TRANSFERRED: {
+        class: "bg-info",
+        icon: <FaHistory />,
+        label: t?.studentDetails?.statusTransferred || "Transferred",
+      },
+      SUSPENDED: {
+        class: "bg-warning",
+        icon: <FaExclamationTriangle />,
+        label: t?.studentDetails?.statusSuspended || "Suspended",
+      },
+      WITHDRAWN: {
+        class: "bg-danger",
+        icon: <FaTimesCircle />,
+        label: t?.studentDetails?.statusWithdrawn || "Withdrawn",
+      },
     };
 
-    const badge = badges[status] || { class: "bg-secondary", icon: null };
+    const badge = badges[status] || {
+      class: "bg-secondary",
+      icon: null,
+      label: status,
+    };
 
     return (
       <span className={`badge ${badge.class} p-2`}>
-        {badge.icon} {status}
+        {badge.icon} {badge.label}
       </span>
     );
   };
@@ -208,7 +242,10 @@ function StudentDetails() {
 
   const viewResultSheet = () => {
     if (!student || !session || !term) {
-      toast.error("Student, session, or term not available");
+      toast.error(
+        t?.studentDetails?.missingParams ||
+          "Student, session, or term not available",
+      );
       return;
     }
 
@@ -225,14 +262,18 @@ function StudentDetails() {
         </div>
         <div className="mt-3 text-center">
           <FaSpinner className="spin me-2" />
-          Loading student details...
+          {t?.common?.loading || "Loading student details..."}
         </div>
       </div>
     );
   }
 
   if (!student) {
-    return <div className="alert alert-danger">Student not found</div>;
+    return (
+      <div className="alert alert-danger">
+        {t?.studentDetails?.notFound || "Student not found"}
+      </div>
+    );
   }
 
   const imageUrl = getImageUrl();
@@ -240,10 +281,12 @@ function StudentDetails() {
   return (
     <div className="student-details">
       <div className="d-flex justify-content-between align-items-center mb-4 no-print flex-wrap gap-2">
-        <h2 className="mb-0">Student Profile</h2>
+        <h2 className="mb-0">
+          {t?.studentDetails?.profile || "Student Profile"}
+        </h2>
         <div>
           <Link to={backPath} className="btn btn-secondary me-2">
-            <FaArrowLeft className="me-2" /> Back
+            <FaArrowLeft className="me-2" /> {t?.common?.back || "Back"}
           </Link>
 
           {isAdmin && (
@@ -253,30 +296,32 @@ function StudentDetails() {
                 state={{ from: backPath }}
                 className="btn btn-warning me-2"
               >
-                <FaEdit className="me-2" /> Edit
+                <FaEdit className="me-2" /> {t?.common?.edit || "Edit"}
               </Link>
 
               <button onClick={handleDelete} className="btn btn-danger me-2">
-                <FaTrash className="me-2" /> Delete
+                <FaTrash className="me-2" /> {t?.common?.delete || "Delete"}
               </button>
             </>
           )}
 
           {isTeacher && (
             <span className="btn btn-info me-2 disabled">
-              <FaEye className="me-2" /> View Only
+              <FaEye className="me-2" />{" "}
+              {t?.studentDetails?.viewOnly || "View Only"}
             </span>
           )}
 
           <button onClick={handlePrint} className="btn btn-info me-2">
-            <FaPrint className="me-2" /> Print
+            <FaPrint className="me-2" /> {t?.common?.print || "Print"}
           </button>
 
           <button
             onClick={refreshActiveSession}
             className="btn btn-outline-primary"
           >
-            <FaSyncAlt className="me-2" /> Refresh Session
+            <FaSyncAlt className="me-2" />{" "}
+            {t?.common?.refresh || "Refresh Session"}
           </button>
         </div>
       </div>
@@ -309,7 +354,9 @@ function StudentDetails() {
                       state={{ from: backPath }}
                       className="btn btn-primary btn-sm profile-image-edit-btn"
                       title={
-                        student.profilePictureUrl ? "Change Photo" : "Add Photo"
+                        student.profilePictureUrl
+                          ? t?.studentDetails?.changePhoto || "Change Photo"
+                          : t?.studentDetails?.addPhoto || "Add Photo"
                       }
                     >
                       <FaCamera />
@@ -321,7 +368,7 @@ function StudentDetails() {
                 <div className="mb-2">{getStatusBadge(student.status)}</div>
                 <div className="student-id-badge">
                   <small className="text-muted">
-                    ID: {student.admissionNumber}
+                    {t?.studentDetails?.id || "ID"}: {student.admissionNumber}
                   </small>
                 </div>
               </div>
@@ -332,10 +379,12 @@ function StudentDetails() {
                 <div className="col-md-4 mb-3">
                   <div className="quick-info-card">
                     <FaIdCard className="quick-info-icon text-primary" />
-                    <h6>Admission Number</h6>
+                    <h6>
+                      {t?.studentDetails?.admissionNumber || "Admission Number"}
+                    </h6>
                     <p className="fw-bold">{student.admissionNumber}</p>
                     <small>
-                      Admitted:{" "}
+                      {t?.studentDetails?.admitted || "Admitted"}:{" "}
                       {moment(student.admissionDate).format("DD/MM/YYYY")}
                     </small>
                   </div>
@@ -343,13 +392,16 @@ function StudentDetails() {
                 <div className="col-md-4 mb-3">
                   <div className="quick-info-card">
                     <FaSchool className="quick-info-icon text-success" />
-                    <h6>Current Class</h6>
+                    <h6>
+                      {t?.studentDetails?.currentClass || "Current Class"}
+                    </h6>
                     <p className="fw-bold">
                       {student.studentClass} {student.classArm}
                     </p>
                     {student.excludeFromPromotion && (
                       <small className="text-danger">
-                        Excluded from promotion
+                        {t?.studentDetails?.excludedFromPromotion ||
+                          "Excluded from promotion"}
                       </small>
                     )}
                   </div>
@@ -357,20 +409,25 @@ function StudentDetails() {
                 <div className="col-md-4 mb-3">
                   <div className="quick-info-card">
                     <FaBirthdayCake className="quick-info-icon text-warning" />
-                    <h6>Age</h6>
+                    <h6>{t?.studentDetails?.age || "Age"}</h6>
                     <p className="fw-bold">
-                      {calculateAge(student.dateOfBirth)} years
+                      {calculateAge(student.dateOfBirth)}{" "}
+                      {t?.studentDetails?.years || "years"}
                     </p>
                     <small>
-                      DOB: {moment(student.dateOfBirth).format("DD/MM/YYYY")}
+                      {t?.studentDetails?.dob || "DOB"}:{" "}
+                      {moment(student.dateOfBirth).format("DD/MM/YYYY")}
                     </small>
                   </div>
                 </div>
               </div>
 
               <div className="mt-3 text-muted">
-                Active Session:{" "}
-                <strong>{session || "No active session"}</strong> | Term:{" "}
+                {t?.feeManagement?.activeSession || "Active Session"}:{" "}
+                <strong>
+                  {session || t?.common?.noActiveSession || "No active session"}
+                </strong>{" "}
+                | {t?.feeManagement?.term || "Term"}:{" "}
                 <strong>{term || "N/A"}</strong>
               </div>
             </div>
@@ -384,7 +441,8 @@ function StudentDetails() {
             className={`nav-link ${activeTab === "info" ? "active" : ""}`}
             onClick={() => setActiveTab("info")}
           >
-            <FaUserGraduate className="me-2" /> Personal Info
+            <FaUserGraduate className="me-2" />{" "}
+            {t?.studentDetails?.personalInfo || "Personal Info"}
           </button>
         </li>
         <li className="nav-item">
@@ -392,7 +450,8 @@ function StudentDetails() {
             className={`nav-link ${activeTab === "results" ? "active" : ""}`}
             onClick={() => setActiveTab("results")}
           >
-            <FaChartBar className="me-2" /> Term Results
+            <FaChartBar className="me-2" />{" "}
+            {t?.studentDetails?.termResults || "Term Results"}
           </button>
         </li>
         <li className="nav-item">
@@ -400,7 +459,8 @@ function StudentDetails() {
             className={`nav-link ${activeTab === "annual" ? "active" : ""}`}
             onClick={() => setActiveTab("annual")}
           >
-            <FaAward className="me-2" /> Annual Result
+            <FaAward className="me-2" />{" "}
+            {t?.studentDetails?.annualResult || "Annual Result"}
           </button>
         </li>
         <li className="nav-item">
@@ -408,7 +468,8 @@ function StudentDetails() {
             className={`nav-link ${activeTab === "history" ? "active" : ""}`}
             onClick={() => setActiveTab("history")}
           >
-            <FaHistory className="me-2" /> Result History
+            <FaHistory className="me-2" />{" "}
+            {t?.studentDetails?.resultHistory || "Result History"}
           </button>
         </li>
       </ul>
@@ -419,46 +480,63 @@ function StudentDetails() {
             <div className="col-md-6 mb-4">
               <div className="card h-100">
                 <div className="card-header bg-primary text-white">
-                  <h5 className="mb-0">Personal Details</h5>
+                  <h5 className="mb-0">
+                    {t?.studentDetails?.personalDetails || "Personal Details"}
+                  </h5>
                 </div>
                 <div className="card-body">
                   <table className="table">
                     <tbody>
                       <tr>
-                        <th style={{ width: "200px" }}>Full Name:</th>
+                        <th style={{ width: "200px" }}>
+                          {t?.studentDetails?.fullName || "Full Name"}:
+                        </th>
                         <td className="fw-bold">{student.fullName}</td>
                       </tr>
                       <tr>
-                        <th>Gender:</th>
+                        <th>{t?.studentDetails?.gender || "Gender"}:</th>
                         <td>
                           <FaVenusMars className="me-2" /> {student.gender}
                         </td>
                       </tr>
                       <tr>
-                        <th>Date of Birth:</th>
+                        <th>{t?.studentDetails?.dob || "Date of Birth"}:</th>
                         <td>
                           <FaCalendarAlt className="me-2" />{" "}
                           {moment(student.dateOfBirth).format("DD/MM/YYYY")}
                         </td>
                       </tr>
                       <tr>
-                        <th>Age:</th>
-                        <td>{calculateAge(student.dateOfBirth)} years</td>
+                        <th>{t?.studentDetails?.age || "Age"}:</th>
+                        <td>
+                          {calculateAge(student.dateOfBirth)}{" "}
+                          {t?.studentDetails?.years || "years"}
+                        </td>
                       </tr>
                       <tr>
-                        <th>Religion:</th>
-                        <td>{student.religion || "Not specified"}</td>
+                        <th>{t?.studentDetails?.religion || "Religion"}:</th>
+                        <td>
+                          {student.religion ||
+                            t?.common?.notSpecified ||
+                            "Not specified"}
+                        </td>
                       </tr>
                       <tr>
-                        <th>Nationality:</th>
+                        <th>
+                          {t?.studentDetails?.nationality || "Nationality"}:
+                        </th>
                         <td>{student.nationality || "Nigerian"}</td>
                       </tr>
                       <tr>
-                        <th>State of Origin:</th>
+                        <th>
+                          {t?.studentDetails?.stateOfOrigin ||
+                            "State of Origin"}
+                          :
+                        </th>
                         <td>{student.stateOfOrigin}</td>
                       </tr>
                       <tr>
-                        <th>LGA:</th>
+                        <th>{t?.studentDetails?.lga || "LGA"}:</th>
                         <td>{student.localGovtArea}</td>
                       </tr>
                     </tbody>
@@ -470,34 +548,48 @@ function StudentDetails() {
             <div className="col-md-6 mb-4">
               <div className="card h-100">
                 <div className="card-header bg-success text-white">
-                  <h5 className="mb-0">Contact Information</h5>
+                  <h5 className="mb-0">
+                    {t?.studentDetails?.contactInfo || "Contact Information"}
+                  </h5>
                 </div>
                 <div className="card-body">
                   <table className="table">
                     <tbody>
                       <tr>
-                        <th style={{ width: "200px" }}>Address:</th>
+                        <th style={{ width: "200px" }}>
+                          {t?.studentDetails?.address || "Address"}:
+                        </th>
                         <td>
                           <FaMapMarkerAlt className="me-2" /> {student.address}
                         </td>
                       </tr>
                       <tr>
-                        <th>Parent/Guardian:</th>
+                        <th>
+                          {t?.studentDetails?.parentGuardian ||
+                            "Parent/Guardian"}
+                          :
+                        </th>
                         <td>
                           <FaUsers className="me-2" /> {student.parentName}
                         </td>
                       </tr>
                       <tr>
-                        <th>Parent Phone:</th>
+                        <th>
+                          {t?.studentDetails?.parentPhone || "Parent Phone"}:
+                        </th>
                         <td>
                           <FaPhone className="me-2" /> {student.parentPhone}
                         </td>
                       </tr>
                       <tr>
-                        <th>Parent Email:</th>
+                        <th>
+                          {t?.studentDetails?.parentEmail || "Parent Email"}:
+                        </th>
                         <td>
                           <FaEnvelope className="me-2" />{" "}
-                          {student.parentEmail || "Not provided"}
+                          {student.parentEmail ||
+                            t?.common?.notProvided ||
+                            "Not provided"}
                         </td>
                       </tr>
                     </tbody>
@@ -507,27 +599,38 @@ function StudentDetails() {
 
               <div className="card mt-4">
                 <div className="card-header bg-warning">
-                  <h5 className="mb-0">Emergency Contact</h5>
+                  <h5 className="mb-0">
+                    {t?.studentDetails?.emergencyContact || "Emergency Contact"}
+                  </h5>
                 </div>
                 <div className="card-body">
                   <table className="table">
                     <tbody>
                       <tr>
-                        <th style={{ width: "200px" }}>Name:</th>
+                        <th style={{ width: "200px" }}>
+                          {t?.studentDetails?.name || "Name"}:
+                        </th>
                         <td>
-                          {student.emergencyContactName || "Not specified"}
+                          {student.emergencyContactName ||
+                            t?.common?.notSpecified ||
+                            "Not specified"}
                         </td>
                       </tr>
                       <tr>
-                        <th>Phone:</th>
+                        <th>{t?.common?.phone || "Phone"}:</th>
                         <td>
-                          {student.emergencyContactPhone || "Not specified"}
+                          {student.emergencyContactPhone ||
+                            t?.common?.notSpecified ||
+                            "Not specified"}
                         </td>
                       </tr>
                       <tr>
-                        <th>Relationship:</th>
+                        <th>
+                          {t?.studentDetails?.relationship || "Relationship"}:
+                        </th>
                         <td>
                           {student.emergencyContactRelationship ||
+                            t?.common?.notSpecified ||
                             "Not specified"}
                         </td>
                       </tr>
@@ -542,7 +645,9 @@ function StudentDetails() {
         {activeTab === "results" && (
           <div className="card">
             <div className="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <h5 className="mb-0">Term Results</h5>
+              <h5 className="mb-0">
+                {t?.studentDetails?.termResults || "Term Results"}
+              </h5>
               <div>
                 <select
                   className="form-select form-select-sm d-inline-block me-2 bg-dark text-white"
@@ -557,7 +662,9 @@ function StudentDetails() {
                       </option>
                     ))
                   ) : (
-                    <option value="">No session available</option>
+                    <option value="">
+                      {t?.common?.noSessionAvailable || "No session available"}
+                    </option>
                   )}
                 </select>
 
@@ -579,7 +686,8 @@ function StudentDetails() {
                     className="btn btn-light btn-sm"
                     onClick={viewResultSheet}
                   >
-                    <FaEye className="me-1" /> View Full Sheet
+                    <FaEye className="me-1" />{" "}
+                    {t?.studentDetails?.viewFullSheet || "View Full Sheet"}
                   </button>
                 )}
               </div>
@@ -591,7 +699,7 @@ function StudentDetails() {
                     <table className="table table-bordered table-hover">
                       <thead className="bg-light">
                         <tr>
-                          <th>Subject</th>
+                          <th>{t?.studentDashboard?.subject || "Subject"}</th>
                           <th>RT (5)</th>
                           <th>Ass (10)</th>
                           <th>Proj (10)</th>
@@ -599,8 +707,8 @@ function StudentDetails() {
                           <th>2nd (5)</th>
                           <th>CA</th>
                           <th>Exam</th>
-                          <th>Total</th>
-                          <th>Grade</th>
+                          <th>{t?.studentDashboard?.total || "Total"}</th>
+                          <th>{t?.studentDashboard?.grade || "Grade"}</th>
                           <th>Remark</th>
                         </tr>
                       </thead>
@@ -635,7 +743,9 @@ function StudentDetails() {
                   <div className="row mt-4">
                     <div className="col-md-4">
                       <div className="border p-3 rounded bg-light">
-                        <h6>Total Score</h6>
+                        <h6>
+                          {t?.studentDetails?.totalScore || "Total Score"}
+                        </h6>
                         <h3 className="text-primary">
                           {termResults.summary?.totalScore ?? 0}
                         </h3>
@@ -643,7 +753,7 @@ function StudentDetails() {
                     </div>
                     <div className="col-md-4">
                       <div className="border p-3 rounded bg-light">
-                        <h6>Average</h6>
+                        <h6>{t?.studentDetails?.average || "Average"}</h6>
                         <h3 className="text-success">
                           {safeFixed(termResults.summary?.average, 2)}%
                         </h3>
@@ -651,7 +761,9 @@ function StudentDetails() {
                     </div>
                     <div className="col-md-4">
                       <div className="border p-3 rounded bg-light">
-                        <h6>Class Position</h6>
+                        <h6>
+                          {t?.studentDetails?.classPosition || "Class Position"}
+                        </h6>
                         <h3 className="text-warning">
                           {termResults.summary?.positionInClass || "N/A"}
                         </h3>
@@ -661,7 +773,10 @@ function StudentDetails() {
                 </>
               ) : (
                 <div className="text-center py-5">
-                  <p className="text-muted">No results found for this term</p>
+                  <p className="text-muted">
+                    {t?.studentDetails?.noResultsFound ||
+                      "No results found for this term"}
+                  </p>
                 </div>
               )}
             </div>
@@ -671,7 +786,9 @@ function StudentDetails() {
         {activeTab === "annual" && (
           <div className="card">
             <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">Annual Result</h5>
+              <h5 className="mb-0">
+                {t?.studentDetails?.annualResult || "Annual Result"}
+              </h5>
               <select
                 className="form-select form-select-sm bg-dark text-white"
                 style={{ width: "150px" }}
@@ -685,7 +802,9 @@ function StudentDetails() {
                     </option>
                   ))
                 ) : (
-                  <option value="">No session available</option>
+                  <option value="">
+                    {t?.common?.noSessionAvailable || "No session available"}
+                  </option>
                 )}
               </select>
             </div>
@@ -694,35 +813,56 @@ function StudentDetails() {
                 <div className="row">
                   <div className="col-md-6">
                     <div className="border p-4 rounded bg-light">
-                      <h5>Annual Summary</h5>
+                      <h5>
+                        {t?.studentDetails?.annualSummary || "Annual Summary"}
+                      </h5>
                       <table className="table">
                         <tbody>
                           <tr>
-                            <th>First Term Total:</th>
+                            <th>
+                              {t?.studentDetails?.firstTermTotal ||
+                                "First Term Total"}
+                              :
+                            </th>
                             <td>
                               {annualResult.annualSummary?.firstTermTotal ?? 0}
                             </td>
                           </tr>
                           <tr>
-                            <th>Second Term Total:</th>
+                            <th>
+                              {t?.studentDetails?.secondTermTotal ||
+                                "Second Term Total"}
+                              :
+                            </th>
                             <td>
                               {annualResult.annualSummary?.secondTermTotal ?? 0}
                             </td>
                           </tr>
                           <tr>
-                            <th>Third Term Total:</th>
+                            <th>
+                              {t?.studentDetails?.thirdTermTotal ||
+                                "Third Term Total"}
+                              :
+                            </th>
                             <td>
                               {annualResult.annualSummary?.thirdTermTotal ?? 0}
                             </td>
                           </tr>
                           <tr>
-                            <th>Annual Total:</th>
+                            <th>
+                              {t?.studentDetails?.annualTotal || "Annual Total"}
+                              :
+                            </th>
                             <td className="fw-bold">
                               {annualResult.annualSummary?.annualTotal ?? 0}
                             </td>
                           </tr>
                           <tr>
-                            <th>Annual Average:</th>
+                            <th>
+                              {t?.studentDetails?.annualAverage ||
+                                "Annual Average"}
+                              :
+                            </th>
                             <td className="fw-bold text-success">
                               {safeFixed(
                                 annualResult.annualSummary?.annualAverage,
@@ -739,7 +879,8 @@ function StudentDetails() {
               ) : (
                 <div className="text-center py-5">
                   <p className="text-muted">
-                    No annual result found for this session
+                    {t?.studentDetails?.noAnnualResult ||
+                      "No annual result found for this session"}
                   </p>
                 </div>
               )}
@@ -750,18 +891,20 @@ function StudentDetails() {
         {activeTab === "history" && (
           <div className="card">
             <div className="card-header bg-info text-white">
-              <h5 className="mb-0">Result History</h5>
+              <h5 className="mb-0">
+                {t?.studentDetails?.resultHistory || "Result History"}
+              </h5>
             </div>
             <div className="card-body">
               <div className="table-responsive">
                 <table className="table table-bordered">
                   <thead className="bg-light">
                     <tr>
-                      <th>Session</th>
-                      <th>First Term</th>
-                      <th>Second Term</th>
-                      <th>Third Term</th>
-                      <th>Annual</th>
+                      <th>{t?.studentDetails?.session || "Session"}</th>
+                      <th>{t?.studentDetails?.firstTerm || "First Term"}</th>
+                      <th>{t?.studentDetails?.secondTerm || "Second Term"}</th>
+                      <th>{t?.studentDetails?.thirdTerm || "Third Term"}</th>
+                      <th>{t?.studentDetails?.annual || "Annual"}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -780,44 +923,48 @@ function StudentDetails() {
                           <td>
                             {hasFirst ? (
                               <span className="badge bg-success">
-                                Completed
+                                {t?.studentDetails?.completed || "Completed"}
                               </span>
                             ) : (
                               <span className="badge bg-secondary">
-                                Not Available
+                                {t?.studentDetails?.notAvailable ||
+                                  "Not Available"}
                               </span>
                             )}
                           </td>
                           <td>
                             {hasSecond ? (
                               <span className="badge bg-success">
-                                Completed
+                                {t?.studentDetails?.completed || "Completed"}
                               </span>
                             ) : (
                               <span className="badge bg-secondary">
-                                Not Available
+                                {t?.studentDetails?.notAvailable ||
+                                  "Not Available"}
                               </span>
                             )}
                           </td>
                           <td>
                             {hasThird ? (
                               <span className="badge bg-success">
-                                Completed
+                                {t?.studentDetails?.completed || "Completed"}
                               </span>
                             ) : (
                               <span className="badge bg-secondary">
-                                Not Available
+                                {t?.studentDetails?.notAvailable ||
+                                  "Not Available"}
                               </span>
                             )}
                           </td>
                           <td>
                             {hasFirst && hasSecond && hasThird ? (
                               <span className="badge bg-primary">
-                                Annual Available
+                                {t?.studentDetails?.annualAvailable ||
+                                  "Annual Available"}
                               </span>
                             ) : (
                               <span className="badge bg-secondary">
-                                Incomplete
+                                {t?.studentDetails?.incomplete || "Incomplete"}
                               </span>
                             )}
                           </td>
@@ -828,7 +975,8 @@ function StudentDetails() {
                     {availableSessions.length === 0 && (
                       <tr>
                         <td colSpan="5" className="text-center text-muted">
-                          No session history available
+                          {t?.studentDetails?.noHistoryAvailable ||
+                            "No session history available"}
                         </td>
                       </tr>
                     )}
