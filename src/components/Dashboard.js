@@ -1,5 +1,5 @@
 // src/components/Dashboard.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useDarkMode } from "../contexts/DarkModeContext";
@@ -60,6 +60,7 @@ ChartJS.register(
 function Dashboard() {
   const { t } = useLanguage();
   const { darkMode } = useDarkMode();
+  const isMounted = useRef(true);
 
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -83,12 +84,18 @@ function Dashboard() {
   });
   const [todayAttendance, setTodayAttendance] = useState([]);
   const [showDailyPreview, setShowDailyPreview] = useState(false);
+  const [attendanceError, setAttendanceError] = useState(null);
+  const [isFetchingAttendance, setIsFetchingAttendance] = useState(false);
 
   const currentSession = "2025/2026";
-  const currentTerm = "FIRST";
+  const currentTerm = "SECOND";
 
   useEffect(() => {
+    isMounted.current = true;
     fetchDashboardData();
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const getStudentDisplayName = (student) => {
@@ -103,66 +110,126 @@ function Dashboard() {
     return combined || student.admissionNumber || "N/A";
   };
 
-  const fetchDashboardData = async () => {
+  const fetchAttendanceByClassArm = async () => {
     try {
-      const statsResponse = await studentAPI.getStatistics();
-      setStatistics(statsResponse.data);
-
+      // First get all students to get the class-arm groupings
       const studentsResponse = await studentAPI.getAllStudents();
       const allStudents = Array.isArray(studentsResponse.data)
         ? studentsResponse.data
         : [];
-      setRecentStudents(allStudents.slice(0, 5));
-      const totalStudents = allStudents.length;
 
-      try {
-        const today = moment().format("YYYY-MM-DD");
-        const uniqueClassArms = [];
-        const seen = new Set();
+      // Create a map of students by ID for quick lookup
+      const studentMap = new Map();
+      allStudents.forEach((student) => {
+        studentMap.set(student.id, student);
+      });
 
-        allStudents.forEach((student) => {
-          const className = student?.studentClass?.trim();
-          const arm = student?.classArm?.trim();
-          if (!className || !arm) return;
-          const key = `${className}__${arm}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            uniqueClassArms.push({ className, arm });
+      const today = moment().format("YYYY-MM-DD");
+      console.log("Fetching attendance for date:", today);
+      console.log("Current Session:", currentSession);
+      console.log("Current Term:", currentTerm);
+
+      // Get unique class-arm combinations from students
+      const classArmMap = new Map();
+      allStudents.forEach((student) => {
+        const className = student.studentClass?.trim();
+        const arm = student.classArm?.trim();
+        if (className && arm) {
+          const key = `${className}|${arm}`;
+          if (!classArmMap.has(key)) {
+            classArmMap.set(key, { className, arm, students: [] });
           }
-        });
+          classArmMap.get(key).students.push(student);
+        }
+      });
 
-        const attendancePromises = uniqueClassArms.map(
-          async ({ className, arm }) => {
-            try {
-              const res = await attendanceAPI.getClassAttendance(
-                className,
-                arm,
-                today,
-                currentSession,
-                currentTerm,
-              );
-              return Array.isArray(res.data) ? res.data : [];
-            } catch (err) {
-              return [];
+      console.log(
+        "Class-arm combinations to fetch:",
+        Array.from(classArmMap.keys()),
+      );
+
+      // Fetch attendance for each class-arm combination
+      const attendancePromises = Array.from(classArmMap.values()).map(
+        async ({ className, arm }) => {
+          try {
+            const response = await attendanceAPI.getClassAttendance(
+              className,
+              arm,
+              today,
+              currentSession,
+              currentTerm,
+            );
+
+            console.log(`Response for ${className} ${arm}:`, response.data);
+
+            let attendanceRecords = [];
+
+            // Handle different response formats
+            if (response.data) {
+              if (Array.isArray(response.data)) {
+                attendanceRecords = response.data;
+              } else if (
+                response.data.attendance &&
+                Array.isArray(response.data.attendance)
+              ) {
+                attendanceRecords = response.data.attendance;
+              } else if (
+                response.data.data &&
+                Array.isArray(response.data.data)
+              ) {
+                attendanceRecords = response.data.data;
+              }
             }
-          },
-        );
 
-        const results = await Promise.all(attendancePromises);
-        const allAttendance = results.flat();
+            // Map each attendance record to include full student details
+            return attendanceRecords.map((record) => {
+              const studentId =
+                record.studentId || record.student_id || record.student?.id;
+              const student = studentMap.get(studentId);
+
+              return {
+                ...record,
+                student: student || {
+                  id: studentId,
+                  firstName: record.firstName,
+                  lastName: record.lastName,
+                  studentClass: record.className || className,
+                  classArm: record.classArm || arm,
+                  admissionNumber: record.admissionNumber,
+                },
+                status: record.status || record.attendanceStatus || "UNKNOWN",
+              };
+            });
+          } catch (error) {
+            console.warn(
+              `Error fetching attendance for ${className} ${arm}:`,
+              error.message,
+            );
+            return [];
+          }
+        },
+      );
+
+      const results = await Promise.all(attendancePromises);
+      const allAttendance = results.flat();
+
+      console.log("Total attendance records found:", allAttendance.length);
+      console.log("Attendance records:", allAttendance);
+
+      if (isMounted.current) {
         setTodayAttendance(allAttendance);
 
         const presentCount = allAttendance.filter(
-          (a) => a.status === "PRESENT",
+          (a) => a.status === "PRESENT" || a.status === "present",
         ).length;
         const lateCount = allAttendance.filter(
-          (a) => a.status === "LATE",
+          (a) => a.status === "LATE" || a.status === "late",
         ).length;
         const absentCount = allAttendance.filter(
-          (a) => a.status === "ABSENT",
+          (a) => a.status === "ABSENT" || a.status === "absent",
         ).length;
         const excusedCount = allAttendance.filter(
-          (a) => a.status === "EXCUSED",
+          (a) => a.status === "EXCUSED" || a.status === "excused",
         ).length;
 
         setAttendanceStats({
@@ -176,28 +243,56 @@ function Dashboard() {
               : 0,
           totalStudents: allAttendance.length,
         });
-      } catch (error) {
-        const presentCount = Math.floor(totalStudents * 0.75);
-        const lateCount = Math.floor(totalStudents * 0.1);
-        const absentCount = Math.floor(totalStudents * 0.1);
-        const excusedCount =
-          totalStudents - (presentCount + lateCount + absentCount);
-        setAttendanceStats({
-          totalPresent: presentCount,
-          totalAbsent: absentCount,
-          totalLate: lateCount,
-          totalExcused: excusedCount,
-          averageAttendance: totalStudents > 0 ? 85 : 0,
-          totalStudents,
-        });
+
+        if (allAttendance.length === 0) {
+          setAttendanceError(
+            "No attendance records found for today. Please mark attendance first.",
+          );
+        } else {
+          setAttendanceError(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching attendance:", error);
+      if (isMounted.current) {
+        setAttendanceError(
+          "Could not fetch attendance data. Please try again.",
+        );
+        setTodayAttendance([]);
+      }
+    }
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setAttendanceError(null);
+
+      // Fetch statistics
+      const statsResponse = await studentAPI.getStatistics();
+      if (isMounted.current) {
+        setStatistics(statsResponse.data);
       }
 
+      // Fetch all students for recent admissions
+      const studentsResponse = await studentAPI.getAllStudents();
+      const allStudents = Array.isArray(studentsResponse.data)
+        ? studentsResponse.data
+        : [];
+      if (isMounted.current) {
+        setRecentStudents(allStudents.slice(0, 5));
+      }
+
+      // Fetch attendance
+      await fetchAttendanceByClassArm();
+
+      // Fetch fee statistics
       try {
         const feeResponse = await feeAPI.getFeeStatistics(
           currentSession,
           currentTerm,
         );
-        if (feeResponse.data) {
+        if (feeResponse.data && isMounted.current) {
           setFeeSummary({
             totalCollected: feeResponse.data.totalCollected || 0,
             totalOutstanding: feeResponse.data.totalOutstanding || 0,
@@ -212,6 +307,7 @@ function Dashboard() {
         console.log("Fee statistics not available");
       }
 
+      // Fetch announcements
       try {
         const announcementsResponse =
           await announcementAPI.getAllAnnouncements();
@@ -221,15 +317,21 @@ function Dashboard() {
         const activeAnnouncements = allAnnouncements
           .filter((a) => a.active !== false)
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setAnnouncements(activeAnnouncements.slice(0, 5));
+        if (isMounted.current) {
+          setAnnouncements(activeAnnouncements.slice(0, 5));
+        }
       } catch (error) {
         console.error("Error fetching announcements:", error);
-        setAnnouncements([]);
+        if (isMounted.current) {
+          setAnnouncements([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -380,6 +482,7 @@ function Dashboard() {
 
   return (
     <div className={`dashboard ${darkMode ? "dark-mode" : ""}`}>
+      {/* Hero Section */}
       <div className="hero-section">
         <div className="container">
           <h1 className="display-4">
@@ -396,6 +499,7 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Statistics Cards */}
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
           <div className="stat-card stat-primary">
@@ -433,6 +537,7 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Attendance Cards */}
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
           <div
@@ -494,6 +599,13 @@ function Dashboard() {
         </div>
       </div>
 
+      {attendanceError && (
+        <div className="alert alert-warning mb-4">
+          <FaExclamationTriangle className="me-2" />
+          {attendanceError}
+        </div>
+      )}
+
       <div className="info-alert">
         <FaInfoCircle />
         <span>
@@ -505,6 +617,7 @@ function Dashboard() {
         </Link>
       </div>
 
+      {/* Today's Attendance Preview */}
       {todayAttendance.length > 0 && (
         <div className="row mb-4">
           <div className="col-12">
@@ -540,8 +653,14 @@ function Dashboard() {
                           <tr key={record.id || index}>
                             <td>{getStudentDisplayName(record.student)}</td>
                             <td>
-                              {record.student?.studentClass || "N/A"}{" "}
-                              {record.student?.classArm || ""}
+                              {record.student?.studentClass ||
+                                record.className ||
+                                record.studentClass ||
+                                "N/A"}{" "}
+                              {record.student?.classArm ||
+                                record.classArm ||
+                                record.arm ||
+                                ""}
                             </td>
                             <td>
                               <span
@@ -567,6 +686,7 @@ function Dashboard() {
         </div>
       )}
 
+      {/* Charts */}
       <div className="row">
         <div className="col-md-6 mb-4">
           <div className="school-card p-3">
@@ -583,6 +703,7 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Announcements and Recent Admissions */}
       <div className="row">
         <div className="col-md-6 mb-4">
           <div className="school-card">
@@ -691,6 +812,7 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Quick Actions */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-4">
@@ -746,6 +868,7 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Attendance Summary */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-3">
@@ -809,6 +932,7 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Fee Summary */}
       {feeSummary.totalCollected > 0 && (
         <div className="fee-summary mt-4">
           <h4 className="mb-3">
