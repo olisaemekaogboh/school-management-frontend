@@ -262,7 +262,8 @@ function Navbar() {
     },
     {
       type: "link",
-      path: "/session-results",
+      path: getTeacherScopedPath("/session-results"),
+      activePath: "/session-results",
       icon: <FaGraduationCap />,
       label: t.navbar.sessionResults,
     },

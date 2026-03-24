@@ -27,6 +27,10 @@ import {
   FaCalendarAlt,
   FaBus,
   FaMoneyBill,
+  FaUsers,
+  FaBullhorn,
+  FaLayerGroup,
+  FaSchool,
 } from "react-icons/fa";
 import "./Footer.css";
 
@@ -35,26 +39,390 @@ function Footer() {
   const { t } = useLanguage();
   const currentYear = new Date().getFullYear();
 
-  const getDashboardLink = () => {
+  const role = user?.role;
+
+  const getHomePath = () => {
     if (!isAuthenticated) return "/";
-    switch (user?.role) {
-      case "TEACHER":
-        return "/teacher-dashboard";
-      case "PARENT":
-        return "/parent-dashboard";
-      case "STUDENT":
-        return "/student-dashboard";
-      case "ADMIN":
-        return "/dashboard";
-      default:
-        return "/";
-    }
+    if (role === "TEACHER") return "/teacher-dashboard";
+    if (role === "PARENT") return "/parent-dashboard";
+    if (role === "STUDENT") return "/student-dashboard";
+    if (role === "ADMIN") return "/dashboard";
+    return "/";
   };
 
-  const getProfileLink = () => {
-    if (!isAuthenticated) return "/login";
-    if (user?.role === "PARENT") return "/parent/profile";
-    return "/profile";
+  const publicQuickLinks = [
+    { to: "/", icon: <FaHome className="link-icon" />, label: t.common.home },
+    {
+      to: "/about",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.footer.aboutUs,
+    },
+    {
+      to: "/contact",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.common.contact,
+    },
+  ];
+
+  const publicResourceLinks = [
+    {
+      to: "/login",
+      icon: <FaSignInAlt className="link-icon" />,
+      label: t.common.login,
+    },
+    {
+      to: "/register",
+      icon: <FaUserPlus className="link-icon" />,
+      label: t.common.register,
+    },
+  ];
+
+  const adminQuickLinks = [
+    { to: "/", icon: <FaHome className="link-icon" />, label: t.common.home },
+    {
+      to: "/dashboard",
+      icon: <FaSchool className="link-icon" />,
+      label: t.common.dashboard,
+    },
+    {
+      to: "/profile",
+      icon: <FaUser className="link-icon" />,
+      label: t.common.profile,
+    },
+    {
+      to: "/settings",
+      icon: <FaCog className="link-icon" />,
+      label: t.common.settings,
+    },
+    {
+      to: "/about",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.footer.aboutUs,
+    },
+    {
+      to: "/contact",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.common.contact,
+    },
+  ];
+
+  const adminAcademicLinks = [
+    {
+      to: "/students",
+      icon: <FaUserGraduate className="link-icon" />,
+      label: "Students",
+    },
+    {
+      to: "/teachers",
+      icon: <FaChalkboardTeacher className="link-icon" />,
+      label: "Teachers",
+    },
+    {
+      to: "/classes",
+      icon: <FaLayerGroup className="link-icon" />,
+      label: "Classes",
+    },
+    {
+      to: "/subjects",
+      icon: <FaBook className="link-icon" />,
+      label: "Subjects",
+    },
+    {
+      to: "/results",
+      icon: <FaChartBar className="link-icon" />,
+      label: "Results",
+    },
+    {
+      to: "/session-results",
+      icon: <FaGraduationCap className="link-icon" />,
+      label: t.navbar.sessionResults || "Session Results",
+    },
+    {
+      to: "/timetable",
+      icon: <FaCalendarAlt className="link-icon" />,
+      label: "Timetable",
+    },
+  ];
+
+  const adminResourceLinks = [
+    {
+      to: "/users",
+      icon: <FaUsers className="link-icon" />,
+      label: t.navbar.users || "Users",
+    },
+    {
+      to: "/fees",
+      icon: <FaMoneyBill className="link-icon" />,
+      label: t.footer.feeManagement || "Fee Management",
+    },
+    {
+      to: "/announcements",
+      icon: <FaBullhorn className="link-icon" />,
+      label: t.navbar.announcements || "Announcements",
+    },
+    {
+      to: "/library",
+      icon: <FaClipboardList className="link-icon" />,
+      label: "Library",
+    },
+    {
+      to: "/transport/routes",
+      icon: <FaBus className="link-icon" />,
+      label: t.navbar.routes || "Routes",
+    },
+  ];
+
+  const teacherQuickLinks = [
+    { to: "/", icon: <FaHome className="link-icon" />, label: t.common.home },
+    {
+      to: "/teacher-dashboard",
+      icon: <FaChalkboardTeacher className="link-icon" />,
+      label: t.common.dashboard,
+    },
+    {
+      to: "/profile",
+      icon: <FaUser className="link-icon" />,
+      label: t.common.profile,
+    },
+    {
+      to: "/settings",
+      icon: <FaCog className="link-icon" />,
+      label: t.common.settings,
+    },
+    {
+      to: "/about",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.footer.aboutUs,
+    },
+    {
+      to: "/contact",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.common.contact,
+    },
+  ];
+
+  const teacherAcademicLinks = [
+    {
+      to: "/students",
+      icon: <FaUsers className="link-icon" />,
+      label: t.navbar.myStudents || "My Students",
+    },
+    {
+      to: "/results",
+      icon: <FaChartBar className="link-icon" />,
+      label: t.navbar.results || "Results",
+    },
+    {
+      to: "/attendance",
+      icon: <FaClipboardList className="link-icon" />,
+      label: t.navbar.attendance || "Attendance",
+    },
+    {
+      to: "/session-results",
+      icon: <FaGraduationCap className="link-icon" />,
+      label: t.navbar.sessionResults || "Session Results",
+    },
+    {
+      to: "/timetable",
+      icon: <FaCalendarAlt className="link-icon" />,
+      label: t.navbar.myTimetable || "My Timetable",
+    },
+  ];
+
+  const teacherResourceLinks = [
+    {
+      to: getHomePath(),
+      icon: <FaChalkboardTeacher className="link-icon" />,
+      label: t.footer.teacherPortal || "Teacher Portal",
+    },
+  ];
+
+  const parentQuickLinks = [
+    { to: "/", icon: <FaHome className="link-icon" />, label: t.common.home },
+    {
+      to: "/parent-dashboard",
+      icon: <FaUsers className="link-icon" />,
+      label: t.common.dashboard,
+    },
+    {
+      to: "/parent/profile",
+      icon: <FaUser className="link-icon" />,
+      label: t.common.profile,
+    },
+    {
+      to: "/settings",
+      icon: <FaCog className="link-icon" />,
+      label: t.common.settings,
+    },
+    {
+      to: "/about",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.footer.aboutUs,
+    },
+    {
+      to: "/contact",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.common.contact,
+    },
+  ];
+
+  const parentAcademicLinks = [
+    {
+      to: "/results",
+      icon: <FaChartBar className="link-icon" />,
+      label: t.navbar.wardResults || "Ward Results",
+    },
+    {
+      to: "/attendance",
+      icon: <FaClipboardList className="link-icon" />,
+      label: t.navbar.wardAttendance || "Ward Attendance",
+    },
+    {
+      to: "/session-results",
+      icon: <FaGraduationCap className="link-icon" />,
+      label: t.navbar.sessionResults || "Session Results",
+    },
+    {
+      to: "/timetable",
+      icon: <FaCalendarAlt className="link-icon" />,
+      label: t.navbar.wardTimetable || "Ward Timetable",
+    },
+  ];
+
+  const parentResourceLinks = [
+    {
+      to: "/fees",
+      icon: <FaMoneyBill className="link-icon" />,
+      label: t.navbar.wardFees || "Ward Fees",
+    },
+    {
+      to: "/transport/tracking",
+      icon: <FaBus className="link-icon" />,
+      label: t.footer.busTracking || "Bus Tracking",
+    },
+  ];
+
+  const studentQuickLinks = [
+    { to: "/", icon: <FaHome className="link-icon" />, label: t.common.home },
+    {
+      to: "/student-dashboard",
+      icon: <FaUserGraduate className="link-icon" />,
+      label: t.common.dashboard,
+    },
+    {
+      to: "/profile",
+      icon: <FaUser className="link-icon" />,
+      label: t.common.profile,
+    },
+    {
+      to: "/settings",
+      icon: <FaCog className="link-icon" />,
+      label: t.common.settings,
+    },
+    {
+      to: "/about",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.footer.aboutUs,
+    },
+    {
+      to: "/contact",
+      icon: <FaArrowRight className="link-icon" />,
+      label: t.common.contact,
+    },
+  ];
+
+  const studentAcademicLinks = [
+    {
+      to: "/results",
+      icon: <FaChartBar className="link-icon" />,
+      label: t.navbar.myResults || "My Results",
+    },
+    {
+      to: "/attendance",
+      icon: <FaClipboardList className="link-icon" />,
+      label: t.navbar.myAttendance || "My Attendance",
+    },
+    {
+      to: "/session-results",
+      icon: <FaGraduationCap className="link-icon" />,
+      label: t.navbar.sessionResults || "Session Results",
+    },
+    {
+      to: "/timetable",
+      icon: <FaCalendarAlt className="link-icon" />,
+      label: t.navbar.myTimetable || "My Timetable",
+    },
+  ];
+
+  const studentResourceLinks = [
+    {
+      to: "/fees",
+      icon: <FaMoneyBill className="link-icon" />,
+      label: t.navbar.myFees || "My Fees",
+    },
+    {
+      to: "/transport/tracking",
+      icon: <FaBus className="link-icon" />,
+      label: t.footer.busTracking || "Bus Tracking",
+    },
+  ];
+
+  const getQuickLinks = () => {
+    if (!isAuthenticated) return publicQuickLinks;
+    if (role === "ADMIN") return adminQuickLinks;
+    if (role === "TEACHER") return teacherQuickLinks;
+    if (role === "PARENT") return parentQuickLinks;
+    if (role === "STUDENT") return studentQuickLinks;
+    return publicQuickLinks;
+  };
+
+  const getAcademicLinks = () => {
+    if (!isAuthenticated) {
+      return [
+        {
+          to: "/",
+          icon: <FaHome className="link-icon" />,
+          label: t.common.home,
+        },
+        {
+          to: "/about",
+          icon: <FaSchool className="link-icon" />,
+          label: t.footer.aboutUs,
+        },
+        {
+          to: "/contact",
+          icon: <FaArrowRight className="link-icon" />,
+          label: t.common.contact,
+        },
+      ];
+    }
+    if (role === "ADMIN") return adminAcademicLinks;
+    if (role === "TEACHER") return teacherAcademicLinks;
+    if (role === "PARENT") return parentAcademicLinks;
+    if (role === "STUDENT") return studentAcademicLinks;
+    return [];
+  };
+
+  const getResourceLinks = () => {
+    if (!isAuthenticated) return publicResourceLinks;
+    if (role === "ADMIN") return adminResourceLinks;
+    if (role === "TEACHER") return teacherResourceLinks;
+    if (role === "PARENT") return parentResourceLinks;
+    if (role === "STUDENT") return studentResourceLinks;
+    return [];
+  };
+
+  const quickLinks = getQuickLinks();
+  const academicLinks = getAcademicLinks();
+  const resourceLinks = getResourceLinks();
+
+  const roleSectionTitle = () => {
+    if (!isAuthenticated) return t.footer.resources;
+    if (role === "ADMIN") return t.footer.resources;
+    if (role === "TEACHER") return t.footer.teacherPortal || "Teacher Portal";
+    if (role === "PARENT") return t.footer.parentPortal || "Parent Portal";
+    if (role === "STUDENT") return t.footer.studentPortal || "Student Portal";
+    return t.footer.resources;
   };
 
   return (
@@ -84,112 +452,39 @@ function Footer() {
           <div className="footer-col">
             <h5>{t.footer.quickLinks}</h5>
             <ul className="footer-links">
-              <li>
-                <Link to="/">
-                  <FaHome className="link-icon" /> {t.common.home}
-                </Link>
-              </li>
-              <li>
-                <Link to="/about">
-                  <FaArrowRight className="link-icon" /> {t.footer.aboutUs}
-                </Link>
-              </li>
-              <li>
-                <Link to="/contact">
-                  <FaArrowRight className="link-icon" /> {t.common.contact}
-                </Link>
-              </li>
-              <li>
-                <Link to={getDashboardLink()}>
-                  <FaArrowRight className="link-icon" /> {t.common.dashboard}
-                </Link>
-              </li>
-              <li>
-                <Link to={getProfileLink()}>
-                  <FaArrowRight className="link-icon" /> {t.common.profile}
-                </Link>
-              </li>
-              <li>
-                <Link to="/settings">
-                  <FaArrowRight className="link-icon" /> {t.common.settings}
-                </Link>
-              </li>
+              {quickLinks.map((item, index) => (
+                <li key={index}>
+                  <Link to={item.to}>
+                    {item.icon} {item.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
           <div className="footer-col">
             <h5>{t.footer.academics}</h5>
             <ul className="footer-links">
-              <li>
-                <Link to="/subjects">
-                  <FaBook className="link-icon" /> Subjects
-                </Link>
-              </li>
-              <li>
-                <Link to="/results">
-                  <FaChartBar className="link-icon" /> Results
-                </Link>
-              </li>
-              <li>
-                <Link to="/timetable">
-                  <FaCalendarAlt className="link-icon" /> Timetable
-                </Link>
-              </li>
-              <li>
-                <Link to="/teachers">
-                  <FaChalkboardTeacher className="link-icon" />{" "}
-                  {t.footer.teacherPortal}
-                </Link>
-              </li>
-              <li>
-                <Link to="/students">
-                  <FaUserGraduate className="link-icon" /> Students
-                </Link>
-              </li>
-              <li>
-                <Link to="/library">
-                  <FaClipboardList className="link-icon" /> Library
-                </Link>
-              </li>
+              {academicLinks.map((item, index) => (
+                <li key={index}>
+                  <Link to={item.to}>
+                    {item.icon} {item.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
           <div className="footer-col">
-            <h5>{t.footer.resources}</h5>
+            <h5>{roleSectionTitle()}</h5>
             <ul className="footer-links">
-              {!isAuthenticated ? (
-                <>
-                  <li>
-                    <Link to="/login">
-                      <FaSignInAlt className="link-icon" /> {t.common.login}
-                    </Link>
-                  </li>
-                  <li>
-                    <Link to="/register">
-                      <FaUserPlus className="link-icon" /> {t.common.register}
-                    </Link>
-                  </li>
-                </>
-              ) : (
-                <>
-                  <li>
-                    <Link to={getDashboardLink()}>
-                      <FaUser className="link-icon" /> {t.common.dashboard}
-                    </Link>
-                  </li>
-                  <li>
-                    <Link to="/fees">
-                      <FaMoneyBill className="link-icon" />{" "}
-                      {t.footer.feeManagement}
-                    </Link>
-                  </li>
-                  <li>
-                    <Link to="/transport/tracking">
-                      <FaBus className="link-icon" /> {t.footer.busTracking}
-                    </Link>
-                  </li>
-                </>
-              )}
+              {resourceLinks.map((item, index) => (
+                <li key={index}>
+                  <Link to={item.to}>
+                    {item.icon} {item.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -199,7 +494,8 @@ function Footer() {
               <li>
                 <FaMapMarkerAlt size={12} className="contact-icon" />
                 <span>
-                  12 Bishop Shanahan Fegge, Onitsha, Anambra State, Nigeria
+                  11 Bishop Shanahan Street, Fegge, Onitsha, Anambra State,
+                  Nigeria
                 </span>
               </li>
               <li>

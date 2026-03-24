@@ -1,6 +1,5 @@
-// src/components/ResultManagement.js - Full working version with all classes showing
-
-import React, { useEffect, useMemo, useState, useRef } from "react";
+// src/components/ResultManagement.js
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   resultAPI,
@@ -24,7 +23,6 @@ import {
   FaSearch,
   FaSpinner,
   FaInfoCircle,
-  FaUserGraduate,
   FaUsers,
   FaBookOpen,
   FaSyncAlt,
@@ -39,11 +37,12 @@ function ResultManagement() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [lockedTeacherClassId, setLockedTeacherClassId] = useState(null);
   const query = new URLSearchParams(location.search);
   const classIdFromQuery = query.get("classId") || "";
   const mineFromQuery = query.get("mine") === "true";
   const subjectIdFromQuery = query.get("subject") || "";
+
+  const [lockedTeacherClassId, setLockedTeacherClassId] = useState(null);
 
   const [students, setStudents] = useState([]);
   const [parentWards, setParentWards] = useState([]);
@@ -58,11 +57,22 @@ function ResultManagement() {
   const [teacherSubjectAssignments, setTeacherSubjectAssignments] = useState(
     [],
   );
-  const [teacherAssignedSubjects, setTeacherAssignedSubjects] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [resultSheet, setResultSheet] = useState(null);
   const [rankings, setRankings] = useState(null);
-  const [teacherClasses, setTeacherClasses] = useState([]);
+
+  // INPUT FLOW
+  const [teachingClasses, setTeachingClasses] = useState([]);
+  const [inputClass, setInputClass] = useState("");
+  const [inputArm, setInputArm] = useState("");
+  const [inputStudents, setInputStudents] = useState([]);
+
+  // VIEW / RANKINGS FLOW
+  const [teacherFormClass, setTeacherFormClass] = useState(null);
+  const [formStudents, setFormStudents] = useState([]);
+
+  // RAW BACKEND CLASS DATA
+  const [teacherClassAssignments, setTeacherClassAssignments] = useState([]);
 
   const [activeTab, setActiveTab] = useState(() => {
     if (isStudent || isParent) return "view";
@@ -78,8 +88,6 @@ function ResultManagement() {
   );
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
-  const [teacherClassAssignments, setTeacherClassAssignments] = useState([]);
-  const [teacherFormClass, setTeacherFormClass] = useState(null);
 
   const terms = ["FIRST", "SECOND", "THIRD"];
 
@@ -138,64 +146,28 @@ function ResultManagement() {
     }));
   }, [availableSessions]);
 
-  const availableRankingClasses = useMemo(() => {
-    if (isAdmin) return classes;
-    if (isTeacher)
-      return Array.from(
-        new Set(teacherClassAssignments.map((c) => c.className)),
-      );
-    return [];
-  }, [isAdmin, isTeacher, teacherClassAssignments]);
-
-  const availableRankingArms = useMemo(() => {
-    if (!selectedClass) return [];
-    if (isAdmin) return ["A", "B", "C"];
-    if (isTeacher) {
-      return teacherClassAssignments
-        .filter(
-          (c) =>
-            normalizeClassName(c.className) ===
-            normalizeClassName(selectedClass),
-        )
-        .map((c) => c.arm);
-    }
-    return [];
-  }, [selectedClass, isAdmin, isTeacher, teacherClassAssignments]);
-
-  const currentTeacherAssignment = useMemo(() => {
-    if (!isTeacher) return null;
-    return (
-      teacherClassAssignments.find(
-        (c) =>
-          normalizeClassName(c.className) ===
-            normalizeClassName(selectedClass) &&
-          normalizeArm(c.arm) === normalizeArm(selectedArm),
-      ) || null
-    );
-  }, [isTeacher, teacherClassAssignments, selectedClass, selectedArm]);
-
-  const teacherSubjectsForCurrentClass = useMemo(() => {
-    if (!isTeacher || !selectedClass || !selectedArm) return [];
+  const teacherSubjectsForCurrentInputClass = useMemo(() => {
+    if (!isTeacher || !inputClass || !inputArm) return [];
     return teacherSubjectAssignments
       .filter(
         (item) =>
           normalizeClassName(item.className) ===
-            normalizeClassName(selectedClass) &&
-          normalizeArm(item.classArm) === normalizeArm(selectedArm),
+            normalizeClassName(inputClass) &&
+          normalizeArm(item.classArm) === normalizeArm(inputArm),
       )
       .map((item) => ({
         subjectId: item.subjectId,
         subjectName: item.subjectName,
       }));
-  }, [isTeacher, teacherSubjectAssignments, selectedClass, selectedArm]);
+  }, [isTeacher, teacherSubjectAssignments, inputClass, inputArm]);
 
   const availableSubjects = useMemo(() => {
     if (!isTeacher) return allSubjects;
     const allowedIds = new Set(
-      teacherSubjectsForCurrentClass.map((s) => String(s.subjectId)),
+      teacherSubjectsForCurrentInputClass.map((s) => String(s.subjectId)),
     );
     return allSubjects.filter((subject) => allowedIds.has(String(subject.id)));
-  }, [allSubjects, isTeacher, teacherSubjectsForCurrentClass]);
+  }, [allSubjects, isTeacher, teacherSubjectsForCurrentInputClass]);
 
   const sortedSubjects = useMemo(() => {
     return [...availableSubjects].sort((a, b) =>
@@ -203,39 +175,64 @@ function ResultManagement() {
     );
   }, [availableSubjects]);
 
-  const filteredStudents = useMemo(() => {
-    let source = isParent ? parentWards : students;
-    if (isTeacher && !mineFromQuery && selectedClass && selectedArm) {
-      source = source.filter(
-        (s) =>
-          normalizeClassName(s.studentClass) ===
-            normalizeClassName(selectedClass) &&
-          normalizeArm(s.classArm) === normalizeArm(selectedArm),
-      );
+  const availableRankingClasses = useMemo(() => {
+    if (isAdmin) return classes;
+    if (isTeacher) return teacherFormClass ? [teacherFormClass.className] : [];
+    return [];
+  }, [isAdmin, isTeacher, teacherFormClass]);
+
+  const availableRankingArms = useMemo(() => {
+    if (!selectedClass) return [];
+    if (isAdmin) return ["A", "B", "C"];
+    if (isTeacher) {
+      return teacherFormClass &&
+        normalizeClassName(teacherFormClass.className) ===
+          normalizeClassName(selectedClass)
+        ? [teacherFormClass.arm]
+        : [];
     }
-    if (!searchTerm.trim()) return source;
+    return [];
+  }, [selectedClass, isAdmin, isTeacher, teacherFormClass]);
+
+  const displayedStudents = useMemo(() => {
+    if (isParent) return parentWards;
+    if (!isTeacher) return students;
+    if (activeTab === "input") return inputStudents;
+    if (activeTab === "view") return formStudents;
+    return formStudents;
+  }, [
+    isParent,
+    isTeacher,
+    students,
+    parentWards,
+    inputStudents,
+    formStudents,
+    activeTab,
+  ]);
+
+  const filteredStudents = useMemo(() => {
+    if (!searchTerm.trim()) return displayedStudents;
+
     const q = searchTerm.toLowerCase();
-    return source.filter(
+    return displayedStudents.filter(
       (s) =>
         s.fullName?.toLowerCase().includes(q) ||
         `${s.firstName || ""} ${s.lastName || ""}`.toLowerCase().includes(q) ||
         s.admissionNumber?.toLowerCase().includes(q) ||
         s.studentClass?.toLowerCase().includes(q),
     );
-  }, [
-    students,
-    parentWards,
-    searchTerm,
-    isParent,
-    isTeacher,
-    selectedClass,
-    selectedArm,
-    mineFromQuery,
-  ]);
+  }, [displayedStudents, searchTerm]);
 
   useEffect(() => {
     loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!mineFromQuery) {
+      setLockedTeacherClassId(null);
+    }
+  }, [mineFromQuery]);
 
   useEffect(() => {
     setResultSheet(null);
@@ -246,50 +243,48 @@ function ResultManagement() {
     selectedStudent,
     selectedClass,
     selectedArm,
+    inputClass,
+    inputArm,
     rankingsType,
   ]);
 
   useEffect(() => {
-    if (!isTeacher || !selectedClass) return;
-    const classArms = teacherClassAssignments
-      .filter(
-        (c) =>
-          normalizeClassName(c.className) === normalizeClassName(selectedClass),
-      )
-      .map((c) => c.arm);
-    if (!classArms.includes(selectedArm)) {
-      if (classArms.length === 1) setSelectedArm(classArms[0]);
-      else if (selectedArm) setSelectedArm("");
+    if (!isTeacher) return;
+    if (teachingClasses.length > 0 && !inputClass) {
+      setInputClass(teachingClasses[0].className);
+      setInputArm(teachingClasses[0].arm);
     }
-  }, [isTeacher, selectedClass, teacherClassAssignments, selectedArm]);
+  }, [isTeacher, teachingClasses, inputClass]);
 
   useEffect(() => {
     if (!isTeacher) return;
-    if (mineFromQuery) {
-      if (!lockedTeacherClassId) return;
-      loadTeacherStudentsForSelectedClass();
+    if (activeTab !== "input") return;
+    if (!inputClass || !inputArm) {
+      setInputStudents([]);
       return;
     }
-    if (!selectedClass || !selectedArm) {
-      setStudents([]);
-      setSelectedStudent(null);
-      return;
-    }
-    loadTeacherStudentsForSelectedClass();
-  }, [
-    isTeacher,
-    selectedClass,
-    selectedArm,
-    lockedTeacherClassId,
-    mineFromQuery,
-  ]);
+    loadTeacherStudentsForTeachingClass(inputClass, inputArm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacher, activeTab, inputClass, inputArm]);
 
   useEffect(() => {
-    if (isTeacher && selectedClass && selectedArm) {
-      loadSubjectAssignmentsForClass(selectedClass, selectedArm);
-      loadTeacherStudentsForSelectedClass();
+    if (!isTeacher) return;
+    if (activeTab !== "view") return;
+    if (!teacherFormClass?.id) {
+      setFormStudents([]);
+      return;
     }
-  }, [isTeacher, selectedClass, selectedArm]);
+    loadTeacherStudentsForFormClass();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacher, activeTab, teacherFormClass]);
+
+  useEffect(() => {
+    if (!isTeacher) return;
+    if (activeTab === "rankings" && teacherFormClass) {
+      setSelectedClass(teacherFormClass.className);
+      setSelectedArm(teacherFormClass.arm);
+    }
+  }, [isTeacher, activeTab, teacherFormClass]);
 
   const loadSessionData = async () => {
     setSessionsLoading(true);
@@ -298,13 +293,17 @@ function ResultManagement() {
         sessionAPI.getAllSessions(),
         sessionAPI.getActiveSession(),
       ]);
+
       const allSessions = Array.isArray(sessionsRes.data)
         ? sessionsRes.data
         : [];
       const sorted = sortSessions(allSessions);
+
       setAvailableSessions(sorted);
+
       const active = activeRes?.data || null;
       setActiveSessionObj(active);
+
       if (active) {
         setSession(getSessionName(active));
         setTerm(active.currentTerm || "FIRST");
@@ -348,18 +347,22 @@ function ResultManagement() {
     setLoading(true);
     try {
       await Promise.all([loadSessionData(), loadSubjects()]);
+
       if (isParent) {
         await loadParentWards();
         return;
       }
+
       if (isStudent) {
         await loadStudentSelf();
         return;
       }
+
       if (isTeacher) {
         await loadTeacherSetup();
         return;
       }
+
       await loadAdminStudents();
     } catch (error) {
       console.error("Error loading initial data:", error);
@@ -391,6 +394,7 @@ function ResultManagement() {
   const loadStudentSelf = async () => {
     try {
       let me = null;
+
       if (studentAPI.getMyProfile) {
         const response = await studentAPI.getMyProfile();
         me = response?.data || null;
@@ -398,6 +402,7 @@ function ResultManagement() {
         const response = await studentAPI.getStudentById(user.studentId);
         me = response?.data || null;
       }
+
       const oneStudent = me ? [me] : [];
       setStudents(oneStudent);
       setSelectedStudent(me || null);
@@ -412,181 +417,76 @@ function ResultManagement() {
     }
   };
 
-  const loadTeacherClasses = async () => {
+  const loadTeacherSetup = async () => {
     try {
-      console.log("=== loadTeacherClasses START ===");
+      const [classesResponse, subjectsResponse] = await Promise.all([
+        teacherAPI.getMyClasses(),
+        teacherAPI.getMySubjectAssignments(),
+      ]);
 
-      // Get subject assignments
-      const subjectsResponse = await teacherAPI.getMySubjectAssignments();
-      const subjectAssignments = Array.isArray(subjectsResponse.data)
+      const classesData = Array.isArray(classesResponse.data)
+        ? classesResponse.data
+        : [];
+      const assignmentsData = Array.isArray(subjectsResponse.data)
         ? subjectsResponse.data
         : [];
-      console.log("ALL subject assignments:", subjectAssignments);
-      console.log("Number of assignments:", subjectAssignments.length);
 
-      // Log each assignment
-      subjectAssignments.forEach((assignment, idx) => {
-        console.log(`Assignment ${idx + 1}:`, {
-          className: assignment.className,
-          classArm: assignment.classArm,
-          subjectId: assignment.subjectId,
-          subjectName: assignment.subjectName,
-        });
-      });
+      console.log("GET /teachers/me/classes =>", classesData);
+      console.log("GET /teachers/me/subject-assignments =>", assignmentsData);
 
-      // Extract unique classes from subject assignments
+      setTeacherClassAssignments(classesData);
+      setTeacherSubjectAssignments(assignmentsData);
+
       const teachingClassesMap = new Map();
-      subjectAssignments.forEach((assignment) => {
-        const className = assignment.className;
-        const classArm = assignment.classArm;
-        const key = `${className}-${classArm}`;
 
-        console.log(
-          `Processing assignment for class: ${className} ${classArm}`,
+      assignmentsData.forEach((assignment) => {
+        const matchedClass = classesData.find(
+          (c) =>
+            normalizeClassName(c.className) ===
+              normalizeClassName(assignment.className) &&
+            normalizeArm(c.arm) === normalizeArm(assignment.classArm),
         );
+
+        const key = `${normalizeClassName(assignment.className)}::${normalizeArm(
+          assignment.classArm,
+        )}`;
 
         if (!teachingClassesMap.has(key)) {
           teachingClassesMap.set(key, {
-            id: `${className}-${classArm}`,
-            className: className,
-            arm: classArm,
-            isFormTeacher: false,
-            subjectCount: 0,
+            id: matchedClass?.id || assignment.classId || null,
+            className: assignment.className,
+            arm: assignment.classArm,
             subjects: [],
           });
         }
-        const classData = teachingClassesMap.get(key);
-        classData.subjectCount++;
-        classData.subjects.push({
+
+        const existing = teachingClassesMap.get(key);
+
+        if (!existing.id && (matchedClass?.id || assignment.classId)) {
+          existing.id = matchedClass?.id || assignment.classId;
+        }
+
+        existing.subjects.push({
           id: assignment.subjectId,
           name: assignment.subjectName,
         });
       });
 
-      const teachingClasses = Array.from(teachingClassesMap.values());
-      console.log("Teaching classes extracted:", teachingClasses);
-      console.log("Number of teaching classes:", teachingClasses.length);
+      const teachingClassesList = Array.from(teachingClassesMap.values());
 
-      // Get form classes
-      const formResponse = await teacherAPI.getMyClasses();
-      const formClasses = Array.isArray(formResponse.data)
-        ? formResponse.data
-        : [];
-      console.log("Form classes from API:", formClasses);
+      console.log("Resolved teachingClassesList =>", teachingClassesList);
 
-      // Combine classes
-      const allClassesMap = new Map();
-
-      teachingClasses.forEach((tc) => {
-        const key = `${tc.className}-${tc.arm}`;
-        allClassesMap.set(key, { ...tc, isTeachingClass: true });
-      });
-
-      formClasses.forEach((fc) => {
-        const key = `${fc.className}-${fc.arm}`;
-        if (allClassesMap.has(key)) {
-          const existing = allClassesMap.get(key);
-          existing.isFormTeacher = true;
-          existing.id = fc.id;
-        } else {
-          allClassesMap.set(key, {
-            id: fc.id,
-            className: fc.className,
-            arm: fc.arm,
-            isFormTeacher: true,
-            isTeachingClass: false,
-            subjectCount: 0,
-            subjects: [],
-          });
-        }
-      });
-
-      const allClasses = Array.from(allClassesMap.values());
-      console.log("FINAL combined classes:", allClasses);
-      console.log("Number of classes:", allClasses.length);
-
-      setTeacherClasses(allClasses);
-
-      // Set default class if none selected
-      if (allClasses.length > 0 && !selectedClass) {
-        console.log(
-          "Setting default class to:",
-          allClasses[0].className,
-          allClasses[0].arm,
-        );
-        setSelectedClass(allClasses[0].className);
-        setSelectedArm(allClasses[0].arm);
-      }
-    } catch (error) {
-      console.error("Error in loadTeacherClasses:", error);
-    }
-  };
-
-  const loadSubjectAssignmentsForClass = async (className, classArm) => {
-    if (!isTeacher || !className || !classArm) return;
-
-    console.log(`Loading subjects for ${className} ${classArm}...`);
-
-    try {
-      const response = await teacherAPI.getMySubjectAssignments();
-      const allAssignments = Array.isArray(response.data) ? response.data : [];
-
-      const filtered = allAssignments.filter(
-        (a) => a.className === className && a.classArm === classArm,
-      );
-
-      console.log(`Subjects for ${className} ${classArm}:`, filtered);
-      setTeacherSubjectAssignments(filtered);
-
-      const uniqueSubjects = new Map();
-      filtered.forEach((assignment) => {
-        if (!uniqueSubjects.has(assignment.subjectId)) {
-          uniqueSubjects.set(assignment.subjectId, {
-            id: assignment.subjectId,
-            name: assignment.subjectName,
-          });
-        }
-      });
-      const uniqueSubjectsArray = Array.from(uniqueSubjects.values());
-      console.log(
-        `Unique subjects for ${className} ${classArm}:`,
-        uniqueSubjectsArray,
-      );
-      setTeacherAssignedSubjects(uniqueSubjectsArray);
-    } catch (error) {
-      console.error("Error loading subject assignments:", error);
-      setTeacherSubjectAssignments([]);
-      setTeacherAssignedSubjects([]);
-    }
-  };
-
-  const loadTeacherSetup = async () => {
-    try {
-      await loadTeacherClasses();
-
-      const classesResponse = await teacherAPI.getMyClasses();
-      const assignmentsRaw = Array.isArray(classesResponse.data)
-        ? classesResponse.data
-        : [];
-      const classAssignments = assignmentsRaw
-        .filter((c) => c?.id && c?.className && c?.arm)
-        .map((c) => ({
-          id: c.id,
-          className: c.className,
-          arm: c.arm,
-          isFormTeacher: c.isFormTeacher || false,
-          subjects: c.subjects || [],
-        }));
-      setTeacherClassAssignments(classAssignments);
+      setTeachingClasses(teachingClassesList);
 
       const formClass =
-        classAssignments.find((c) => c.isFormTeacher === true) ||
-        classAssignments[0] ||
-        null;
+        classesData.find((c) => c.isFormTeacher === true) || null;
       setTeacherFormClass(formClass);
 
-      if (classAssignments.length === 0) {
-        setStudents([]);
+      if (classesData.length === 0 && teachingClassesList.length === 0) {
+        setInputStudents([]);
+        setFormStudents([]);
+        setInputClass("");
+        setInputArm("");
         toast.info(
           t?.resultManagement?.noClassAssigned ||
             "No class assigned to this teacher account",
@@ -594,72 +494,229 @@ function ResultManagement() {
         return;
       }
 
-      if (selectedClass && selectedArm) {
-        await loadSubjectAssignmentsForClass(selectedClass, selectedArm);
-      }
-
       if (classIdFromQuery && mineFromQuery) {
-        const matched = classAssignments.find(
-          (c) => String(c.id) === String(classIdFromQuery),
-        );
+        const matched =
+          teachingClassesList.find(
+            (c) => String(c.id) === String(classIdFromQuery),
+          ) ||
+          classesData.find((c) => String(c.id) === String(classIdFromQuery));
+
         if (!matched) {
           setLockedTeacherClassId(null);
-          setStudents([]);
-          setSelectedClass("");
-          setSelectedArm("");
+          setInputStudents([]);
+          setInputClass("");
+          setInputArm("");
           toast.error(
             t?.resultManagement?.accessRestricted ||
               "You can only access your assigned class arm",
           );
           return;
         }
-        setLockedTeacherClassId(matched.id);
-        setSelectedClass(matched.className);
-        setSelectedArm(matched.arm);
-        const response = await teacherAPI.getMyClassStudents(matched.id);
-        const scopedStudents = Array.isArray(response.data)
-          ? response.data
-          : [];
-        setStudents(scopedStudents);
 
-        if (subjectIdFromQuery && teacherAssignedSubjects.length > 0) {
-          const subjectToAdd = teacherAssignedSubjects.find(
-            (s) => String(s.id) === subjectIdFromQuery,
-          );
-          if (subjectToAdd) {
-            handleAddSubjectWithPreset(subjectToAdd);
-          }
+        setLockedTeacherClassId(matched.id || null);
+        setInputClass(matched.className);
+        setInputArm(matched.arm);
+
+        if (matched.id) {
+          const response = await teacherAPI.getMyClassStudents(matched.id);
+          setInputStudents(Array.isArray(response.data) ? response.data : []);
+        } else {
+          setInputStudents([]);
         }
-        return;
-      }
 
-      if (classAssignments.length === 1) {
-        setLockedTeacherClassId(classAssignments[0].id);
-        setSelectedClass(classAssignments[0].className);
-        setSelectedArm(classAssignments[0].arm);
-        const response = await teacherAPI.getMyClassStudents(
-          classAssignments[0].id,
-        );
-        const scopedStudents = Array.isArray(response.data)
-          ? response.data
-          : [];
-        setStudents(scopedStudents);
+        if (subjectIdFromQuery) {
+          const assignmentSubjects = assignmentsData
+            .filter(
+              (a) =>
+                normalizeClassName(a.className) ===
+                  normalizeClassName(matched.className) &&
+                normalizeArm(a.classArm) === normalizeArm(matched.arm),
+            )
+            .map((a) => ({
+              id: a.subjectId,
+              name: a.subjectName,
+            }));
+
+          const uniqueMap = new Map();
+          assignmentSubjects.forEach((s) => {
+            if (!uniqueMap.has(String(s.id))) uniqueMap.set(String(s.id), s);
+          });
+
+          const subjectToAdd = Array.from(uniqueMap.values()).find(
+            (s) => String(s.id) === String(subjectIdFromQuery),
+          );
+
+          if (subjectToAdd) handleAddSubjectWithPreset(subjectToAdd);
+        }
+
         return;
       }
 
       setLockedTeacherClassId(null);
-      setStudents([]);
+
+      if (teachingClassesList.length > 0) {
+        setInputClass(teachingClassesList[0].className);
+        setInputArm(teachingClassesList[0].arm);
+      }
+
+      if (formClass) {
+        setSelectedClass(formClass.className);
+        setSelectedArm(formClass.arm);
+      }
     } catch (error) {
-      console.error("Error loading teacher setup:", error);
+      console.error("Error loading teacher setup:", error?.response || error);
       toast.error(
         t?.resultManagement?.teacherSetupFailed ||
           "Failed to load your class assignments",
       );
-      setStudents([]);
+      setTeachingClasses([]);
       setTeacherClassAssignments([]);
       setTeacherSubjectAssignments([]);
+      setTeacherFormClass(null);
+      setInputStudents([]);
+      setFormStudents([]);
       setLockedTeacherClassId(null);
     }
+  };
+
+  const loadTeacherStudentsForTeachingClass = async (className, classArm) => {
+    const teachingMatch = teachingClasses.find(
+      (c) =>
+        normalizeClassName(c.className) === normalizeClassName(className) &&
+        normalizeArm(c.arm) === normalizeArm(classArm),
+    );
+
+    const fallbackMatch = teacherClassAssignments.find(
+      (c) =>
+        normalizeClassName(c.className) === normalizeClassName(className) &&
+        normalizeArm(c.arm) === normalizeArm(classArm),
+    );
+
+    const classIdToLoad = teachingMatch?.id || fallbackMatch?.id || null;
+
+    console.log("loadTeacherStudentsForTeachingClass =>", {
+      className,
+      classArm,
+      teachingMatch,
+      fallbackMatch,
+      classIdToLoad,
+    });
+
+    if (!classIdToLoad) {
+      setInputStudents([]);
+      if (activeTab === "input") setSelectedStudent(null);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await teacherAPI.getMyClassStudents(classIdToLoad);
+      const scopedStudents = Array.isArray(response.data) ? response.data : [];
+      setInputStudents(scopedStudents);
+
+      if (
+        activeTab === "input" &&
+        selectedStudent &&
+        !scopedStudents.some((student) => student.id === selectedStudent.id)
+      ) {
+        setSelectedStudent(null);
+      }
+    } catch (error) {
+      console.error(
+        "Error loading teacher students:",
+        error?.response || error,
+      );
+      setInputStudents([]);
+      if (activeTab === "input") setSelectedStudent(null);
+      toast.error(
+        t?.resultManagement?.studentsLoadFailed ||
+          "Failed to load students for selected class",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTeacherStudentsForFormClass = async () => {
+    const formClassAssignment = teacherClassAssignments.find(
+      (c) => c.isFormTeacher === true,
+    );
+    const classIdToLoad = formClassAssignment?.id || teacherFormClass?.id;
+
+    if (!classIdToLoad) {
+      setFormStudents([]);
+      if (activeTab === "view") setSelectedStudent(null);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await teacherAPI.getMyClassStudents(classIdToLoad);
+      const scopedStudents = Array.isArray(response.data) ? response.data : [];
+      setFormStudents(scopedStudents);
+
+      if (
+        activeTab === "view" &&
+        selectedStudent &&
+        !scopedStudents.some((student) => student.id === selectedStudent.id)
+      ) {
+        setSelectedStudent(null);
+      }
+    } catch (error) {
+      console.error(
+        "Error loading form class students:",
+        error?.response || error,
+      );
+      setFormStudents([]);
+      if (activeTab === "view") setSelectedStudent(null);
+      toast.error(
+        t?.resultManagement?.studentsLoadFailed ||
+          "Failed to load students for your form class",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAdminStudents = async () => {
+    try {
+      const response = await studentAPI.getAllStudents();
+      setStudents(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      toast.error(
+        t?.resultManagement?.studentsLoadFailed || "Failed to load students",
+      );
+    }
+  };
+
+  const teacherCanInputStudent = (student) => {
+    if (!isTeacher) return true;
+    if (!inputClass || !inputArm) return false;
+
+    return (
+      normalizeClassName(student?.studentClass) ===
+        normalizeClassName(inputClass) &&
+      normalizeArm(student?.classArm) === normalizeArm(inputArm)
+    );
+  };
+
+  const teacherCanViewStudent = (student) => {
+    if (!isTeacher) return true;
+    if (!teacherFormClass) return false;
+
+    return (
+      normalizeClassName(student?.studentClass) ===
+        normalizeClassName(teacherFormClass.className) &&
+      normalizeArm(student?.classArm) === normalizeArm(teacherFormClass.arm)
+    );
+  };
+
+  const teacherCanTeachSubject = (subjectId) => {
+    if (!isTeacher) return true;
+    return teacherSubjectsForCurrentInputClass.some(
+      (item) => String(item.subjectId) === String(subjectId),
+    );
   };
 
   const handleAddSubjectWithPreset = (subject) => {
@@ -679,64 +736,6 @@ function ResultManagement() {
     ]);
   };
 
-  const loadTeacherStudentsForSelectedClass = async () => {
-    const classIdToLoad = mineFromQuery
-      ? lockedTeacherClassId
-      : currentTeacherAssignment?.id;
-    if (!classIdToLoad) return;
-    setLoading(true);
-    try {
-      const response = await teacherAPI.getMyClassStudents(classIdToLoad);
-      const scopedStudents = Array.isArray(response.data) ? response.data : [];
-      setStudents(scopedStudents);
-      if (
-        selectedStudent &&
-        !scopedStudents.some((student) => student.id === selectedStudent.id)
-      ) {
-        setSelectedStudent(null);
-      }
-    } catch (error) {
-      console.error("Error loading teacher students:", error);
-      setStudents([]);
-      toast.error(
-        t?.resultManagement?.studentsLoadFailed ||
-          "Failed to load students for selected class",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadAdminStudents = async () => {
-    try {
-      const response = await studentAPI.getAllStudents();
-      setStudents(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error("Error fetching students:", error);
-      toast.error(
-        t?.resultManagement?.studentsLoadFailed || "Failed to load students",
-      );
-    }
-  };
-
-  const teacherCanAccessStudent = (student) => {
-    if (!isTeacher) return true;
-    const studentClass = normalizeClassName(student?.studentClass);
-    const studentArm = normalizeArm(student?.classArm);
-    return teacherClassAssignments.some(
-      (c) =>
-        normalizeClassName(c.className) === studentClass &&
-        normalizeArm(c.arm) === studentArm,
-    );
-  };
-
-  const teacherCanTeachSubject = (subjectId) => {
-    if (!isTeacher) return true;
-    return teacherSubjectsForCurrentClass.some(
-      (item) => String(item.subjectId) === String(subjectId),
-    );
-  };
-
   const handleAddSubject = () => {
     if (isTeacher && sortedSubjects.length === 0) {
       toast.error(
@@ -745,6 +744,7 @@ function ResultManagement() {
       );
       return;
     }
+
     setSubjects((prev) => [
       ...prev,
       {
@@ -765,6 +765,7 @@ function ResultManagement() {
     setSubjects((prev) =>
       prev.map((subject) => {
         if (subject.id !== id) return subject;
+
         if (field === "subjectId") {
           const selected = sortedSubjects.find(
             (s) => String(s.id) === String(value),
@@ -775,6 +776,7 @@ function ResultManagement() {
             subjectName: selected?.name || "",
           };
         }
+
         return { ...subject, [field]: parseFloat(value) || 0 };
       }),
     );
@@ -790,6 +792,7 @@ function ResultManagement() {
       safeNumber(subject.project) +
       safeNumber(subject.midtermTest) +
       safeNumber(subject.secondTest);
+
     return ca + safeNumber(subject.examination);
   };
 
@@ -825,29 +828,34 @@ function ResultManagement() {
       );
       return;
     }
+
     if (!ensureSessionAndTerm()) return;
+
     if (!selectedStudent) {
       toast.error(
         t?.resultManagement?.selectStudent || "Please select a student",
       );
       return;
     }
+
     if (isTeacher) {
-      if (!currentTeacherAssignment) {
+      if (!inputClass || !inputArm) {
         toast.error(
-          t?.resultManagement?.classArmOnly ||
-            "You can only enter results for your assigned class arm",
+          t?.resultManagement?.selectClassArm ||
+            "Please select a class and arm to enter results",
         );
         return;
       }
-      if (!teacherCanAccessStudent(selectedStudent)) {
+
+      if (!teacherCanInputStudent(selectedStudent)) {
         toast.error(
           t?.resultManagement?.studentNotInClass ||
-            "You can only enter results for students in your assigned class arm",
+            "You can only enter results for students in the class you are teaching",
         );
         return;
       }
     }
+
     if (subjects.length === 0) {
       toast.error(
         t?.resultManagement?.addSubject || "Please add at least one subject",
@@ -856,6 +864,7 @@ function ResultManagement() {
     }
 
     const usedSubjects = new Set();
+
     for (const subject of subjects) {
       if (!subject.subjectId) {
         toast.error(
@@ -864,22 +873,31 @@ function ResultManagement() {
         );
         return;
       }
+
       if (usedSubjects.has(String(subject.subjectId))) {
         toast.error(
           t?.resultManagement?.duplicateSubject || "Duplicate subject selected",
         );
         return;
       }
+
       usedSubjects.add(String(subject.subjectId));
+
       if (isTeacher && !teacherCanTeachSubject(subject.subjectId)) {
         toast.error(
-          `${t?.resultManagement?.notAllowedForSubject || "You are not allowed to enter result for"} ${subject.subjectName || "this subject"}`,
+          `${
+            t?.resultManagement?.notAllowedForSubject ||
+            "You are not allowed to enter result for"
+          } ${subject.subjectName || "this subject"}`,
         );
         return;
       }
+
       if (!validateScores(subject)) {
         toast.error(
-          `${t?.resultManagement?.scoresExceed || "Scores exceed maximum for"} ${subject.subjectName || "a subject"}`,
+          `${
+            t?.resultManagement?.scoresExceed || "Scores exceed maximum for"
+          } ${subject.subjectName || "a subject"}`,
         );
         return;
       }
@@ -888,6 +906,7 @@ function ResultManagement() {
     setLoading(true);
     try {
       let successCount = 0;
+
       for (const subject of subjects) {
         const resultData = {
           studentId: selectedStudent.id,
@@ -902,15 +921,27 @@ function ResultManagement() {
           examination: safeNumber(subject.examination),
           remarks: "",
         };
-        await resultAPI.addOrUpdateResultDTO(resultData);
+
+        console.log("Submitting resultData =>", resultData);
+        const response = await resultAPI.addOrUpdateResultDTO(resultData);
+        console.log("Save response =>", response?.data);
+
         successCount++;
       }
+
       toast.success(
-        `${successCount} ${t?.resultManagement?.subjectsSaved || "subject(s) saved successfully"}`,
+        `${successCount} ${
+          t?.resultManagement?.subjectsSaved || "subject(s) saved successfully"
+        }`,
       );
       setSubjects([]);
     } catch (error) {
-      console.error("Error saving results:", error);
+      console.error("Error saving results:", {
+        status: error?.response?.status,
+        data: error?.response?.data,
+        error,
+      });
+
       toast.error(
         error?.response?.data?.message ||
           t?.resultManagement?.saveFailed ||
@@ -923,6 +954,7 @@ function ResultManagement() {
 
   const fetchStudentResult = async () => {
     if (!ensureSessionAndTerm()) return;
+
     setLoading(true);
     try {
       if (isStudent) {
@@ -933,6 +965,7 @@ function ResultManagement() {
         );
         return;
       }
+
       if (isParent) {
         if (!selectedStudent) {
           toast.error(
@@ -940,6 +973,7 @@ function ResultManagement() {
           );
           return;
         }
+
         const response = await parentPortalAPI.getWardTermResult(
           selectedStudent.id,
           session,
@@ -951,19 +985,32 @@ function ResultManagement() {
         );
         return;
       }
+
       if (!selectedStudent) {
         toast.error(
           t?.resultManagement?.selectStudent || "Please select a student",
         );
         return;
       }
-      if (isTeacher && !teacherCanAccessStudent(selectedStudent)) {
-        toast.error(
-          t?.resultManagement?.studentNotInClass ||
-            "You can only view results for students in your assigned class arm",
-        );
-        return;
+
+      if (isTeacher) {
+        if (!teacherFormClass) {
+          toast.error(
+            t?.resultManagement?.formTeacherOnly ||
+              "You can only view results for your form class",
+          );
+          return;
+        }
+
+        if (!teacherCanViewStudent(selectedStudent)) {
+          toast.error(
+            t?.resultManagement?.formTeacherOnlyView ||
+              "You can only view results for students in your form class",
+          );
+          return;
+        }
       }
+
       const response = await resultAPI.getTermResult(
         selectedStudent.id,
         session,
@@ -994,29 +1041,29 @@ function ResultManagement() {
       );
       return;
     }
+
     if (!ensureSessionAndTerm()) return;
+
     setLoading(true);
     try {
       let response;
+
       if (isTeacher) {
-        if (!selectedClass || !selectedArm) {
+        const formClassAssignment = teacherClassAssignments.find(
+          (c) => c.isFormTeacher === true,
+        );
+        const formClassId = formClassAssignment?.id || teacherFormClass?.id;
+
+        if (!formClassId) {
           toast.error(
-            t?.resultManagement?.selectClassArm ||
-              "Please select your assigned class and arm",
+            t?.resultManagement?.formTeacherOnlyRankings ||
+              "Only your form class rankings are available",
           );
-          setLoading(false);
           return;
         }
-        if (!currentTeacherAssignment) {
-          toast.error(
-            t?.resultManagement?.classArmOnlyRankings ||
-              "You can only view rankings for your assigned class arm",
-          );
-          setLoading(false);
-          return;
-        }
+
         response = await teacherAPI.getMyClassResults(
-          currentTeacherAssignment.id,
+          formClassId,
           session,
           term,
         );
@@ -1028,7 +1075,6 @@ function ResultManagement() {
             toast.error(
               t?.resultManagement?.selectClass || "Please select a class",
             );
-            setLoading(false);
             return;
           }
           response = await resultAPI.getClassRankings(
@@ -1042,7 +1088,6 @@ function ResultManagement() {
               t?.resultManagement?.selectClassArm ||
                 "Please select class and arm",
             );
-            setLoading(false);
             return;
           }
           response = await resultAPI.getArmRankings(
@@ -1055,10 +1100,10 @@ function ResultManagement() {
           toast.error(
             t?.resultManagement?.invalidRankingType || "Invalid ranking type",
           );
-          setLoading(false);
           return;
         }
       }
+
       setRankings(response.data);
       toast.success(
         t?.resultManagement?.rankingsLoaded || "Rankings loaded successfully",
@@ -1083,16 +1128,22 @@ function ResultManagement() {
       );
       return;
     }
+
     let targetStudent = null;
-    if (isStudent)
+
+    if (isStudent) {
       targetStudent = selectedStudent || students[0] || user?.student || null;
-    else if (isParent || isTeacher || isAdmin) targetStudent = selectedStudent;
+    } else {
+      targetStudent = selectedStudent;
+    }
+
     if (!targetStudent?.id) {
       toast.error(
         t?.resultManagement?.selectStudent || "Please select a student",
       );
       return;
     }
+
     if (!session || !term) {
       toast.error(
         t?.resultManagement?.selectSessionTerm ||
@@ -1100,8 +1151,11 @@ function ResultManagement() {
       );
       return;
     }
+
     navigate(
-      `/results/${targetStudent.id}?session=${encodeURIComponent(session)}&term=${encodeURIComponent(term)}`,
+      `/results/${targetStudent.id}?session=${encodeURIComponent(
+        session,
+      )}&term=${encodeURIComponent(term)}`,
     );
   };
 
@@ -1130,29 +1184,30 @@ function ResultManagement() {
       : t?.resultManagement?.selectStudent || "Select Student";
 
   const renderPageTitle = () => {
-    if (isStudent)
+    if (isStudent) {
       return (
         t?.resultManagement?.viewResultsTitle || "View your academic results"
       );
-    if (isParent)
+    }
+    if (isParent) {
       return (
         t?.resultManagement?.wardResultsTitle ||
         "View your ward's academic results"
       );
-    if (isTeacher)
+    }
+    if (isTeacher) {
       return (
         t?.resultManagement?.teacherResultsTitle ||
-        "Enter and view results only for your assigned class arm and subject assignments"
+        "Input results for teaching classes, view results and rankings only for form class"
       );
+    }
     return (
       t?.resultManagement?.adminResultsTitle ||
       "Enter, view and analyze student results"
     );
   };
 
-  const currentStudentList = isParent ? parentWards : students;
-
-  if ((sessionsLoading || subjectsLoading) && currentStudentList.length === 0) {
+  if ((sessionsLoading || subjectsLoading) && displayedStudents.length === 0) {
     return (
       <div className="result-management">
         <div className="text-center py-5">
@@ -1174,7 +1229,23 @@ function ResultManagement() {
             {t?.resultManagement?.title || "Result Management System"}
           </h2>
           <p className="text-muted mb-0">{renderPageTitle()}</p>
+
+          {isTeacher && teacherFormClass && (
+            <small className="text-info d-block mt-1">
+              <FaInfoCircle className="me-1" />
+              Form Class: {teacherFormClass.className} {teacherFormClass.arm}
+            </small>
+          )}
+
+          {isTeacher && teachingClasses.length > 0 && (
+            <small className="text-success d-block mt-1">
+              <FaBookOpen className="me-1" />
+              Teaching Classes:{" "}
+              {teachingClasses.map((c) => `${c.className} ${c.arm}`).join(", ")}
+            </small>
+          )}
         </div>
+
         <button
           className="btn btn-outline-primary"
           onClick={() => {
@@ -1182,6 +1253,8 @@ function ResultManagement() {
             loadSubjects();
             if (isTeacher) loadTeacherSetup();
             if (isStudent) loadStudentSelf();
+            if (isParent) loadParentWards();
+            if (isAdmin) loadAdminStudents();
           }}
         >
           <FaSyncAlt className="me-2" /> {t?.common?.refresh || "Refresh"}
@@ -1203,21 +1276,35 @@ function ResultManagement() {
         {(isAdmin || isTeacher) && (
           <button
             className={`tab-btn ${activeTab === "input" ? "active" : ""}`}
-            onClick={() => setActiveTab("input")}
+            onClick={() => {
+              setActiveTab("input");
+              setSelectedStudent(null);
+              setResultSheet(null);
+            }}
           >
             <FaPlus /> {t?.resultManagement?.inputResults || "Input Results"}
           </button>
         )}
+
         <button
           className={`tab-btn ${activeTab === "view" ? "active" : ""}`}
-          onClick={() => setActiveTab("view")}
+          onClick={() => {
+            setActiveTab("view");
+            setSelectedStudent(null);
+            setResultSheet(null);
+          }}
         >
           <FaEye /> {t?.resultManagement?.viewResults || "View Results"}
         </button>
+
         {(isAdmin || isTeacher) && (
           <button
             className={`tab-btn ${activeTab === "rankings" ? "active" : ""}`}
-            onClick={() => setActiveTab("rankings")}
+            onClick={() => {
+              setActiveTab("rankings");
+              setSelectedStudent(null);
+              setResultSheet(null);
+            }}
           >
             <FaChartLine /> {t?.resultManagement?.rankings || "Rankings"}
           </button>
@@ -1241,87 +1328,115 @@ function ResultManagement() {
                       type="text"
                       placeholder={
                         isParent
-                          ? t?.resultManagement?.searchWardPlaceholder ||
-                            "Search by ward name, admission or class..."
-                          : t?.resultManagement?.searchStudentPlaceholder ||
-                            "Search by name, admission or class..."
+                          ? "Search by ward name, admission or class..."
+                          : "Search by name, admission or class..."
                       }
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
                 </div>
-                {isTeacher && teacherClasses.length > 0 && (
+
+                {isTeacher && activeTab === "input" && (
                   <>
                     <div className="filter-group">
                       <label>{t?.resultManagement?.class || "Class"}</label>
                       <select
-                        value={selectedClass}
+                        value={inputClass}
                         onChange={(e) => {
                           const newClass = e.target.value;
-                          console.log("Selected class:", newClass);
-                          setSelectedClass(newClass);
-                          // Find the arm for this class
-                          const classOptions = teacherClasses.filter(
-                            (c) => c.className === newClass,
-                          );
-                          if (classOptions.length > 0) {
-                            setSelectedArm(classOptions[0].arm);
-                          } else {
-                            setSelectedArm("");
-                          }
+
+                          setInputClass(newClass);
+
+                          const matchingArms = teachingClasses
+                            .filter(
+                              (c) =>
+                                normalizeClassName(c.className) ===
+                                normalizeClassName(newClass),
+                            )
+                            .map((c) => c.arm);
+
+                          setInputArm(matchingArms[0] || "");
                           setSelectedStudent(null);
                           setSubjects([]);
+
+                          console.log("Changed input class =>", {
+                            newClass,
+                            matchingArms,
+                            teachingClasses,
+                          });
                         }}
-                        disabled={mineFromQuery}
+                        disabled={false}
                       >
                         <option value="">
                           {t?.common?.select || "Select Class"}
                         </option>
-                        {teacherClasses
-                          .filter(
-                            (v, i, a) =>
-                              a.findIndex(
-                                (t) => t.className === v.className,
-                              ) === i,
-                          )
-                          .map((c) => (
-                            <option key={c.className} value={c.className}>
-                              {c.className}{" "}
-                              {c.isFormTeacher ? "(Form Class)" : ""}
-                            </option>
-                          ))}
+                        {Array.from(
+                          new Map(
+                            teachingClasses.map((c) => [
+                              normalizeClassName(c.className),
+                              c.className,
+                            ]),
+                          ).values(),
+                        ).map((className) => (
+                          <option key={className} value={className}>
+                            {className}
+                          </option>
+                        ))}
                       </select>
                     </div>
+
                     <div className="filter-group">
                       <label>{t?.resultManagement?.arm || "Arm"}</label>
                       <select
-                        value={selectedArm}
+                        value={inputArm}
                         onChange={(e) => {
-                          console.log("Selected arm:", e.target.value);
-                          setSelectedArm(e.target.value);
+                          const newArm = e.target.value;
+                          setInputArm(newArm);
                           setSelectedStudent(null);
                           setSubjects([]);
+
+                          console.log("Changed input arm =>", {
+                            inputClass,
+                            newArm,
+                          });
                         }}
-                        disabled={!selectedClass || mineFromQuery}
+                        disabled={!inputClass}
                       >
                         <option value="">
                           {t?.common?.select || "Select Arm"}
                         </option>
-                        {teacherClasses
-                          .filter((c) => c.className === selectedClass)
+                        {teachingClasses
+                          .filter(
+                            (c) =>
+                              normalizeClassName(c.className) ===
+                              normalizeClassName(inputClass),
+                          )
                           .map((c) => (
-                            <option key={c.arm} value={c.arm}>
-                              Arm {c.arm}{" "}
-                              {c.subjectCount > 0
-                                ? `(${c.subjectCount} subjects)`
-                                : ""}
+                            <option
+                              key={`${c.className}-${c.arm}`}
+                              value={c.arm}
+                            >
+                              {c.arm}
                             </option>
                           ))}
                       </select>
                     </div>
                   </>
                 )}
+
+                {isTeacher && activeTab === "view" && teacherFormClass && (
+                  <div className="filter-group">
+                    <label>Form Class</label>
+                    <input
+                      type="text"
+                      readOnly
+                      className="form-control bg-light"
+                      value={`${teacherFormClass.className} ${teacherFormClass.arm}`}
+                    />
+                  </div>
+                )}
+
                 <div className="filter-group">
                   <label>{renderStudentSelectorLabel()}</label>
                   <select
@@ -1335,24 +1450,23 @@ function ResultManagement() {
                     }}
                   >
                     <option value="">
-                      {isParent
-                        ? t?.resultManagement?.chooseWard || "Choose a ward"
-                        : t?.resultManagement?.chooseStudent ||
-                          "Choose a student"}
+                      {isParent ? "Choose a ward" : "Choose a student"}
                     </option>
                     {filteredStudents.map((s) => (
                       <option key={s.id} value={s.id}>
                         {(
                           s.fullName ||
                           `${s.firstName || ""} ${s.lastName || ""}`
-                        ).trim()}{" "}
-                        - {s.admissionNumber} ({s.studentClass} {s.classArm})
+                        ).trim()}
+                        {" - "} {s.admissionNumber} ({s.studentClass}{" "}
+                        {s.classArm})
                       </option>
                     ))}
                   </select>
                 </div>
               </>
             )}
+
             <div className="filter-group">
               <label>{t?.resultManagement?.session || "Session"}</label>
               <select
@@ -1366,48 +1480,41 @@ function ResultManagement() {
                     </option>
                   ))
                 ) : (
-                  <option value="">
-                    {t?.common?.noSessionAvailable || "No session available"}
-                  </option>
+                  <option value="">No session available</option>
                 )}
               </select>
             </div>
+
             <div className="filter-group">
               <label>{t?.resultManagement?.term || "Term"}</label>
               <select value={term} onChange={(e) => setTerm(e.target.value)}>
-                {terms.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {terms.map((tt) => (
+                  <option key={tt} value={tt}>
+                    {tt}
                   </option>
                 ))}
               </select>
             </div>
           </div>
-          {(session || term) && (
-            <div className="mt-2 text-muted small">
-              <FaBookOpen className="me-1" />{" "}
-              {t?.resultManagement?.currentSelection || "Current selection"}:{" "}
-              {session || "No session"} {term ? `- ${term} term` : ""}
-            </div>
-          )}
         </div>
       )}
 
-      {/* Input Results Tab - keep existing structure */}
       {activeTab === "input" && (isAdmin || isTeacher) && (
         <div className="input-results">
           <div className="section-header">
             <h3>
-              {t?.resultManagement?.enterScoresFor || "Enter Scores for"}{" "}
+              Enter Scores for{" "}
               {selectedStudent
                 ? selectedStudent.fullName ||
                   `${selectedStudent.firstName || ""} ${selectedStudent.lastName || ""}`.trim()
-                : t?.resultManagement?.selectedStudent || "Selected Student"}
+                : "Selected Student"}
             </h3>
+
             <div className="header-actions">
               <button className="btn-secondary" onClick={clearForm}>
-                {t?.common?.clear || "Clear"}
+                Clear
               </button>
+
               <button
                 className="btn-primary"
                 onClick={handleAddSubject}
@@ -1415,40 +1522,15 @@ function ResultManagement() {
                   subjectsLoading || (isTeacher && sortedSubjects.length === 0)
                 }
               >
-                <FaPlus /> {t?.resultManagement?.addSubject || "Add Subject"}
+                <FaPlus /> Add Subject
               </button>
             </div>
           </div>
-          {!selectedStudent && (
-            <div className="alert-info">
-              <FaInfoCircle />{" "}
-              {t?.resultManagement?.selectStudentToEnter ||
-                "Please select a student from the dropdown above to enter results."}
-            </div>
-          )}
-          {isTeacher &&
-            selectedClass &&
-            selectedArm &&
-            sortedSubjects.length === 0 && (
-              <div className="alert-warning">
-                <FaInfoCircle />{" "}
-                {t?.resultManagement?.noSubjectAssignedMessage ||
-                  "No subject has been assigned to you for this class arm. Please contact the administrator."}
-              </div>
-            )}
-          {selectedStudent && subjects.length === 0 && (
-            <div className="alert-warning">
-              <FaPlus />{" "}
-              {t?.resultManagement?.addSubjectToStart ||
-                'No subjects added. Click "Add Subject" to start entering results.'}
-            </div>
-          )}
+
           {subjects.map((subject, index) => (
             <div key={subject.id} className="subject-card">
               <div className="subject-header">
-                <h6>
-                  {t?.resultManagement?.subject || "Subject"} {index + 1}
-                </h6>
+                <h6>Subject {index + 1}</h6>
                 <button
                   className="btn-icon btn-danger"
                   onClick={() => handleRemoveSubject(subject.id)}
@@ -1456,10 +1538,11 @@ function ResultManagement() {
                   <FaTrash />
                 </button>
               </div>
+
               <div className="subject-body">
                 <div className="form-row">
                   <div className="form-group">
-                    <label>{t?.resultManagement?.subject || "Subject"}</label>
+                    <label>Subject</label>
                     <select
                       value={subject.subjectId}
                       onChange={(e) =>
@@ -1470,9 +1553,7 @@ function ResultManagement() {
                         )
                       }
                     >
-                      <option value="">
-                        {t?.common?.select || "Select Subject"}
-                      </option>
+                      <option value="">Select Subject</option>
                       {sortedSubjects.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
@@ -1480,10 +1561,14 @@ function ResultManagement() {
                       ))}
                     </select>
                   </div>
+
                   <div className="form-group">
                     <label>RT (5)</label>
                     <input
                       type="number"
+                      min="0"
+                      max="5"
+                      step="0.5"
                       value={subject.resumptionTest}
                       onChange={(e) =>
                         handleSubjectChange(
@@ -1492,15 +1577,16 @@ function ResultManagement() {
                           e.target.value,
                         )
                       }
-                      min="0"
-                      max="5"
-                      step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Ass (10)</label>
                     <input
                       type="number"
+                      min="0"
+                      max="10"
+                      step="0.5"
                       value={subject.assignments}
                       onChange={(e) =>
                         handleSubjectChange(
@@ -1509,15 +1595,16 @@ function ResultManagement() {
                           e.target.value,
                         )
                       }
-                      min="0"
-                      max="10"
-                      step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Proj (10)</label>
                     <input
                       type="number"
+                      min="0"
+                      max="10"
+                      step="0.5"
                       value={subject.project}
                       onChange={(e) =>
                         handleSubjectChange(
@@ -1526,15 +1613,16 @@ function ResultManagement() {
                           e.target.value,
                         )
                       }
-                      min="0"
-                      max="10"
-                      step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>MT (10)</label>
                     <input
                       type="number"
+                      min="0"
+                      max="10"
+                      step="0.5"
                       value={subject.midtermTest}
                       onChange={(e) =>
                         handleSubjectChange(
@@ -1543,15 +1631,16 @@ function ResultManagement() {
                           e.target.value,
                         )
                       }
-                      min="0"
-                      max="10"
-                      step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>2nd (5)</label>
                     <input
                       type="number"
+                      min="0"
+                      max="5"
+                      step="0.5"
                       value={subject.secondTest}
                       onChange={(e) =>
                         handleSubjectChange(
@@ -1560,15 +1649,16 @@ function ResultManagement() {
                           e.target.value,
                         )
                       }
-                      min="0"
-                      max="5"
-                      step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Exam (60)</label>
                     <input
                       type="number"
+                      min="0"
+                      max="60"
+                      step="0.5"
                       value={subject.examination}
                       onChange={(e) =>
                         handleSubjectChange(
@@ -1577,24 +1667,23 @@ function ResultManagement() {
                           e.target.value,
                         )
                       }
-                      min="0"
-                      max="60"
-                      step="0.5"
                     />
                   </div>
+
                   <div className="form-group">
-                    <label>{t?.resultManagement?.total || "Total"}</label>
+                    <label>Total</label>
                     <input
                       type="text"
+                      readOnly
                       className="total-field"
                       value={calculateSubjectTotal(subject).toFixed(1)}
-                      readOnly
                     />
                   </div>
                 </div>
               </div>
             </div>
           ))}
+
           {subjects.length > 0 && (
             <div className="form-actions">
               <button
@@ -1604,15 +1693,11 @@ function ResultManagement() {
               >
                 {loading ? (
                   <>
-                    <FaSpinner className="spin" />{" "}
-                    {t?.common?.saving || "Saving..."}
+                    <FaSpinner className="spin" /> Saving...
                   </>
                 ) : (
                   <>
-                    <FaSave />{" "}
-                    {t?.resultManagement?.saveAllResults || "Save All Results"}{" "}
-                    ({subjects.length}{" "}
-                    {t?.resultManagement?.subjects || "subjects"})
+                    <FaSave /> Save All Results
                   </>
                 )}
               </button>
@@ -1621,18 +1706,17 @@ function ResultManagement() {
         </div>
       )}
 
-      {/* View Results Tab */}
       {activeTab === "view" && (
         <div className="view-results">
           <div className="section-header no-print">
             <h3>
               {isStudent
-                ? t?.resultManagement?.myResults || "My Results"
+                ? "My Results"
                 : isParent
-                  ? t?.resultManagement?.wardResults || "Ward Results"
-                  : t?.resultManagement?.viewStudentResults ||
-                    "View Student Results"}
+                  ? "Ward Results"
+                  : "View Student Results"}
             </h3>
+
             <div className="header-actions">
               <button
                 className="btn btn-outline-primary"
@@ -1644,49 +1728,41 @@ function ResultManagement() {
                 ) : (
                   <FaEye className="me-2" />
                 )}
-                {t?.resultManagement?.loadResult || "Load Result"}
+                Load Result
               </button>
+
               {resultSheet && (
                 <button className="btn btn-success" onClick={viewResultSheet}>
-                  <FaPrint size={14} />{" "}
-                  <span>
-                    {t?.resultManagement?.printableResult || "Printable Result"}
-                  </span>
+                  <FaPrint size={14} /> <span>Printable Result</span>
                 </button>
               )}
             </div>
           </div>
-          {resultSheet ? (
+
+          {resultSheet && (
             <div className="result-card print-area">
               <div className="result-header">
-                <h4 className="mb-0">
-                  {t?.resultManagement?.termResultSummary ||
-                    "Term Result Summary"}
-                </h4>
+                <h4 className="mb-0">Term Result Summary</h4>
               </div>
+
               <div className="result-body">
                 <div className="student-info">
                   <div>
                     <p>
-                      <strong>
-                        {t?.studentDetails?.student || "Student"}:
-                      </strong>{" "}
+                      <strong>Student:</strong>{" "}
                       {resultSheet.studentInfo?.name ||
                         selectedStudent?.fullName ||
                         `${selectedStudent?.firstName || ""} ${selectedStudent?.lastName || ""}`.trim() ||
-                        user?.firstName ||
                         "-"}
                     </p>
                     <p>
-                      <strong>
-                        {t?.studentDetails?.admissionNumber || "Admission"}:
-                      </strong>{" "}
+                      <strong>Admission:</strong>{" "}
                       {resultSheet.studentInfo?.admissionNumber ||
                         selectedStudent?.admissionNumber ||
                         "-"}
                     </p>
                     <p>
-                      <strong>{t?.studentDetails?.class || "Class"}:</strong>{" "}
+                      <strong>Class:</strong>{" "}
                       {resultSheet.studentInfo?.class ||
                         selectedStudent?.studentClass ||
                         "-"}{" "}
@@ -1695,28 +1771,25 @@ function ResultManagement() {
                         ""}
                     </p>
                   </div>
+
                   <div>
                     <p>
-                      <strong>
-                        {t?.resultManagement?.session || "Session"}:
-                      </strong>{" "}
-                      {session}
+                      <strong>Session:</strong> {session}
                     </p>
                     <p>
-                      <strong>{t?.resultManagement?.term || "Term"}:</strong>{" "}
-                      {term}
+                      <strong>Term:</strong> {term}
                     </p>
                     <p>
-                      <strong>{t?.common?.date || "Date"}:</strong>{" "}
-                      {moment().format("DD/MM/YYYY")}
+                      <strong>Date:</strong> {moment().format("DD/MM/YYYY")}
                     </p>
                   </div>
                 </div>
+
                 <div className="table-responsive">
                   <table className="table table-bordered table-hover">
                     <thead className="table-dark">
                       <tr>
-                        <th>{t?.studentDashboard?.subject || "Subject"}</th>
+                        <th>Subject</th>
                         <th>RT (5)</th>
                         <th>Ass (10)</th>
                         <th>Proj (10)</th>
@@ -1724,8 +1797,8 @@ function ResultManagement() {
                         <th>2nd (5)</th>
                         <th>CA Total</th>
                         <th>Exam (60)</th>
-                        <th>{t?.studentDashboard?.total || "Total"} (100)</th>
-                        <th>{t?.studentDashboard?.grade || "Grade"}</th>
+                        <th>Total (100)</th>
+                        <th>Grade</th>
                         <th>Remark</th>
                       </tr>
                     </thead>
@@ -1772,12 +1845,13 @@ function ResultManagement() {
                     </tbody>
                   </table>
                 </div>
+
                 <div className="row mt-4">
                   <div className="col-md-3">
                     <div className="card text-center">
                       <div className="card-body">
                         <h6 className="card-subtitle mb-2 text-muted">
-                          {t?.studentDetails?.totalScore || "Total Score"}
+                          Total Score
                         </h6>
                         <h3 className="card-title text-primary mb-0">
                           {safeNumber(resultSheet.summary?.totalScore)}
@@ -1785,11 +1859,12 @@ function ResultManagement() {
                       </div>
                     </div>
                   </div>
+
                   <div className="col-md-3">
                     <div className="card text-center">
                       <div className="card-body">
                         <h6 className="card-subtitle mb-2 text-muted">
-                          {t?.studentDetails?.average || "Average"}
+                          Average
                         </h6>
                         <h3 className="card-title text-success mb-0">
                           {safeFixed(resultSheet.summary?.average, 2)}%
@@ -1797,11 +1872,12 @@ function ResultManagement() {
                       </div>
                     </div>
                   </div>
+
                   <div className="col-md-3">
                     <div className="card text-center">
                       <div className="card-body">
                         <h6 className="card-subtitle mb-2 text-muted">
-                          {t?.studentDetails?.classPosition || "Class Position"}
+                          Class Position
                         </h6>
                         <h3 className="card-title text-warning mb-0">
                           {resultSheet.summary?.positionInClass || "N/A"}
@@ -1809,11 +1885,12 @@ function ResultManagement() {
                       </div>
                     </div>
                   </div>
+
                   <div className="col-md-3">
                     <div className="card text-center">
                       <div className="card-body">
                         <h6 className="card-subtitle mb-2 text-muted">
-                          {t?.studentDetails?.armPosition || "Arm Position"}
+                          Arm Position
                         </h6>
                         <h3 className="card-title text-info mb-0">
                           {resultSheet.summary?.positionInArm || "N/A"}
@@ -1822,204 +1899,104 @@ function ResultManagement() {
                     </div>
                   </div>
                 </div>
-                <div className="card mt-4">
-                  <div className="card-header bg-secondary text-white">
-                    <h6 className="mb-0">
-                      {t?.attendanceManager?.attendanceSummary ||
-                        "Attendance Summary"}
-                    </h6>
-                  </div>
-                  <div className="card-body">
-                    <div className="row text-center">
-                      <div className="col-md-3">
-                        <div className="p-3">
-                          <span className="d-block text-muted">
-                            {t?.attendanceManager?.totalDays || "Total Days"}
-                          </span>
-                          <strong className="fs-4">
-                            {safeNumber(resultSheet.summary?.totalSchoolDays)}
-                          </strong>
-                        </div>
-                      </div>
-                      <div className="col-md-3">
-                        <div className="p-3">
-                          <span className="d-block text-muted">
-                            {t?.attendanceManager?.present || "Days Present"}
-                          </span>
-                          <strong className="fs-4 text-success">
-                            {safeNumber(resultSheet.summary?.daysPresent)}
-                          </strong>
-                        </div>
-                      </div>
-                      <div className="col-md-3">
-                        <div className="p-3">
-                          <span className="d-block text-muted">
-                            {t?.attendanceManager?.absent || "Days Absent"}
-                          </span>
-                          <strong className="fs-4 text-danger">
-                            {safeNumber(resultSheet.summary?.daysAbsent)}
-                          </strong>
-                        </div>
-                      </div>
-                      <div className="col-md-3">
-                        <div className="p-3">
-                          <span className="d-block text-muted">
-                            {t?.attendanceManager?.percentage || "Attendance %"}
-                          </span>
-                          <strong className="fs-4">
-                            {safeFixed(
-                              resultSheet.summary?.attendancePercentage,
-                              1,
-                            )}
-                            %
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
-            </div>
-          ) : (
-            <div className="alert alert-info mt-3 no-print">
-              <FaInfoCircle className="me-2" />
-              {isStudent
-                ? t?.resultManagement?.clickLoadResult ||
-                  'Click "Load Result" to view your result.'
-                : isParent
-                  ? selectedStudent
-                    ? t?.resultManagement?.clickLoadWardResult ||
-                      'Click "Load Result" to view this ward result.'
-                    : t?.resultManagement?.selectWardToView ||
-                      "Please select a ward to view results."
-                  : selectedStudent
-                    ? t?.resultManagement?.clickLoadStudentResult ||
-                      'Click "Load Result" to view results for this student.'
-                    : t?.resultManagement?.selectStudentToView ||
-                      "Please select a student to view results."}
             </div>
           )}
         </div>
       )}
 
-      {/* Rankings Tab */}
       {activeTab === "rankings" && (isAdmin || isTeacher) && (
-        <div className="rankings-tab">
-          <div className="filters-row">
-            {isAdmin && (
-              <select
-                className="form-select"
-                value={rankingsType}
-                onChange={(e) => setRankingsType(e.target.value)}
-              >
-                <option value="school">
-                  {t?.resultManagement?.schoolRankings || "School Rankings"}
-                </option>
-                <option value="class">
-                  {t?.resultManagement?.classRankings || "Class Rankings"}
-                </option>
-                <option value="arm">
-                  {t?.resultManagement?.classArmRankings ||
-                    "Class Arm Rankings"}
-                </option>
-              </select>
-            )}
-            <select
-              className="form-select"
-              value={session}
-              onChange={(e) => setSession(e.target.value)}
-            >
-              {normalizedAvailableSessions.length > 0 ? (
-                normalizedAvailableSessions.map((s) => (
-                  <option key={s.id || s.session} value={s.session}>
-                    {s.session}
-                  </option>
-                ))
-              ) : (
-                <option value="">
-                  {t?.common?.noSessionAvailable || "No session available"}
-                </option>
+        <div className="rankings-section">
+          <div className="section-header no-print">
+            <h3>Rankings</h3>
+
+            <div className="header-actions d-flex flex-wrap gap-2">
+              {!isTeacher && (
+                <>
+                  <select
+                    value={rankingsType}
+                    onChange={(e) => {
+                      setRankingsType(e.target.value);
+                      setRankings(null);
+                    }}
+                  >
+                    <option value="school">School</option>
+                    <option value="class">Class</option>
+                    <option value="arm">Arm</option>
+                  </select>
+
+                  {(rankingsType === "class" || rankingsType === "arm") && (
+                    <select
+                      value={selectedClass}
+                      onChange={(e) => {
+                        setSelectedClass(e.target.value);
+                        if (rankingsType === "class") setSelectedArm("");
+                        setRankings(null);
+                      }}
+                    >
+                      <option value="">Select Class</option>
+                      {availableRankingClasses.map((className) => (
+                        <option key={className} value={className}>
+                          {className}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {rankingsType === "arm" && (
+                    <select
+                      value={selectedArm}
+                      onChange={(e) => {
+                        setSelectedArm(e.target.value);
+                        setRankings(null);
+                      }}
+                      disabled={!selectedClass}
+                    >
+                      <option value="">Select Arm</option>
+                      {availableRankingArms.map((arm) => (
+                        <option key={arm} value={arm}>
+                          {arm}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </>
               )}
-            </select>
-            <select
-              className="form-select"
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-            >
-              {terms.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            {(isTeacher || rankingsType !== "school") && (
-              <select
-                className="form-select"
-                value={selectedClass}
-                onChange={(e) => {
-                  setSelectedClass(e.target.value);
-                  setSelectedArm("");
-                }}
-                disabled={isTeacher && mineFromQuery}
+
+              <button
+                className="btn btn-outline-primary"
+                onClick={fetchRankings}
+                disabled={loading}
               >
-                <option value="">{t?.common?.select || "Select Class"}</option>
-                {availableRankingClasses.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
-            {(isTeacher || rankingsType === "arm") && (
-              <select
-                className="form-select"
-                value={selectedArm}
-                onChange={(e) => setSelectedArm(e.target.value)}
-                disabled={isTeacher && mineFromQuery}
-              >
-                <option value="">{t?.common?.select || "Select Arm"}</option>
-                {availableRankingArms.map((arm) => (
-                  <option key={arm} value={arm}>
-                    {arm}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              className="btn-primary"
-              onClick={fetchRankings}
-              disabled={loading}
-            >
-              {loading ? <FaSpinner className="spin" /> : <FaChartLine />}{" "}
-              {t?.resultManagement?.viewRankings || "View Rankings"}
-            </button>
+                {loading ? <FaSpinner className="spin" /> : <FaChartLine />}{" "}
+                View Rankings
+              </button>
+            </div>
           </div>
+
           {rankings && (
             <div className="rankings-card">
               <div className="rankings-header">
                 <h4>
                   {rankings.className
                     ? `${rankings.className} ${rankings.arm || ""} `
-                    : t?.resultManagement?.school || "School "}{" "}
-                  {t?.resultManagement?.rankings} - {rankings.term || term}{" "}
-                  {t?.resultManagement?.term} {rankings.session || session}
+                    : "School "}
+                  Rankings - {rankings.term || term} Term{" "}
+                  {rankings.session || session}
                 </h4>
               </div>
+
               <div className="rankings-body">
                 <div className="table-responsive">
                   <table className="rankings-table">
                     <thead>
                       <tr>
-                        <th>{t?.resultManagement?.position || "Position"}</th>
-                        <th>
-                          {t?.resultManagement?.studentName || "Student Name"}
-                        </th>
-                        <th>
-                          {t?.studentDetails?.admissionNumber || "Admission No"}
-                        </th>
-                        <th>{t?.resultManagement?.class || "Class"}</th>
-                        <th>{t?.resultManagement?.arm || "Arm"}</th>
-                        <th>{t?.studentDetails?.average || "Average"}</th>
+                        <th>Position</th>
+                        <th>Student Name</th>
+                        <th>Admission No</th>
+                        <th>Class</th>
+                        <th>Arm</th>
+                        <th>Average</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2049,20 +2026,20 @@ function ResultManagement() {
                           </td>
                         </tr>
                       ))}
+
                       {!rankings.rankings?.length && (
                         <tr>
                           <td colSpan="6" className="text-center text-muted">
-                            {t?.resultManagement?.noRankingData ||
-                              "No ranking data found"}
+                            No ranking data found
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
+
                 <p className="total-count">
-                  {t?.resultManagement?.totalStudents || "Total Students"}:{" "}
-                  {safeNumber(rankings.totalStudents)}
+                  Total Students: {safeNumber(rankings.totalStudents)}
                 </p>
               </div>
             </div>
@@ -2070,46 +2047,18 @@ function ResultManagement() {
         </div>
       )}
 
-      {currentStudentList.length === 0 && !loading && !sessionsLoading && (
+      {displayedStudents.length === 0 && !loading && !sessionsLoading && (
         <div className="alert alert-info mt-3 no-print">
           <FaUsers className="me-2" />
           {isParent
-            ? t?.resultManagement?.noWardLinked ||
-              "No ward linked to this parent account."
-            : isTeacher
-              ? t?.resultManagement?.noStudentData ||
-                "No student data available for your assigned class."
-              : isStudent
-                ? t?.resultManagement?.noProfileLinked ||
-                  "No student profile linked to this account."
-                : t?.resultManagement?.noStudentsFound || "No students found."}
+            ? "No wards found."
+            : isStudent
+              ? "Student profile not found."
+              : isTeacher
+                ? "No students found."
+                : "No students found."}
         </div>
       )}
-      {isParent && parentWards.length > 0 && !selectedStudent && (
-        <div className="alert alert-info mt-3 no-print">
-          <FaUserGraduate className="me-2" />{" "}
-          {t?.resultManagement?.selectWardToView ||
-            "Select a ward to view results."}
-        </div>
-      )}
-
-      <style>{`
-        .spin { animation: spin 1s linear infinite; } 
-        @keyframes spin { 
-          from { transform: rotate(0deg); } 
-          to { transform: rotate(360deg); } 
-        } 
-        @media print { 
-          body * { visibility: hidden; } 
-          .print-area, .print-area * { visibility: visible; } 
-          .print-area { position: absolute; left: 0; top: 0; width: 100%; background: #fff; padding: 0; margin: 0; } 
-          .no-print { display: none !important; } 
-          .table, .table th, .table td { border: 1px solid #000 !important; border-collapse: collapse !important; } 
-          .badge { border: 1px solid #000 !important; color: #000 !important; background: transparent !important; } 
-          .card, .result-card, .card-header, .card-body { box-shadow: none !important; } 
-          .result-management { padding: 0 !important; margin: 0 !important; } 
-        }
-      `}</style>
     </div>
   );
 }

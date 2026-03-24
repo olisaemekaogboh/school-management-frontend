@@ -301,12 +301,17 @@ export const teacherAPI = {
 
   getMyTeacherProfile: () => api.get("/teachers/me"),
 
+  // IMPORTANT: frontend depends on isFormTeacher from this response
   getMyClasses: () => api.get("/teachers/me/classes"),
+
+  // Used for result input subject restriction
   getMySubjectAssignments: () => api.get("/teachers/me/subject-assignments"),
 
+  // Used for both teaching-class students and form-class students
   getMyClassStudents: (classId) =>
     api.get(`/teachers/me/classes/${classId}/students`),
 
+  // Must only work for form teacher on backend
   getMyClassResults: (classId, session, term) =>
     api.get(`/teachers/me/classes/${classId}/results`, {
       params: { session, term },
@@ -421,8 +426,9 @@ export const resultAPI = {
       params: { session },
     }),
 
+  // Admin use
   getClassRankings: (className, session, term, arm) =>
-    api.get(`/results/rankings/class/${className}`, {
+    api.get(`/results/rankings/class/${encodeURIComponent(className)}`, {
       params: {
         session,
         term,
@@ -430,10 +436,14 @@ export const resultAPI = {
       },
     }),
 
+  // Admin use
   getArmRankings: (className, arm, session, term) =>
-    api.get(`/results/rankings/class/${className}/arm/${arm}`, {
-      params: { session, term },
-    }),
+    api.get(
+      `/results/rankings/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
+      {
+        params: { session, term },
+      },
+    ),
 
   getSchoolRankings: (session, term) =>
     api.get("/results/rankings/school", {
@@ -461,9 +471,6 @@ export const resultAPI = {
     }),
 };
 
-/* ================================
-   ATTENDANCE API
-================================ */
 /* ================================
    ATTENDANCE API
 ================================ */

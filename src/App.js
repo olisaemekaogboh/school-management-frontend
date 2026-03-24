@@ -94,7 +94,6 @@ function App() {
             <main className="main-content">
               <div className="content-wrapper">
                 <Routes>
-                  {/* Public Routes - Everyone can access */}
                   <Route path="/" element={<Home />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/contact" element={<Contact />} />
@@ -116,7 +115,6 @@ function App() {
                   />
                   <Route path="/verify-student" element={<VerifyStudent />} />
 
-                  {/* Protected Routes - Require Authentication */}
                   <Route
                     path="/dashboard"
                     element={
@@ -344,9 +342,7 @@ function App() {
                   <Route
                     path="/announcements"
                     element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
-                      >
+                      <ProtectedRoute requiredRole="ADMIN">
                         <AnnouncementManager />
                       </ProtectedRoute>
                     }
@@ -370,15 +366,12 @@ function App() {
                   <Route
                     path="/announcements/:id"
                     element={
-                      <ProtectedRoute
-                        requiredRole={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
-                      >
+                      <ProtectedRoute requiredRole="ADMIN">
                         <AnnouncementDetails />
                       </ProtectedRoute>
                     }
                   />
 
-                  {/* Event Management - Admin Only */}
                   <Route
                     path="/events"
                     element={

@@ -63,6 +63,7 @@ function SessionResult() {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
   const [teacherAssignments, setTeacherAssignments] = useState([]);
+  const [lockedTeacherClassId, setLockedTeacherClassId] = useState(null);
 
   const { session, setSession, loadingSession, refreshActiveSession } =
     useActiveSession();
@@ -191,12 +192,49 @@ function SessionResult() {
     }));
   }, [availableSessions]);
 
+  const currentStudentList = isParent ? parentWards : students;
+
+  const teacherCanAccessStudent = useCallback(
+    (student) => {
+      if (!isTeacher) return true;
+
+      const studentClass = normalizeClassName(student?.studentClass);
+      const studentArm = normalizeArm(student?.classArm);
+
+      return teacherAssignments.some(
+        (a) =>
+          normalizeClassName(a.className) === studentClass &&
+          normalizeArm(a.arm) === studentArm,
+      );
+    },
+    [isTeacher, teacherAssignments],
+  );
+
+  const lockedAssignment = useMemo(() => {
+    if (!isTeacher || !mineFromQuery || !lockedTeacherClassId) return null;
+
+    return (
+      teacherAssignments.find(
+        (a) => String(a.id) === String(lockedTeacherClassId),
+      ) || null
+    );
+  }, [isTeacher, mineFromQuery, lockedTeacherClassId, teacherAssignments]);
+
   const allowedClassOptions = useMemo(() => {
     if (isAdmin) {
       return classes.map((name) => ({ name, arms: ["A", "B", "C"] }));
     }
 
     if (isTeacher) {
+      if (mineFromQuery && lockedTeacherClassId && lockedAssignment) {
+        return [
+          {
+            name: lockedAssignment.className,
+            arms: [lockedAssignment.arm],
+          },
+        ];
+      }
+
       const grouped = {};
 
       teacherAssignments.forEach((a) => {
@@ -219,30 +257,20 @@ function SessionResult() {
     }
 
     return [];
-  }, [isAdmin, isTeacher, teacherAssignments]);
-
-  const currentStudentList = isParent ? parentWards : students;
-
-  const teacherCanAccessStudent = useCallback(
-    (student) => {
-      if (!isTeacher) return true;
-
-      const studentClass = normalizeClassName(student?.studentClass);
-      const studentArm = normalizeArm(student?.classArm);
-
-      return teacherAssignments.some(
-        (a) =>
-          normalizeClassName(a.className) === studentClass &&
-          normalizeArm(a.arm) === studentArm,
-      );
-    },
-    [isTeacher, teacherAssignments],
-  );
+  }, [
+    isAdmin,
+    isTeacher,
+    teacherAssignments,
+    mineFromQuery,
+    lockedTeacherClassId,
+    lockedAssignment,
+  ]);
 
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
     loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -256,22 +284,71 @@ function SessionResult() {
   }, [normalizedSessions, session, setSession]);
 
   useEffect(() => {
+    if (!mineFromQuery || !classIdFromQuery) {
+      setLockedTeacherClassId(null);
+      return;
+    }
+
+    setLockedTeacherClassId(Number(classIdFromQuery));
+  }, [mineFromQuery, classIdFromQuery]);
+
+  useEffect(() => {
     if (isTeacher && session) {
       loadTeacherAssignments();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher, session]);
 
   useEffect(() => {
-    if (isTeacher && teacherAssignments.length === 1) {
+    if (!isTeacher || !teacherAssignments.length) return;
+
+    if (mineFromQuery && lockedTeacherClassId) {
+      const matched = teacherAssignments.find(
+        (a) => String(a.id) === String(lockedTeacherClassId),
+      );
+
+      if (matched) {
+        const shouldUpdate =
+          normalizeClassName(selectedClass) !==
+            normalizeClassName(matched.className) ||
+          normalizeArm(selectedArm) !== normalizeArm(matched.arm);
+
+        if (shouldUpdate) {
+          setSelectedClass(matched.className);
+          setSelectedArm(matched.arm);
+          setSelectedStudent(null);
+          setSessionResult(null);
+          setRankings(null);
+        }
+      }
+      return;
+    }
+
+    if (teacherAssignments.length === 1) {
       const only = teacherAssignments[0];
-      setSelectedClass(only.className);
-      setSelectedArm(only.arm);
+      const shouldUpdate =
+        normalizeClassName(selectedClass) !==
+          normalizeClassName(only.className) ||
+        normalizeArm(selectedArm) !== normalizeArm(only.arm);
+
+      if (shouldUpdate) {
+        setSelectedClass(only.className);
+        setSelectedArm(only.arm);
+      }
 
       if (rankingsType === "school") {
         setRankingsType("arm");
       }
     }
-  }, [isTeacher, teacherAssignments, rankingsType]);
+  }, [
+    isTeacher,
+    teacherAssignments,
+    rankingsType,
+    mineFromQuery,
+    lockedTeacherClassId,
+    selectedClass,
+    selectedArm,
+  ]);
 
   useEffect(() => {
     setSessionResult(null);
@@ -285,6 +362,7 @@ function SessionResult() {
     if (selectedStudent) {
       fetchSessionResult();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStudent, session]);
 
   useEffect(() => {
@@ -296,6 +374,7 @@ function SessionResult() {
     ) {
       fetchStudents();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher, selectedClass, selectedArm, teacherAssignments]);
 
   const loadInitialData = async () => {
@@ -332,6 +411,7 @@ function SessionResult() {
         );
 
         if (!matched) {
+          setLockedTeacherClassId(null);
           setSelectedClass("");
           setSelectedArm("");
           setStudents([]);
@@ -343,12 +423,23 @@ function SessionResult() {
           return;
         }
 
+        setLockedTeacherClassId(matched.id || null);
         setSelectedClass(matched.className);
         setSelectedArm(matched.arm);
+
+        if (rankingsType === "school") {
+          setRankingsType("arm");
+        }
         return;
       }
 
       if (normalized.length === 1) {
+        setSelectedClass(normalized[0].className);
+        setSelectedArm(normalized[0].arm);
+        return;
+      }
+
+      if (!selectedClass && normalized.length > 0) {
         setSelectedClass(normalized[0].className);
         setSelectedArm(normalized[0].arm);
       }
@@ -1057,13 +1148,22 @@ function SessionResult() {
                   className="form-select"
                   value={selectedClass}
                   onChange={(e) => {
-                    setSelectedClass(e.target.value);
-                    setSelectedArm("");
+                    const newClass = e.target.value;
+
+                    const allowedArms =
+                      allowedClassOptions.find(
+                        (c) =>
+                          normalizeClassName(c.name) ===
+                          normalizeClassName(newClass),
+                      )?.arms || [];
+
+                    setSelectedClass(newClass);
+                    setSelectedArm(allowedArms[0] || "");
                     setSelectedStudent(null);
                     setSessionResult(null);
                     setRankings(null);
                   }}
-                  disabled={mineFromQuery}
+                  disabled={Boolean(mineFromQuery && lockedTeacherClassId)}
                 >
                   <option value="">
                     {t?.common?.select || "Select Class"}
@@ -1089,7 +1189,10 @@ function SessionResult() {
                     setSessionResult(null);
                     setRankings(null);
                   }}
-                  disabled={!selectedClass || mineFromQuery}
+                  disabled={
+                    !selectedClass ||
+                    Boolean(mineFromQuery && lockedTeacherClassId)
+                  }
                 >
                   <option value="">{t?.common?.select || "Select Arm"}</option>
                   {selectedClass &&

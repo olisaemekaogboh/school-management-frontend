@@ -1,3 +1,4 @@
+// src/components/Home.js
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -38,6 +39,11 @@ function Home() {
   const homeT = t?.home || {};
   const commonT = t?.common || {};
   const footerT = t?.footer || {};
+
+  const schoolAddress =
+    "11 Bishop Shanahan Street, Fegge, Onitsha, Anambra State, Nigeria";
+  const mapQuery = encodeURIComponent(schoolAddress);
+  const mapEmbedSrc = `https://maps.google.com/maps?q=${mapQuery}&t=&z=16&ie=UTF8&iwloc=&output=embed`;
 
   const heroSlides = [
     {
@@ -429,9 +435,7 @@ function Home() {
                   <FaMapMarkerAlt className="contact-icon" />
                   <div>
                     <h4>{homeT.address || "Address"}</h4>
-                    <p>
-                      12 Bishop Shanahan Fegge, Onitsha, Anambra State, Nigeria
-                    </p>
+                    <p>{schoolAddress}</p>
                   </div>
                 </div>
 
@@ -478,9 +482,14 @@ function Home() {
 
             <div className="map-container">
               <iframe
-                title="Faith Foundation School Location"
-                src="https://www.google.com/maps?q=Onitsha,+Anambra,+Nigeria&output=embed"
+                title="Faith Foundation International School, Fegge Onitsha"
+                src={mapEmbedSrc}
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen=""
                 loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
               ></iframe>
             </div>
           </div>

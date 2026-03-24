@@ -1,3 +1,4 @@
+// src/components/About.js
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -26,49 +27,45 @@ import {
   FaCheckCircle,
 } from "react-icons/fa";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import "./About.css";
 
 function About() {
+  const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const [animated, setAnimated] = useState(false);
   const statsRef = useRef(null);
-  const { t } = useLanguage();
 
   const values = [
     {
       icon: <FaRegLightbulb />,
-      title: t.about.values.innovation,
-      description: t.about.values.innovationDesc,
-      color: "#FFD700",
+      title: "Innovation",
+      desc: "Embracing modern technology and innovative teaching methods.",
     },
     {
       icon: <FaUsers />,
-      title: t.about.values.community,
-      description: t.about.values.communityDesc,
-      color: "#FF6B6B",
+      title: "Community",
+      desc: "Building a strong, supportive community.",
     },
     {
       icon: <FaGlobe />,
-      title: t.about.values.globalPerspective,
-      description: t.about.values.globalPerspectiveDesc,
-      color: "#4ECDC4",
+      title: "Global Perspective",
+      desc: "Preparing students for a globalized world.",
     },
     {
       icon: <FaHandsHelping />,
-      title: t.about.values.excellence,
-      description: t.about.values.excellenceDesc,
-      color: "#B83B5E",
+      title: "Excellence",
+      desc: "Striving for excellence in everything we do.",
     },
     {
       icon: <FaShieldAlt />,
-      title: t.about.values.integrity,
-      description: t.about.values.integrityDesc,
-      color: "#F9D56E",
+      title: "Integrity",
+      desc: "Upholding the highest standards of honesty.",
     },
     {
       icon: <FaAward />,
-      title: t.about.values.leadership,
-      description: t.about.values.leadershipDesc,
-      color: "#E84545",
+      title: "Leadership",
+      desc: "Developing confident leaders.",
     },
   ];
 
@@ -76,31 +73,31 @@ function About() {
     {
       year: "2015",
       title: "School Founded",
-      description: "FFIS opened its doors to 100 students",
+      desc: "FFIS opened its doors to 100 students",
       icon: <FaHistory />,
     },
     {
       year: "2018",
       title: "Digital Transformation",
-      description: "Launched integrated school management system",
+      desc: "Launched integrated school management system",
       icon: <FaRocket />,
     },
     {
       year: "2020",
       title: "Online Learning",
-      description: "Adapted to remote learning during global challenges",
+      desc: "Adapted to remote learning during global challenges",
       icon: <FaBookOpen />,
     },
     {
       year: "2023",
       title: "1000+ Students",
-      description: "Reached milestone of 1000 enrolled students",
+      desc: "Reached milestone of 1000 enrolled students",
       icon: <FaGraduationCap />,
     },
     {
       year: "2024",
       title: "Global Recognition",
-      description: "Received international accreditation",
+      desc: "Received international accreditation",
       icon: <FaAward />,
     },
   ];
@@ -109,60 +106,36 @@ function About() {
     {
       name: "Mrs. Cynthia Okeke",
       role: "Principal & CEO",
-      bio: "Masters in Education Leadership with 20+ years of experience. Visionary leader transforming education.",
+      bio: "Masters in Education Leadership with 20+ years of experience.",
       image: "👩‍🏫",
-      gradient: "gradient-1",
     },
     {
       name: "Mr. James Okonkwo",
       role: "Academic Director",
-      bio: "Expert in curriculum development and educational technology integration. Committed to excellence.",
+      bio: "Expert in curriculum development and educational technology.",
       image: "👨‍🏫",
-      gradient: "gradient-2",
     },
     {
       name: "Mr. Ebuka Okafor",
       role: "Administrative Director",
-      bio: "Specializes in school operations and student welfare. Dedicated to creating nurturing environments.",
+      bio: "Specializes in school operations and student welfare.",
       image: "👨‍💼",
-      gradient: "gradient-3",
     },
     {
       name: "Dr. Ngozi Adeyemi",
       role: "Head of Academics",
-      bio: "PhD in Educational Psychology. Expert in student development and learning methodologies.",
+      bio: "PhD in Educational Psychology.",
       image: "👩‍🎓",
-      gradient: "gradient-4",
     },
   ];
 
   const stats = [
-    {
-      value: "10+",
-      label: "Years of Excellence",
-      icon: <FaHistory />,
-      suffix: "",
-    },
-    {
-      value: "50+",
-      label: "Awards & Recognition",
-      icon: <FaAward />,
-      suffix: "+",
-    },
-    {
-      value: "98",
-      label: "Graduation Rate",
-      icon: <FaChartLine />,
-      suffix: "%",
-    },
-    { value: "1000", label: "Happy Students", icon: <FaUsers />, suffix: "+" },
-    {
-      value: "100",
-      label: "Expert Teachers",
-      icon: <FaChalkboardTeacher />,
-      suffix: "+",
-    },
-    { value: "30", label: "Classrooms", icon: <FaBookOpen />, suffix: "+" },
+    { value: "10+", label: "Years of Excellence", icon: <FaHistory /> },
+    { value: "50+", label: "Awards & Recognition", icon: <FaAward /> },
+    { value: "98%", label: "Graduation Rate", icon: <FaChartLine /> },
+    { value: "1000+", label: "Happy Students", icon: <FaUsers /> },
+    { value: "100+", label: "Expert Teachers", icon: <FaChalkboardTeacher /> },
+    { value: "30+", label: "Classrooms", icon: <FaBookOpen /> },
   ];
 
   useEffect(() => {
@@ -170,168 +143,164 @@ function About() {
       (entries) => {
         if (entries[0].isIntersecting) setAnimated(true);
       },
-      { threshold: 0.3 },
+      { threshold: 0.2 },
     );
-
     if (statsRef.current) observer.observe(statsRef.current);
     return () => observer.disconnect();
   }, []);
 
   return (
-    <div className="about-container-dark">
-      <section className="about-hero-dark">
-        <div className="hero-bg-dark"></div>
-        <div className="container">
-          <div className="hero-content-dark">
-            <div className="hero-badge">{t.about.est}</div>
-            <h1 className="hero-title-dark">
-              <span className="title-gradient-dark">{t.about.heroTitle1}</span>
+    <div className={`about-page ${darkMode ? "dark" : "light"}`}>
+      {/* Hero Section */}
+      <section className="about-hero">
+        <div className="about-container">
+          <div className="hero-content">
+            <span className="hero-badge">Est. 2015</span>
+            <h1 className="hero-title">
+              Faith Foundation
               <br />
-              {t.about.heroTitle2}
+              International School
             </h1>
-            <p className="hero-subtitle-dark">{t.about.heroSubtitle}</p>
-            <div className="hero-buttons-dark">
-              <Link to="/register" className="btn-primary-dark">
-                {t.common.joinOurFamily} <FaArrowRight className="btn-icon" />
+            <p className="hero-description">
+              Empowering the next generation of African leaders through quality
+              education and innovation
+            </p>
+            <div className="hero-buttons">
+              <Link to="/register" className="btn btn-primary btn-hero">
+                Join Our Family <FaArrowRight />
               </Link>
-              <Link to="/contact" className="btn-outline-dark">
-                {t.common.contactUs}
+              <Link to="/contact" className="btn btn-outline btn-hero">
+                Contact Us
               </Link>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="stats-section-dark" ref={statsRef}>
-        <div className="container">
-          <div className="stats-grid-dark">
+      {/* Stats Section */}
+      <section className="about-stats" ref={statsRef}>
+        <div className="about-container">
+          <div className="stats-grid">
             {stats.map((stat, index) => (
-              <div key={index} className="stat-card-dark">
-                <div className="stat-icon-dark">{stat.icon}</div>
-                <h3 className="stat-value-dark">
-                  {animated ? stat.value : "0"}
-                  {stat.suffix}
-                </h3>
-                <p className="stat-label-dark">{stat.label}</p>
+              <div key={index} className="stat-item">
+                <div className="stat-icon">{stat.icon}</div>
+                <div className="stat-value">{animated ? stat.value : "0"}</div>
+                <div className="stat-label">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="mission-vision-dark">
-        <div className="container">
-          <div className="mv-grid-dark">
-            <div className="mv-card-dark mission-card-dark">
-              <div className="card-glow"></div>
-              <div className="card-icon-dark">
+      {/* Mission & Vision */}
+      <section className="about-mission-vision">
+        <div className="about-container">
+          <div className="mv-grid">
+            <div className="mv-card">
+              <div className="mv-icon">
                 <FaBullhorn />
               </div>
-              <h3>{t.about.mission}</h3>
-              <p>{t.about.missionText}</p>
+              <h3>Our Mission</h3>
+              <p>
+                To provide a nurturing and innovative learning environment that
+                empowers students to reach their full potential.
+              </p>
             </div>
-            <div className="mv-card-dark vision-card-dark">
-              <div className="card-glow"></div>
-              <div className="card-icon-dark">
+            <div className="mv-card">
+              <div className="mv-icon">
                 <FaRegLightbulb />
               </div>
-              <h3>{t.about.vision}</h3>
-              <p>{t.about.visionText}</p>
+              <h3>Our Vision</h3>
+              <p>
+                To be a world-class educational institution that prepares
+                students to become responsible global citizens.
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="story-section-dark">
-        <div className="container">
-          <div className="story-wrapper-dark">
-            <div className="story-text-dark">
-              <div className="section-badge-dark">{t.about.ourJourney}</div>
-              <h2 className="section-title-dark">{t.about.storyTitle}</h2>
-              <div className="story-content-dark">
-                <p>{t.about.storyP1}</p>
-                <p>{t.about.storyP2}</p>
-                <p>{t.about.storyP3}</p>
-              </div>
-              <div className="story-features-dark">
-                <div className="feature-dark">
-                  <FaCheckCircle className="feature-icon-dark" />
-                  <span>{t.about.accredited}</span>
-                </div>
-                <div className="feature-dark">
-                  <FaCheckCircle className="feature-icon-dark" />
-                  <span>{t.about.facilities}</span>
-                </div>
-                <div className="feature-dark">
-                  <FaCheckCircle className="feature-icon-dark" />
-                  <span>{t.about.faculty}</span>
-                </div>
+      {/* Story Section */}
+      <section className="about-story">
+        <div className="about-container">
+          <div className="story-wrapper">
+            <div className="story-text">
+              <span className="section-badge">Our Journey</span>
+              <h2>The Story of Faith Foundation</h2>
+              <p>
+                Faith Foundation International School (FFIS) was founded in 2015
+                with a vision to revolutionize education.
+              </p>
+              <p>
+                Our journey has been marked by continuous innovation and a
+                commitment to excellence.
+              </p>
+              <p>Today, FFIS stands as a beacon of modern education.</p>
+              <div className="story-features">
+                <span>
+                  <FaCheckCircle /> Accredited Institution
+                </span>
+                <span>
+                  <FaCheckCircle /> Modern Facilities
+                </span>
+                <span>
+                  <FaCheckCircle /> Expert Faculty
+                </span>
               </div>
             </div>
-            <div className="story-image-dark">
-              <div className="image-glow"></div>
-              <div className="image-content-dark">
-                <div className="floating-card-dark">
-                  <FaCalendarAlt />
-                  <span>{t.about.est}</span>
-                </div>
-                <div className="floating-card-dark second">
-                  <FaMapMarkerAlt />
-                  <span>Onitsha, Nigeria</span>
-                </div>
+            <div className="story-image">
+              <div className="floating-card">
+                <FaCalendarAlt /> Est. 2015
+              </div>
+              <div className="floating-card second">
+                <FaMapMarkerAlt /> Onitsha, Nigeria
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="values-section-dark">
-        <div className="container">
-          <div className="section-header-dark">
-            <div className="section-badge-dark">{t.about.whatWeBelieve}</div>
-            <h2 className="section-title-dark">{t.about.coreValues}</h2>
-            <p className="section-subtitle-dark">{t.about.valuesSubtitle}</p>
+      {/* Values Section */}
+      <section className="about-values">
+        <div className="about-container">
+          <div className="section-header">
+            <span className="section-badge">What We Believe</span>
+            <h2>Our Core Values</h2>
+            <p>The principles that guide everything we do</p>
           </div>
-          <div className="values-grid-dark">
+          <div className="values-grid">
             {values.map((value, index) => (
-              <div key={index} className="value-card-dark">
-                <div className="value-icon-dark" style={{ color: value.color }}>
-                  {value.icon}
-                </div>
-                <h3 className="value-title-dark">{value.title}</h3>
-                <p className="value-description-dark">{value.description}</p>
-                <div
-                  className="value-border"
-                  style={{ background: value.color }}
-                ></div>
+              <div key={index} className="value-card">
+                <div className="value-icon">{value.icon}</div>
+                <h3>{value.title}</h3>
+                <p>{value.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="timeline-section-dark">
-        <div className="container">
-          <div className="section-header-dark">
-            <div className="section-badge-dark">{t.about.history}</div>
-            <h2 className="section-title-dark">{t.about.milestones}</h2>
-            <p className="section-subtitle-dark">
-              {t.about.milestonesSubtitle}
-            </p>
+      {/* Timeline Section */}
+      <section className="about-timeline">
+        <div className="about-container">
+          <div className="section-header">
+            <span className="section-badge">Our History</span>
+            <h2>Key Milestones</h2>
+            <p>Celebrating our journey of growth and excellence</p>
           </div>
-          <div className="timeline-dark">
-            {milestones.map((milestone, index) => (
-              <div key={index} className="timeline-item-dark">
-                <div className="timeline-marker-dark">
-                  <div className="timeline-icon-dark">{milestone.icon}</div>
+          <div className="timeline">
+            {milestones.map((item, index) => (
+              <div key={index} className="timeline-item">
+                <div className="timeline-marker">
+                  <div className="timeline-icon">{item.icon}</div>
                   {index < milestones.length - 1 && (
-                    <div className="timeline-line-dark"></div>
+                    <div className="timeline-line"></div>
                   )}
                 </div>
-                <div className="timeline-content-dark">
-                  <div className="timeline-year-dark">{milestone.year}</div>
-                  <h3>{milestone.title}</h3>
-                  <p>{milestone.description}</p>
+                <div className="timeline-content">
+                  <div className="timeline-year">{item.year}</div>
+                  <h3>{item.title}</h3>
+                  <p>{item.desc}</p>
                 </div>
               </div>
             ))}
@@ -339,37 +308,31 @@ function About() {
         </div>
       </section>
 
-      <section className="leadership-section-dark">
-        <div className="container">
-          <div className="section-header-dark">
-            <div className="section-badge-dark">{t.about.leadersBadge}</div>
-            <h2 className="section-title-dark">{t.about.leadersTitle}</h2>
-            <p className="section-subtitle-dark">{t.about.leadersSubtitle}</p>
+      {/* Leadership Section */}
+      <section className="about-leadership">
+        <div className="about-container">
+          <div className="section-header">
+            <span className="section-badge">Meet Our Leaders</span>
+            <h2>Leadership Team</h2>
+            <p>Dedicated professionals shaping the future of education</p>
           </div>
-          <div className="leadership-grid-dark">
+          <div className="leadership-grid">
             {leadership.map((leader, index) => (
-              <div
-                key={index}
-                className={`leader-card-dark ${leader.gradient}`}
-              >
-                <div className="leader-image-dark">
-                  <div className="leader-avatar-dark">{leader.image}</div>
-                  <div className="leader-social-dark">
-                    <a href="#" className="social-icon-dark">
-                      <FaLinkedin />
-                    </a>
-                    <a href="#" className="social-icon-dark">
-                      <FaTwitter />
-                    </a>
-                    <a href="#" className="social-icon-dark">
-                      <FaEnvelope />
-                    </a>
-                  </div>
-                </div>
-                <div className="leader-info-dark">
-                  <h3>{leader.name}</h3>
-                  <p className="leader-role-dark">{leader.role}</p>
-                  <p className="leader-bio-dark">{leader.bio}</p>
+              <div key={index} className="leader-card">
+                <div className="leader-avatar">{leader.image}</div>
+                <h3>{leader.name}</h3>
+                <p className="leader-role">{leader.role}</p>
+                <p className="leader-bio">{leader.bio}</p>
+                <div className="leader-social">
+                  <a href="#">
+                    <FaLinkedin />
+                  </a>
+                  <a href="#">
+                    <FaTwitter />
+                  </a>
+                  <a href="#">
+                    <FaEnvelope />
+                  </a>
                 </div>
               </div>
             ))}
@@ -377,37 +340,43 @@ function About() {
         </div>
       </section>
 
-      <section className="testimonial-section-dark">
-        <div className="container">
-          <div className="testimonial-wrapper-dark">
-            <FaQuoteLeft className="quote-icon-left-dark" />
-            <div className="testimonial-content-dark">
-              <p className="testimonial-text-dark">{t.about.testimonial}</p>
-              <div className="testimonial-author-dark">
-                <div className="author-avatar-dark">👨‍👩‍👧‍👦</div>
-                <div className="author-info-dark">
-                  <h4>{t.about.testimonialAuthor}</h4>
-                  <p>{t.about.testimonialRole}</p>
-                  <div className="author-stars">
-                    {[...Array(5)].map((_, i) => (
-                      <FaStar key={i} className="star-filled-dark" />
-                    ))}
-                  </div>
+      {/* Testimonial Section */}
+      <section className="about-testimonial">
+        <div className="about-container">
+          <div className="testimonial-card">
+            <FaQuoteLeft className="quote-left" />
+            <p>
+              "Faith Foundation International School has transformed our
+              community."
+            </p>
+            <div className="testimonial-author">
+              <div className="author-avatar">👨‍👩‍👧‍👦</div>
+              <div>
+                <h4>The Okafor Family</h4>
+                <p>Parents of 3 Students</p>
+                <div className="stars">
+                  {[...Array(5)].map((_, i) => (
+                    <FaStar key={i} />
+                  ))}
                 </div>
               </div>
             </div>
-            <FaQuoteRight className="quote-icon-right-dark" />
+            <FaQuoteRight className="quote-right" />
           </div>
         </div>
       </section>
 
-      <section className="cta-section-dark">
-        <div className="container">
-          <div className="cta-wrapper-dark">
-            <h2>{t.about.ctaTitle}</h2>
-            <p>{t.about.ctaText}</p>
-            <Link to="/register" className="btn-cta-dark">
-              {t.common.enrollNow} <FaArrowRight />
+      {/* CTA Section - Clear Enroll Button */}
+      <section className="about-cta">
+        <div className="about-container">
+          <div className="cta-content">
+            <h2>Ready to Join Our Community?</h2>
+            <p>
+              Take the first step towards an exceptional education for your
+              child
+            </p>
+            <Link to="/register" className="btn-enroll">
+              Enroll Now <FaArrowRight />
             </Link>
           </div>
         </div>
