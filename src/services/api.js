@@ -1,7 +1,8 @@
 import axios from "axios";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL || "https://localhost:8443/api";
 
 /* ================================
    AXIOS INSTANCE
@@ -9,6 +10,7 @@ const API_BASE_URL = "http://localhost:8080/api";
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
+  withCredentials: true,
 });
 
 /* ================================
@@ -19,12 +21,6 @@ api.interceptors.request.use(
     console.log(
       `Making ${config.method?.toUpperCase()} request to: ${config.url}`,
     );
-
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
     return config;
   },
   (error) => Promise.reject(error),
@@ -39,35 +35,28 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
-    if (status === 401 && !originalRequest?._retry) {
+    if (
+      status === 401 &&
+      !originalRequest?._retry &&
+      !String(originalRequest?.url || "").includes("/auth/login") &&
+      !String(originalRequest?.url || "").includes("/auth/refresh-token")
+    ) {
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem("refreshToken");
+        await axios.post(
+          `${API_BASE_URL}/auth/refresh-token`,
+          {},
+          {
+            withCredentials: true,
+          },
+        );
 
-        if (refreshToken) {
-          const response = await axios.post(
-            `${API_BASE_URL}/auth/refresh-token`,
-            { refreshToken },
-          );
-
-          if (response.data?.accessToken) {
-            localStorage.setItem("accessToken", response.data.accessToken);
-
-            if (response.data?.refreshToken) {
-              localStorage.setItem("refreshToken", response.data.refreshToken);
-            }
-
-            originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
-            return api(originalRequest);
-          }
-        }
+        return api(originalRequest);
       } catch (refreshError) {
         console.error("Token refresh failed:", refreshError);
       }
 
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
       toast.error("Session expired. Please login again.");
       window.location.href = "/login";
@@ -113,26 +102,14 @@ const sendData = (method, url, data) => {
 /* ================================
    AUTH HELPERS
 ================================ */
-export const setAuthToken = (accessToken, refreshToken, user) => {
-  if (accessToken) {
-    localStorage.setItem("accessToken", accessToken);
-    api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
-  }
-
-  if (refreshToken) {
-    localStorage.setItem("refreshToken", refreshToken);
-  }
-
+export const setAuthToken = (_accessToken, _refreshToken, user) => {
   if (user) {
     localStorage.setItem("user", JSON.stringify(user));
   }
 };
 
 export const clearAuthToken = () => {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
   localStorage.removeItem("user");
-  delete api.defaults.headers.common.Authorization;
 };
 
 export const getCurrentUser = () => {
@@ -153,7 +130,7 @@ export const authAPI = {
   login: (credentials) => api.post("/auth/login", credentials),
   register: (userData) => api.post("/auth/register", userData),
   logout: () => api.post("/auth/logout"),
-  refreshToken: (data) => api.post("/auth/refresh-token", data),
+  refreshToken: () => api.post("/auth/refresh-token", {}),
   getCurrentUser: () => api.get("/auth/me"),
   changePassword: (data) => api.post("/auth/change-password", data),
   forgotPassword: (emailData) => api.post("/auth/forgot-password", emailData),
@@ -300,28 +277,18 @@ export const teacherAPI = {
     api.get("/teachers/export/excel", { responseType: "blob" }),
 
   getMyTeacherProfile: () => api.get("/teachers/me"),
-
-  // IMPORTANT: frontend depends on isFormTeacher from this response
   getMyClasses: () => api.get("/teachers/me/classes"),
-
-  // Used for result input subject restriction
   getMySubjectAssignments: () => api.get("/teachers/me/subject-assignments"),
-
-  // Used for both teaching-class students and form-class students
   getMyClassStudents: (classId) =>
     api.get(`/teachers/me/classes/${classId}/students`),
-
-  // Must only work for form teacher on backend
   getMyClassResults: (classId, session, term) =>
     api.get(`/teachers/me/classes/${classId}/results`, {
       params: { session, term },
     }),
-
   getMyClassAttendance: (classId, date, session, term) =>
     api.get(`/teachers/me/classes/${classId}/attendance`, {
       params: { date, session, term },
     }),
-
   markMyClassAttendance: (classId, payload) =>
     api.post(`/teachers/me/classes/${classId}/attendance`, payload),
 };
@@ -426,7 +393,6 @@ export const resultAPI = {
       params: { session },
     }),
 
-  // Admin use
   getClassRankings: (className, session, term, arm) =>
     api.get(`/results/rankings/class/${encodeURIComponent(className)}`, {
       params: {
@@ -436,7 +402,6 @@ export const resultAPI = {
       },
     }),
 
-  // Admin use
   getArmRankings: (className, arm, session, term) =>
     api.get(
       `/results/rankings/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
@@ -469,6 +434,16 @@ export const resultAPI = {
     api.get("/results/me/annual", {
       params: { session },
     }),
+};
+
+export const emailQueueAPI = {
+  getAll: () => api.get("/email-queue"),
+  getStats: () => api.get("/email-queue/stats"),
+  getByStatus: (status) => api.get(`/email-queue/status/${status}`),
+  getByAnnouncement: (announcementId) =>
+    api.get(`/email-queue/announcement/${announcementId}`),
+  retryEmail: (queueId) => api.post(`/email-queue/${queueId}/retry`),
+  processNow: () => api.post("/email-queue/process"),
 };
 
 /* ================================
@@ -531,6 +506,7 @@ export const attendanceAPI = {
       params: { session, term },
     }),
 };
+
 /* ================================
    SESSION RESULT API
 ================================ */
@@ -791,6 +767,7 @@ export const timetableAPI = {
       params: { teacherId, day, session, term, startTime, endTime },
     }),
 };
+
 /* ================================
    PARENT API
 ================================ */
@@ -836,6 +813,7 @@ export const libraryAPI = {
   getOverdueBorrowings: () => api.get("/library/borrowings/overdue"),
   getLibraryStatistics: () => api.get("/library/statistics"),
 };
+
 /* ================================
    SESSION API
 ================================ */
@@ -943,10 +921,6 @@ export const studentPortalAPI = {
 
   getMyTermResult: (session, term) =>
     api.get("/results/me/term", { params: { session, term } }),
-  getMyTimetable: (session, term) =>
-    api.get("/timetable/me", {
-      params: { session, term },
-    }),
   getMySessionResult: (session) =>
     api.get("/results/me/annual", { params: { session } }),
 
@@ -1019,4 +993,5 @@ export const eventAPI = {
   updateEvent: (id, eventData) => api.put(`/events/${id}`, eventData),
   deleteEvent: (id) => api.delete(`/events/${id}`),
 };
+
 export default api;

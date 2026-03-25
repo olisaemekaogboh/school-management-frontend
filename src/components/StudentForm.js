@@ -75,8 +75,8 @@ function StudentForm() {
 
   const buildProfileImageUrl = (url) => {
     if (!url) return "";
-    if (url.startsWith("http")) return url;
-    return `http://localhost:8080${url}`;
+    if (url.startsWith("https")) return url;
+    return `https://localhost:8443${url}`;
   };
 
   const normalizeSpaces = (value) =>

@@ -161,27 +161,13 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!localStorage.getItem("accessToken");
-  });
-
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
 
     const bootstrapAuth = async () => {
-      const token = localStorage.getItem("accessToken");
-
-      if (!token) {
-        if (isMounted) {
-          setUser(null);
-          setIsAuthenticated(false);
-          setLoading(false);
-        }
-        return;
-      }
-
       try {
         const response = await authAPI.getCurrentUser();
         const normalizedUser = normalizeUser(response.data);
@@ -195,36 +181,24 @@ export const AuthProvider = ({ children }) => {
         console.error("Failed to load current user:", error);
 
         try {
-          const refreshToken = localStorage.getItem("refreshToken");
-
-          if (!refreshToken) {
-            throw new Error("No refresh token available");
-          }
-
-          const refreshResponse = await authAPI.refreshToken({ refreshToken });
-          const {
-            accessToken,
-            refreshToken: nextRefreshToken,
-            user: refreshUser,
-          } = refreshResponse.data || {};
-
-          if (!accessToken) {
-            throw new Error("No access token returned from refresh");
-          }
-
-          const normalizedRefreshUser = normalizeUser(refreshUser);
-
-          setAuthToken(
-            accessToken,
-            nextRefreshToken || refreshToken,
-            normalizedRefreshUser,
+          const refreshResponse = await authAPI.refreshToken();
+          const normalizedRefreshUser = normalizeUser(
+            refreshResponse.data?.user,
           );
 
           if (!isMounted) return;
 
-          setUser(normalizedRefreshUser);
-          setIsAuthenticated(true);
-          localStorage.setItem("user", JSON.stringify(normalizedRefreshUser));
+          if (normalizedRefreshUser) {
+            setUser(normalizedRefreshUser);
+            setIsAuthenticated(true);
+            localStorage.setItem("user", JSON.stringify(normalizedRefreshUser));
+          } else {
+            const meResponse = await authAPI.getCurrentUser();
+            const meUser = normalizeUser(meResponse.data);
+            setUser(meUser);
+            setIsAuthenticated(true);
+            localStorage.setItem("user", JSON.stringify(meUser));
+          }
         } catch (refreshError) {
           console.error("Refresh token failed:", refreshError);
 
@@ -251,11 +225,9 @@ export const AuthProvider = ({ children }) => {
   const login = async (usernameOrEmail, password) => {
     try {
       const response = await authAPI.login({ usernameOrEmail, password });
-      const { accessToken, refreshToken, user: rawUser } = response.data || {};
+      const normalizedUser = normalizeUser(response.data?.user);
 
-      const normalizedUser = normalizeUser(rawUser);
-
-      setAuthToken(accessToken, refreshToken, normalizedUser);
+      setAuthToken(null, null, normalizedUser);
       setUser(normalizedUser);
       setIsAuthenticated(true);
 
@@ -271,11 +243,9 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await authAPI.register(userData);
-      const { accessToken, refreshToken, user: rawUser } = response.data || {};
+      const normalizedUser = normalizeUser(response.data?.user);
 
-      const normalizedUser = normalizeUser(rawUser);
-
-      setAuthToken(accessToken, refreshToken, normalizedUser);
+      setAuthToken(null, null, normalizedUser);
       setUser(normalizedUser);
       setIsAuthenticated(true);
 

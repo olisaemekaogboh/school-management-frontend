@@ -36,6 +36,7 @@ function AttendanceManager() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const location = useLocation();
+  const initializedTeacherDefaults = useRef(false);
 
   const ui = {
     loadingActiveSession:
@@ -157,6 +158,7 @@ function AttendanceManager() {
   const [studentAttendance, setStudentAttendance] = useState([]);
   const [studentSummary, setStudentSummary] = useState(null);
   const [teacherAssignments, setTeacherAssignments] = useState([]);
+  const [lockedTeacherClassId, setLockedTeacherClassId] = useState(null);
   const [myStudentProfile, setMyStudentProfile] = useState(null);
   const [parentWards, setParentWards] = useState([]);
   const [selectedWardId, setSelectedWardId] = useState("");
@@ -189,9 +191,30 @@ function AttendanceManager() {
     { value: "SECOND", label: ui.secondTerm },
     { value: "THIRD", label: ui.thirdTerm },
   ];
+
+  const normalizeClassName = (value) =>
+    String(value || "")
+      .trim()
+      .replace(/\s+/g, "")
+      .toLowerCase();
+
+  const normalizeArm = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
   useEffect(() => {
     loadSessionData();
   }, []);
+
+  useEffect(() => {
+    if (!mineFromQuery || !classIdFromQuery) {
+      setLockedTeacherClassId(null);
+      return;
+    }
+
+    setLockedTeacherClassId(Number(classIdFromQuery));
+  }, [mineFromQuery, classIdFromQuery]);
 
   useEffect(() => {
     if (isTeacher && session) {
@@ -211,13 +234,60 @@ function AttendanceManager() {
   }, [isStudent, isParent]);
 
   useEffect(() => {
+    if (!isTeacher || !teacherAssignments.length) return;
+
+    if (mineFromQuery && lockedTeacherClassId) {
+      const matched = teacherAssignments.find(
+        (a) => String(a.id) === String(lockedTeacherClassId),
+      );
+
+      if (!matched) return;
+
+      const shouldUpdate =
+        normalizeClassName(selectedClass) !==
+          normalizeClassName(matched.className) ||
+        normalizeArm(selectedArm) !== normalizeArm(matched.arm);
+
+      if (shouldUpdate) {
+        setSelectedClass(matched.className);
+        setSelectedArm(matched.arm);
+        setSelectedStudent(null);
+        setShowInlineStats(false);
+      }
+      return;
+    }
+
+    if (
+      !initializedTeacherDefaults.current &&
+      teacherAssignments.length === 1
+    ) {
+      setSelectedClass(teacherAssignments[0].className);
+      setSelectedArm(teacherAssignments[0].arm);
+      initializedTeacherDefaults.current = true;
+    }
+  }, [
+    isTeacher,
+    teacherAssignments,
+    mineFromQuery,
+    lockedTeacherClassId,
+    selectedClass,
+    selectedArm,
+  ]);
+
+  useEffect(() => {
     if (!selectedClass) return;
 
     const allowedArms =
-      allowedClassOptions.find((c) => c.name === selectedClass)?.arms || [];
+      allowedClassOptions.find(
+        (c) => normalizeClassName(c.name) === normalizeClassName(selectedClass),
+      )?.arms || [];
 
-    if (!allowedArms.includes(selectedArm)) {
-      if (allowedArms.length === 1) {
+    const armStillExists = allowedArms.some(
+      (arm) => normalizeArm(arm) === normalizeArm(selectedArm),
+    );
+
+    if (!armStillExists) {
+      if (allowedArms.length >= 1) {
         setSelectedArm(allowedArms[0]);
       } else if (selectedArm) {
         setSelectedArm("");
@@ -309,7 +379,7 @@ function AttendanceManager() {
       }
     } catch (error) {
       console.error("Error loading session data:", error);
-      toast.error("Failed to load session information");
+      toast.error(ui.failedSessionInfo);
     } finally {
       setLoadingSession(false);
     }
@@ -331,7 +401,7 @@ function AttendanceManager() {
       }
     } catch (error) {
       console.error("Error loading student profile:", error);
-      toast.error("Failed to load your student profile");
+      toast.error(ui.failedStudentProfile);
       setMyStudentProfile(null);
       setSelectedStudent(null);
       setStudents([]);
@@ -357,7 +427,7 @@ function AttendanceManager() {
       }
     } catch (error) {
       console.error("Error loading parent wards:", error);
-      toast.error("Failed to load wards");
+      toast.error(ui.failedWards);
       setParentWards([]);
       setSelectedWardId("");
       setSelectedStudent(null);
@@ -389,12 +459,14 @@ function AttendanceManager() {
         );
 
         if (!matched) {
+          setLockedTeacherClassId(null);
           setSelectedClass("");
           setSelectedArm("");
-          toast.error("You can only access your assigned class arm");
+          toast.error(ui.teacherClassRestriction);
           return;
         }
 
+        setLockedTeacherClassId(matched.id || null);
         setSelectedClass(matched.className);
         setSelectedArm(matched.arm);
         return;
@@ -406,20 +478,45 @@ function AttendanceManager() {
       }
     } catch (error) {
       console.error("Error loading teacher assignments:", error);
-      toast.error("Failed to load teacher class assignments");
+      toast.error(ui.failedAssignments);
       setTeacherAssignments([]);
     }
   };
+
+  const lockedTeacherAssignment = useMemo(() => {
+    if (!isTeacher || !mineFromQuery || !lockedTeacherClassId) return null;
+
+    return (
+      teacherAssignments.find(
+        (a) => String(a.id) === String(lockedTeacherClassId),
+      ) || null
+    );
+  }, [isTeacher, mineFromQuery, lockedTeacherClassId, teacherAssignments]);
 
   const allowedClassOptions = useMemo(() => {
     if (isAdmin) return classes;
 
     if (isTeacher) {
+      if (mineFromQuery && lockedTeacherClassId && lockedTeacherAssignment) {
+        return [
+          {
+            name: lockedTeacherAssignment.className,
+            arms: [lockedTeacherAssignment.arm],
+          },
+        ];
+      }
+
       const grouped = {};
       teacherAssignments.forEach((a) => {
-        if (!grouped[a.className]) grouped[a.className] = [];
-        if (!grouped[a.className].includes(a.arm)) {
-          grouped[a.className].push(a.arm);
+        const classKey = a.className;
+        if (!grouped[classKey]) grouped[classKey] = [];
+
+        const armExists = grouped[classKey].some(
+          (arm) => normalizeArm(arm) === normalizeArm(a.arm),
+        );
+
+        if (!armExists) {
+          grouped[classKey].push(a.arm);
         }
       });
 
@@ -456,6 +553,9 @@ function AttendanceManager() {
     teacherAssignments,
     myStudentProfile,
     selectedStudent,
+    mineFromQuery,
+    lockedTeacherClassId,
+    lockedTeacherAssignment,
   ]);
 
   const selectedTeacherAssignment = useMemo(() => {
@@ -463,7 +563,10 @@ function AttendanceManager() {
 
     return (
       teacherAssignments.find(
-        (a) => a.className === selectedClass && a.arm === selectedArm,
+        (a) =>
+          normalizeClassName(a.className) ===
+            normalizeClassName(selectedClass) &&
+          normalizeArm(a.arm) === normalizeArm(selectedArm),
       ) || null
     );
   }, [isTeacher, teacherAssignments, selectedClass, selectedArm]);
@@ -471,7 +574,9 @@ function AttendanceManager() {
   const isAllowedTeacherClass = (className, arm) => {
     if (isAdmin) return true;
     return teacherAssignments.some(
-      (a) => a.className === className && a.arm === arm,
+      (a) =>
+        normalizeClassName(a.className) === normalizeClassName(className) &&
+        normalizeArm(a.arm) === normalizeArm(arm),
     );
   };
 
@@ -479,7 +584,7 @@ function AttendanceManager() {
     if (!selectedClass || !selectedArm || !session || !term) return;
 
     if (isTeacher && !selectedTeacherAssignment) {
-      toast.error("You can only manage attendance for your assigned class arm");
+      toast.error(ui.teacherClassRestriction);
       return;
     }
 
@@ -510,7 +615,7 @@ function AttendanceManager() {
       await fetchExistingAttendance(studentList);
     } catch (error) {
       console.error("Error fetching students:", error);
-      toast.error("Failed to load students");
+      toast.error(ui.failedStudents);
       setStudents([]);
       setAttendanceData({});
     } finally {
@@ -563,9 +668,7 @@ function AttendanceManager() {
     if (!selectedClass || !selectedArm || !session || !term) return;
 
     if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
-      toast.error(
-        "You can only view attendance statistics for your assigned class arm",
-      );
+      toast.error(ui.teacherClassRestriction);
       return;
     }
 
@@ -580,9 +683,7 @@ function AttendanceManager() {
       setClassStats(response.data);
     } catch (error) {
       console.error("Error fetching class statistics:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to load class statistics",
-      );
+      toast.error(error?.response?.data?.message || ui.failedClassStats);
       setClassStats(null);
     } finally {
       setLoading(false);
@@ -591,7 +692,7 @@ function AttendanceManager() {
 
   const handleShowInlineStats = async () => {
     if (!selectedClass || !selectedArm || !session || !term) {
-      toast.warning("Please select class, arm, session and term first");
+      toast.warning(ui.selectClassArmSessionTerm);
       return;
     }
 
@@ -605,7 +706,7 @@ function AttendanceManager() {
 
   const exportStatisticsToCsv = () => {
     if (!classStats?.studentAttendance?.length) {
-      toast.warning("No attendance statistics to export");
+      toast.warning(ui.noStatsToExport);
       return;
     }
 
@@ -660,12 +761,12 @@ function AttendanceManager() {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
 
-    toast.success("Attendance statistics exported to CSV");
+    toast.success(ui.exportedCsv);
   };
 
   const exportStatisticsToPdf = async () => {
     if (!statsExportRef.current || !classStats?.studentAttendance?.length) {
-      toast.warning("No attendance statistics to export");
+      toast.warning(ui.noStatsToExport);
       return;
     }
 
@@ -705,10 +806,10 @@ function AttendanceManager() {
         `attendance_statistics_${selectedClass}_${selectedArm}_${term}_${safeSession}.pdf`,
       );
 
-      toast.success("Attendance statistics exported to PDF");
+      toast.success(ui.exportedPdf);
     } catch (error) {
       console.error("Error exporting statistics PDF:", error);
-      toast.error("Failed to export PDF");
+      toast.error(ui.failedExportPdf);
     } finally {
       setExportingPdf(false);
     }
@@ -731,9 +832,7 @@ function AttendanceManager() {
       setStudentSummary(summaryRes.data || null);
     } catch (error) {
       console.error("Error fetching student attendance:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to load student attendance",
-      );
+      toast.error(error?.response?.data?.message || ui.failedStudentAttendance);
       setStudentAttendance([]);
       setStudentSummary(null);
     } finally {
@@ -764,9 +863,7 @@ function AttendanceManager() {
       setStudentSummary(summaryRes.data || null);
     } catch (error) {
       console.error("Error fetching ward attendance:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to load ward attendance",
-      );
+      toast.error(error?.response?.data?.message || ui.failedWardAttendance);
       setStudentAttendance([]);
       setStudentSummary(null);
     } finally {
@@ -776,17 +873,17 @@ function AttendanceManager() {
 
   const handleMarkAll = async (status) => {
     if (!selectedClass || !selectedArm || students.length === 0) {
-      toast.warning("Please select a class first");
+      toast.warning(ui.selectClassFirst);
       return;
     }
 
     if (!session || !term) {
-      toast.warning("Session and term are required");
+      toast.warning(ui.sessionTermRequired);
       return;
     }
 
     if (isTeacher && !selectedTeacherAssignment) {
-      toast.error("You can only mark attendance for your assigned class arm");
+      toast.error(ui.teacherClassRestriction);
       return;
     }
 
@@ -825,9 +922,7 @@ function AttendanceManager() {
       }
     } catch (error) {
       console.error("Error marking bulk attendance:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to mark attendance",
-      );
+      toast.error(error?.response?.data?.message || ui.failedMarkAttendance);
     } finally {
       setLoading(false);
     }
@@ -835,12 +930,12 @@ function AttendanceManager() {
 
   const handleMarkStudent = async (studentId, status) => {
     if (!session || !term) {
-      toast.warning("Session and term are required");
+      toast.warning(ui.sessionTermRequired);
       return;
     }
 
     if (isTeacher && !selectedTeacherAssignment) {
-      toast.error("You can only mark attendance for your assigned class arm");
+      toast.error(ui.teacherClassRestriction);
       return;
     }
 
@@ -880,9 +975,7 @@ function AttendanceManager() {
       }
     } catch (error) {
       console.error("Error marking attendance:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to mark attendance",
-      );
+      toast.error(error?.response?.data?.message || ui.failedMarkAttendance);
     } finally {
       setLoading(false);
     }
@@ -1059,12 +1152,21 @@ function AttendanceManager() {
                     className="form-select"
                     value={selectedClass}
                     onChange={(e) => {
-                      setSelectedClass(e.target.value);
-                      setSelectedArm("");
+                      const newClass = e.target.value;
+
+                      const allowedArms =
+                        allowedClassOptions.find(
+                          (c) =>
+                            normalizeClassName(c.name) ===
+                            normalizeClassName(newClass),
+                        )?.arms || [];
+
+                      setSelectedClass(newClass);
+                      setSelectedArm(allowedArms[0] || "");
                       setSelectedStudent(null);
                       setShowInlineStats(false);
                     }}
-                    disabled={isTeacher && mineFromQuery}
+                    disabled={Boolean(mineFromQuery && lockedTeacherClassId)}
                   >
                     <option value="">{ui.selectClass}</option>
                     {allowedClassOptions.map((c) => (
@@ -1085,12 +1187,19 @@ function AttendanceManager() {
                       setSelectedStudent(null);
                       setShowInlineStats(false);
                     }}
-                    disabled={!selectedClass || (isTeacher && mineFromQuery)}
+                    disabled={
+                      !selectedClass ||
+                      Boolean(mineFromQuery && lockedTeacherClassId)
+                    }
                   >
                     <option value="">{ui.selectArm}</option>
                     {selectedClass &&
                       allowedClassOptions
-                        .find((c) => c.name === selectedClass)
+                        .find(
+                          (c) =>
+                            normalizeClassName(c.name) ===
+                            normalizeClassName(selectedClass),
+                        )
                         ?.arms.map((arm) => (
                           <option key={arm} value={arm}>
                             Arm {arm}

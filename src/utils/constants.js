@@ -75,7 +75,7 @@ export const RELIGIONS = ["Christianity", "Islam", "Traditional", "Other"];
 
 export const NATIONALITIES = ["Nigerian", "Other"];
 
-export const API_BASE_URL = "http://localhost:8080/api";
+export const API_BASE_URL = "https://localhost:8443/api";
 
 /**
  * Converts old/dirty class values into the one true frontend format.

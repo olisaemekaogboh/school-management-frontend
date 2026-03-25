@@ -161,6 +161,11 @@ function Footer() {
       label: t.navbar.announcements || "Announcements",
     },
     {
+      to: "/email-queue",
+      icon: <FaEnvelope className="link-icon" />,
+      label: "Email Queue",
+    },
+    {
       to: "/library",
       icon: <FaClipboardList className="link-icon" />,
       label: "Library",

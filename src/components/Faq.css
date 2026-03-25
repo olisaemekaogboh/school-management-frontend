@@ -1,0 +1,353 @@
+/* src/components/Faq.css */
+
+.faq-page {
+  --faq-bg-light: #ffffff;
+  --faq-bg-dark: #0a0a0a;
+  --faq-card-light: #f8f9fa;
+  --faq-card-dark: #111827;
+  --faq-text-light: #1f2937;
+  --faq-text-dark: #f9fafb;
+  --faq-text-soft-light: #6b7280;
+  --faq-text-soft-dark: #9ca3af;
+  --faq-border-light: #e5e7eb;
+  --faq-border-dark: #374151;
+  --faq-accent: #008753;
+  --faq-accent-hover: #006b3f;
+
+  background: var(--faq-bg-light);
+  color: var(--faq-text-light);
+  transition: all 0.3s ease;
+}
+
+.faq-page.dark {
+  background: var(--faq-bg-dark);
+  color: var(--faq-text-dark);
+}
+
+.faq-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Hero Section */
+.faq-hero {
+  background: linear-gradient(135deg, var(--faq-accent) 0%, #003366 100%);
+  color: white;
+  padding: 100px 0;
+  text-align: center;
+}
+
+.hero-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.hero-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 16px;
+  border-radius: 50px;
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  line-height: 1.2;
+}
+
+.hero-description {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  margin-bottom: 30px;
+}
+
+.search-box {
+  position: relative;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.search-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faq-accent);
+}
+
+.search-box input {
+  width: 100%;
+  padding: 12px 20px 12px 45px;
+  border: none;
+  border-radius: 50px;
+  font-size: 1rem;
+  background: white;
+  color: #333;
+  outline: none;
+}
+
+/* FAQ Content */
+.faq-content {
+  padding: 80px 0;
+  background: var(--faq-bg-light);
+}
+
+.faq-page.dark .faq-content {
+  background: var(--faq-bg-dark);
+}
+
+.faq-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.faq-category {
+  background: var(--faq-card-light);
+  border-radius: 20px;
+  border: 1px solid var(--faq-border-light);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.faq-page.dark .faq-category {
+  background: var(--faq-card-dark);
+  border-color: var(--faq-border-dark);
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 25px 30px;
+  background: linear-gradient(135deg, rgba(0, 135, 83, 0.1), transparent);
+  border-bottom: 1px solid var(--faq-border-light);
+}
+
+.faq-page.dark .category-header {
+  border-bottom-color: var(--faq-border-dark);
+}
+
+.category-icon {
+  width: 50px;
+  height: 50px;
+  background: var(--faq-accent);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+}
+
+.category-header h2 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.category-questions {
+  padding: 0;
+}
+
+.question-item {
+  border-bottom: 1px solid var(--faq-border-light);
+}
+
+.faq-page.dark .question-item {
+  border-bottom-color: var(--faq-border-dark);
+}
+
+.question-item:last-child {
+  border-bottom: none;
+}
+
+.question-button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--faq-text-light);
+}
+
+.faq-page.dark .question-button {
+  color: var(--faq-text-dark);
+}
+
+.question-button:hover {
+  background: rgba(0, 135, 83, 0.05);
+}
+
+.question-text {
+  flex: 1;
+  padding-right: 20px;
+}
+
+.answer-content {
+  padding: 0 30px 20px 30px;
+  color: var(--faq-text-soft-light);
+  line-height: 1.6;
+}
+
+.faq-page.dark .answer-content {
+  color: var(--faq-text-soft-dark);
+}
+
+/* No Results */
+.no-results {
+  text-align: center;
+  padding: 60px;
+  background: var(--faq-card-light);
+  border-radius: 20px;
+  border: 1px solid var(--faq-border-light);
+}
+
+.faq-page.dark .no-results {
+  background: var(--faq-card-dark);
+  border-color: var(--faq-border-dark);
+}
+
+.no-results svg {
+  font-size: 4rem;
+  color: var(--faq-accent);
+  margin-bottom: 20px;
+}
+
+.no-results h3 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.no-results p {
+  color: var(--faq-text-soft-light);
+  margin-bottom: 20px;
+}
+
+.faq-page.dark .no-results p {
+  color: var(--faq-text-soft-dark);
+}
+
+.btn-reset {
+  padding: 10px 24px;
+  background: var(--faq-accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-reset:hover {
+  background: var(--faq-accent-hover);
+  transform: translateY(-2px);
+}
+
+/* Contact Section */
+.faq-contact {
+  padding: 80px 0;
+  background: linear-gradient(135deg, var(--faq-accent) 0%, #003366 100%);
+}
+
+.contact-card {
+  text-align: center;
+  color: white;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.contact-icon {
+  font-size: 3rem;
+  margin-bottom: 20px;
+}
+
+.contact-card h2 {
+  font-size: 1.8rem;
+  margin-bottom: 15px;
+}
+
+.contact-card p {
+  opacity: 0.9;
+  margin-bottom: 30px;
+}
+
+.btn-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 32px;
+  background: white;
+  color: var(--faq-accent);
+  border-radius: 50px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-contact:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2rem;
+  }
+  
+  .hero-description {
+    font-size: 1rem;
+  }
+  
+  .category-header {
+    padding: 20px;
+  }
+  
+  .category-header h2 {
+    font-size: 1.2rem;
+  }
+  
+  .category-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+  
+  .question-button {
+    padding: 15px 20px;
+    font-size: 0.9rem;
+  }
+  
+  .answer-content {
+    padding: 0 20px 15px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-title {
+    font-size: 1.6rem;
+  }
+  
+  .search-box input {
+    font-size: 0.9rem;
+  }
+  
+  .category-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .contact-card h2 {
+    font-size: 1.5rem;
+  }
+}

@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { studentAPI, feeAPI, parentPortalAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
-import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FiDollarSign,
@@ -49,7 +48,6 @@ import "./FeeManagement.css";
 function FeeManagement() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { darkMode } = useDarkMode();
 
   const isAdmin = user?.role === "ADMIN";
   const isStudent = user?.role === "STUDENT";
@@ -145,7 +143,6 @@ function FeeManagement() {
   const canRecordPayment = isAdmin;
   const canSendReminders = isAdmin;
   const canUseBulkPayment = isAdmin;
-  const canExportAllData = isAdmin;
 
   useEffect(() => {
     loadScopedStudents();
@@ -154,19 +151,13 @@ function FeeManagement() {
 
   useEffect(() => {
     if (session && !formData.session) {
-      setFormData((prev) => ({
-        ...prev,
-        session,
-      }));
+      setFormData((prev) => ({ ...prev, session }));
     }
   }, [session, formData.session]);
 
   useEffect(() => {
     if (term && formData.term !== term) {
-      setFormData((prev) => ({
-        ...prev,
-        term,
-      }));
+      setFormData((prev) => ({ ...prev, term }));
     }
   }, [term, formData.term]);
 
@@ -216,10 +207,7 @@ function FeeManagement() {
         const oneStudent = me ? [me] : [];
         setStudents(oneStudent);
         setSelectedStudent(me);
-        setFormData((prev) => ({
-          ...prev,
-          studentId: me?.id || "",
-        }));
+        setFormData((prev) => ({ ...prev, studentId: me?.id || "" }));
         return;
       }
 
@@ -230,10 +218,7 @@ function FeeManagement() {
 
         if (wards.length === 1) {
           setSelectedStudent(wards[0]);
-          setFormData((prev) => ({
-            ...prev,
-            studentId: wards[0]?.id || "",
-          }));
+          setFormData((prev) => ({ ...prev, studentId: wards[0]?.id || "" }));
         }
         return;
       }
@@ -442,7 +427,6 @@ function FeeManagement() {
         totalStudents: 0,
         collectionRate: 0,
         studentsWithOutstanding: 0,
-        defaultersCount: 0,
       };
     }
 
@@ -461,7 +445,6 @@ function FeeManagement() {
         : 0;
 
     const studentsWithOutstanding = pendingCount + partialCount + overdueCount;
-    const defaultersCount = overdueCount;
 
     return {
       totalCollected,
@@ -474,7 +457,6 @@ function FeeManagement() {
       totalStudents,
       collectionRate,
       studentsWithOutstanding,
-      defaultersCount,
     };
   }, [statistics]);
 
@@ -500,7 +482,6 @@ function FeeManagement() {
     const noFees = allStudentsFeeStatus.filter(
       (s) => s.status === "NO_FEES",
     ).length;
-
     return { totalStudents, paid, outstanding, overdue, noFees };
   }, [allStudentsFeeStatus]);
 
@@ -529,21 +510,56 @@ function FeeManagement() {
     });
   }, [allStudentsFeeStatus, studentSearchTerm]);
 
+  const getFilteredFees = () => {
+    return fees.filter((fee) => {
+      const matchesSearch =
+        searchTerm === "" ||
+        fee.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fee.admissionNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fee.feeType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fee.description?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus =
+        filterStatus === "all" || fee.status === filterStatus;
+      const matchesFeeType =
+        selectedFeeType === "all" || fee.feeType === selectedFeeType;
+
+      return matchesSearch && matchesStatus && matchesFeeType;
+    });
+  };
+
+  const paginatedFees = () => {
+    const filtered = getFilteredFees();
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    return filtered.slice(indexOfFirstItem, indexOfLastItem);
+  };
+
+  const totalPages = Math.ceil(getFilteredFees().length / itemsPerPage);
+
+  const toggleRowExpansion = (feeId) => {
+    setExpandedRows((prev) =>
+      prev.includes(feeId)
+        ? prev.filter((id) => id !== feeId)
+        : [...prev, feeId],
+    );
+  };
+
   const handleSelectAllStudents = () => {
     if (bulkPaymentData.selectAll) {
-      setBulkPaymentData({
-        ...bulkPaymentData,
+      setBulkPaymentData((prev) => ({
+        ...prev,
         selectedStudents: [],
         selectAll: false,
-      });
+      }));
     } else {
-      setBulkPaymentData({
-        ...bulkPaymentData,
+      setBulkPaymentData((prev) => ({
+        ...prev,
         selectedStudents: filteredStudents
           .filter((s) => (Number(s.balance) || 0) > 0)
           .map((s) => s.id),
         selectAll: true,
-      });
+      }));
     }
   };
 
@@ -552,13 +568,13 @@ function FeeManagement() {
       ? bulkPaymentData.selectedStudents.filter((id) => id !== studentId)
       : [...bulkPaymentData.selectedStudents, studentId];
 
-    setBulkPaymentData({
-      ...bulkPaymentData,
+    setBulkPaymentData((prev) => ({
+      ...prev,
       selectedStudents: updatedSelected,
       selectAll:
         updatedSelected.length ===
         filteredStudents.filter((s) => (Number(s.balance) || 0) > 0).length,
-    });
+    }));
   };
 
   const calculateTotalSelectedAmount = () => {
@@ -648,6 +664,7 @@ function FeeManagement() {
         t?.feeManagement?.bulkPaymentComplete ||
           `Bulk payment completed: ${successCount} successful, ${failedCount} failed`,
       );
+
       setShowBulkPaymentModal(false);
       setBulkPaymentData({
         amount: "",
@@ -679,73 +696,45 @@ function FeeManagement() {
 
       if (activeTab === "fees") {
         data = fees.map((fee) => ({
-          [t?.feeManagement?.studentName || "Student Name"]:
+          Student:
             fee.studentName ||
             getStudentName(selectedStudent) ||
             getStudentName(students[0]),
-          [t?.feeManagement?.admissionNo || "Admission No"]:
-            fee.admissionNumber || selectedStudent?.admissionNumber,
-          [t?.feeManagement?.class || "Class"]:
-            `${fee.studentClass || selectedStudent?.studentClass || ""} ${
-              fee.classArm || selectedStudent?.classArm || ""
-            }`.trim(),
-          [t?.feeManagement?.feeType || "Fee Type"]: fee.feeType,
-          [t?.feeManagement?.description || "Description"]:
-            fee.description || "",
-          [t?.feeManagement?.amount || "Amount (₦)"]: fee.amount || 0,
-          [t?.feeManagement?.paid || "Paid (₦)"]: fee.paidAmount || 0,
-          [t?.feeManagement?.balance || "Balance (₦)"]: fee.balance || 0,
-          [t?.feeManagement?.dueDate || "Due Date"]: fee.dueDate
-            ? moment(fee.dueDate).format("DD/MM/YYYY")
-            : "",
-          [t?.feeManagement?.status || "Status"]: fee.status || "",
-          [t?.feeManagement?.paymentMethod || "Payment Method"]:
-            fee.paymentMethod || "-",
-          [t?.feeManagement?.paymentDate || "Payment Date"]: fee.paidDate
-            ? moment(fee.paidDate).format("DD/MM/YYYY")
-            : "-",
+          Admission:
+            fee.admissionNumber || selectedStudent?.admissionNumber || "",
+          Class:
+            `${fee.studentClass || selectedStudent?.studentClass || ""} ${fee.classArm || selectedStudent?.classArm || ""}`.trim(),
+          FeeType: fee.feeType,
+          Description: fee.description || "",
+          Amount: fee.amount || 0,
+          Paid: fee.paidAmount || 0,
+          Balance: fee.balance || 0,
+          DueDate: fee.dueDate ? moment(fee.dueDate).format("DD/MM/YYYY") : "",
+          Status: fee.status || "",
         }));
-
-        const exportStudent = selectedStudent || students[0];
-        if (exportStudent) {
-          filename += `_${getStudentName(exportStudent).replace(/\s+/g, "_")}`;
-        }
       } else if (activeTab === "all-students" && isAdmin) {
         data = filteredStudents.map((student) => ({
-          [t?.feeManagement?.studentName || "Student Name"]:
-            getStudentName(student),
-          [t?.feeManagement?.admissionNo || "Admission No"]:
-            student.admissionNumber || "",
-          [t?.feeManagement?.class || "Class"]:
+          Student: getStudentName(student),
+          Admission: student.admissionNumber || "",
+          Class:
             `${student.studentClass || ""} ${student.classArm || ""}`.trim(),
-          [t?.feeManagement?.parentName || "Parent Name"]:
-            student.parentName || "-",
-          [t?.feeManagement?.parentPhone || "Parent Phone"]:
-            student.parentPhone || "-",
-          [t?.feeManagement?.totalFees || "Total Fees (₦)"]:
-            student.totalFees || 0,
-          [t?.feeManagement?.paid || "Paid (₦)"]: student.totalPaid || 0,
-          [t?.feeManagement?.balance || "Balance (₦)"]: student.balance || 0,
-          [t?.feeManagement?.status || "Status"]: student.status || "NO_FEES",
-          [t?.feeManagement?.feeCount || "Fee Count"]: student.feeCount || 0,
+          Parent: student.parentName || "-",
+          Phone: student.parentPhone || "-",
+          TotalFees: student.totalFees || 0,
+          Paid: student.totalPaid || 0,
+          Balance: student.balance || 0,
+          Status: student.status || "NO_FEES",
         }));
         filename += "_all_students";
       } else if (activeTab === "defaulters" && isAdmin) {
         data = defaulters.map((def) => ({
-          [t?.feeManagement?.studentName || "Student Name"]:
-            def.studentName || "",
-          [t?.feeManagement?.admissionNo || "Admission No"]:
-            def.admissionNumber || "",
-          [t?.feeManagement?.class || "Class"]:
-            `${def.studentClass || ""} ${def.classArm || ""}`.trim(),
-          [t?.feeManagement?.parentName || "Parent Name"]: def.parentName || "",
-          [t?.feeManagement?.parentPhone || "Parent Phone"]:
-            def.parentPhone || "",
-          [t?.feeManagement?.outstanding || "Outstanding Balance (₦)"]:
-            def.outstandingBalance || 0,
-          [t?.feeManagement?.overdue || "Overdue Fees"]: def.overdueFees || 0,
-          [t?.feeManagement?.status || "Status"]:
-            def.overdueFees > 0 ? "OVERDUE" : "PENDING",
+          Student: def.studentName || "",
+          Admission: def.admissionNumber || "",
+          Class: `${def.studentClass || ""} ${def.classArm || ""}`.trim(),
+          Parent: def.parentName || "",
+          Phone: def.parentPhone || "",
+          Outstanding: def.outstandingBalance || 0,
+          Status: def.overdueFees > 0 ? "OVERDUE" : "PENDING",
         }));
         filename += "_defaulters";
       }
@@ -754,10 +743,7 @@ function FeeManagement() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Fee Report");
       XLSX.writeFile(wb, `${filename}.xlsx`);
-
-      toast.success(
-        t?.feeManagement?.exportSuccess || "Exported successfully!",
-      );
+      toast.success(t?.feeManagement?.exportSuccess || "Exported successfully");
     } catch (error) {
       console.error("Error exporting to Excel:", error);
       toast.error(
@@ -775,16 +761,16 @@ function FeeManagement() {
 
       if (activeTab === "fees") {
         const exportStudent = selectedStudent || students[0];
-        title = `${t?.feeManagement?.feeReport || "Fee Report"} - ${getStudentName(exportStudent)}`;
+        title = `Fee Report - ${getStudentName(exportStudent)}`;
         tableHeaders = [
           [
-            t?.feeManagement?.feeType || "Fee Type",
-            t?.feeManagement?.description || "Description",
-            `${t?.feeManagement?.amount || "Amount"} (₦)`,
-            `${t?.feeManagement?.paid || "Paid"} (₦)`,
-            `${t?.feeManagement?.balance || "Balance"} (₦)`,
-            t?.feeManagement?.dueDate || "Due Date",
-            t?.feeManagement?.status || "Status",
+            "Fee Type",
+            "Description",
+            "Amount",
+            "Paid",
+            "Balance",
+            "Due Date",
+            "Status",
           ],
         ];
         tableData = fees.map((fee) => [
@@ -797,17 +783,16 @@ function FeeManagement() {
           fee.status || "",
         ]);
       } else if (activeTab === "all-students" && isAdmin) {
-        title =
-          t?.feeManagement?.allStudentsFeeStatus || "All Students Fee Status";
+        title = "All Students Fee Status";
         tableHeaders = [
           [
-            t?.feeManagement?.student || "Student",
-            t?.feeManagement?.admissionNo || "Admission",
-            t?.feeManagement?.class || "Class",
-            `${t?.feeManagement?.totalFees || "Total"} (₦)`,
-            `${t?.feeManagement?.paid || "Paid"} (₦)`,
-            `${t?.feeManagement?.balance || "Balance"} (₦)`,
-            t?.feeManagement?.status || "Status",
+            "Student",
+            "Admission",
+            "Class",
+            "Total",
+            "Paid",
+            "Balance",
+            "Status",
           ],
         ];
         tableData = filteredStudents.map((student) => [
@@ -820,16 +805,16 @@ function FeeManagement() {
           student.status || "NO_FEES",
         ]);
       } else if (activeTab === "defaulters" && isAdmin) {
-        title = t?.feeManagement?.defaultersReport || "Fee Defaulters Report";
+        title = "Fee Defaulters Report";
         tableHeaders = [
           [
-            t?.feeManagement?.student || "Student",
-            t?.feeManagement?.admissionNo || "Admission",
-            t?.feeManagement?.class || "Class",
-            t?.feeManagement?.parent || "Parent",
-            t?.feeManagement?.phone || "Phone",
-            `${t?.feeManagement?.outstanding || "Outstanding"} (₦)`,
-            t?.feeManagement?.status || "Status",
+            "Student",
+            "Admission",
+            "Class",
+            "Parent",
+            "Phone",
+            "Outstanding",
+            "Status",
           ],
         ];
         tableData = defaulters.map((def) => [
@@ -845,18 +830,9 @@ function FeeManagement() {
 
       doc.setFontSize(16);
       doc.text(title, 14, 15);
-
       doc.setFontSize(10);
-      doc.text(
-        `${t?.feeManagement?.session || "Session"}: ${session} | ${t?.feeManagement?.termLabel || "Term"}: ${term}`,
-        14,
-        22,
-      );
-      doc.text(
-        `${t?.feeManagement?.generated || "Generated"}: ${moment().format("DD/MM/YYYY HH:mm")}`,
-        14,
-        28,
-      );
+      doc.text(`Session: ${session} | Term: ${term}`, 14, 22);
+      doc.text(`Generated: ${moment().format("DD/MM/YYYY HH:mm")}`, 14, 28);
 
       autoTable(doc, {
         head: tableHeaders,
@@ -868,7 +844,7 @@ function FeeManagement() {
 
       doc.save(`${activeTab}_report_${session}_${term}.pdf`);
       toast.success(
-        t?.feeManagement?.exportSuccess || "PDF exported successfully!",
+        t?.feeManagement?.exportSuccess || "PDF exported successfully",
       );
     } catch (error) {
       console.error("Error exporting to PDF:", error);
@@ -893,7 +869,6 @@ function FeeManagement() {
     }
 
     setLoading(true);
-
     try {
       const payload = {
         ...formData,
@@ -918,9 +893,7 @@ function FeeManagement() {
       setEditingFee(null);
       resetForm();
 
-      if (selectedStudent) {
-        await fetchStudentFees();
-      }
+      if (selectedStudent) await fetchStudentFees();
       await fetchFeeStatistics();
       await fetchDefaulters();
     } catch (error) {
@@ -1025,21 +998,17 @@ function FeeManagement() {
 
     if (
       !window.confirm(
-        `${t?.feeManagement?.sendReminderConfirm || "Send SMS reminder to"} ${student.parentName || getStudentName(student)}?`,
+        `${t?.feeManagement?.sendReminderConfirm || "Send fee reminder to"} ${
+          student.parentName || getStudentName(student)
+        }?`,
       )
     ) {
       return;
     }
 
-    try {
-      toast.success(
-        t?.feeManagement?.remindersSent || "Reminder sent successfully",
-      );
-    } catch (error) {
-      toast.error(
-        t?.feeManagement?.remindersFailed || "Failed to send reminder",
-      );
-    }
+    toast.success(
+      t?.feeManagement?.remindersSent || "Reminder action triggered",
+    );
   };
 
   const getStatusBadge = (status) => {
@@ -1049,6 +1018,8 @@ function FeeManagement() {
       PENDING: t?.feeManagement?.statuses?.PENDING || "Pending",
       OVERDUE: t?.feeManagement?.statuses?.OVERDUE || "Overdue",
       WAIVED: t?.feeManagement?.statuses?.WAIVED || "Waived",
+      NO_FEES: t?.feeManagement?.statuses?.NO_FEES || "No Fees",
+      OUTSTANDING: t?.feeManagement?.statuses?.OUTSTANDING || "Outstanding",
     };
 
     const badges = {
@@ -1077,6 +1048,16 @@ function FeeManagement() {
         icon: <FiXCircle />,
         label: statusLabels.WAIVED,
       },
+      OUTSTANDING: {
+        class: "badge-pending",
+        icon: <FiClock />,
+        label: statusLabels.OUTSTANDING,
+      },
+      NO_FEES: {
+        class: "badge-waived",
+        icon: <FiXCircle />,
+        label: statusLabels.NO_FEES,
+      },
     };
 
     const badge = badges[status] || badges.PENDING;
@@ -1084,41 +1065,6 @@ function FeeManagement() {
       <span className={`status-badge ${badge.class}`}>
         {badge.icon} {badge.label}
       </span>
-    );
-  };
-
-  const getFilteredFees = () => {
-    return fees.filter((fee) => {
-      const matchesSearch =
-        searchTerm === "" ||
-        fee.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fee.admissionNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fee.feeType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fee.description?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesStatus =
-        filterStatus === "all" || fee.status === filterStatus;
-      const matchesFeeType =
-        selectedFeeType === "all" || fee.feeType === selectedFeeType;
-
-      return matchesSearch && matchesStatus && matchesFeeType;
-    });
-  };
-
-  const paginatedFees = () => {
-    const filtered = getFilteredFees();
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    return filtered.slice(indexOfFirstItem, indexOfLastItem);
-  };
-
-  const totalPages = Math.ceil(getFilteredFees().length / itemsPerPage);
-
-  const toggleRowExpansion = (feeId) => {
-    setExpandedRows((prev) =>
-      prev.includes(feeId)
-        ? prev.filter((id) => id !== feeId)
-        : [...prev, feeId],
     );
   };
 
@@ -1194,16 +1140,12 @@ function FeeManagement() {
                       "View your ward's fee records"}
               </p>
               <p className="header-subtitle">
-                {t?.feeManagement?.activeSession || "Active Session"}:{" "}
-                <strong>
-                  {session ||
-                    t?.feeManagement?.noActiveSession ||
-                    "No active session"}
-                </strong>{" "}
-                | {t?.feeManagement?.termLabel || "Term"}:{" "}
+                Active Session:{" "}
+                <strong>{session || "No active session"}</strong> | Term:{" "}
                 <strong>{term || "N/A"}</strong>
               </p>
             </div>
+
             <button
               className="btn-refresh"
               onClick={() => {
@@ -1224,9 +1166,7 @@ function FeeManagement() {
           {isAdmin && stats && (
             <div className="stats-grid">
               <div
-                className={`stat-card glass-effect ${
-                  hoveredCard === "collected" ? "hovered" : ""
-                }`}
+                className={`stat-card glass-effect ${hoveredCard === "collected" ? "hovered" : ""}`}
                 onMouseEnter={() => setHoveredCard("collected")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -1234,23 +1174,18 @@ function FeeManagement() {
                   <FiTrendingUp />
                 </div>
                 <div className="stat-content">
-                  <span className="stat-label">
-                    {t?.feeManagement?.totalCollected || "Total Collected"}
-                  </span>
+                  <span className="stat-label">Total Collected</span>
                   <span className="stat-value">
-                    ₦{stats.totalCollected?.toLocaleString()}
+                    ₦{stats.totalCollected.toLocaleString()}
                   </span>
                   <span className="stat-trend">
-                    <FiUsers /> {stats.paidCount}{" "}
-                    {t?.feeManagement?.students || "students"}
+                    <FiUsers /> {stats.paidCount} students
                   </span>
                 </div>
               </div>
 
               <div
-                className={`stat-card glass-effect ${
-                  hoveredCard === "outstanding" ? "hovered" : ""
-                }`}
+                className={`stat-card glass-effect ${hoveredCard === "outstanding" ? "hovered" : ""}`}
                 onMouseEnter={() => setHoveredCard("outstanding")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -1258,23 +1193,18 @@ function FeeManagement() {
                   <MdOutlinePendingActions />
                 </div>
                 <div className="stat-content">
-                  <span className="stat-label">
-                    {t?.feeManagement?.outstanding || "Outstanding"}
-                  </span>
+                  <span className="stat-label">Outstanding</span>
                   <span className="stat-value">
-                    ₦{stats.totalOutstanding?.toLocaleString()}
+                    ₦{stats.totalOutstanding.toLocaleString()}
                   </span>
                   <span className="stat-trend">
-                    <FiUsers /> {stats.studentsWithOutstanding}{" "}
-                    {t?.feeManagement?.students || "students"}
+                    <FiUsers /> {stats.studentsWithOutstanding} students
                   </span>
                 </div>
               </div>
 
               <div
-                className={`stat-card glass-effect ${
-                  hoveredCard === "overdue" ? "hovered" : ""
-                }`}
+                className={`stat-card glass-effect ${hoveredCard === "overdue" ? "hovered" : ""}`}
                 onMouseEnter={() => setHoveredCard("overdue")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -1282,23 +1212,18 @@ function FeeManagement() {
                   <FiAlertTriangle />
                 </div>
                 <div className="stat-content">
-                  <span className="stat-label">
-                    {t?.feeManagement?.overdue || "Overdue"}
-                  </span>
+                  <span className="stat-label">Overdue</span>
                   <span className="stat-value">
-                    ₦{overdueAmount?.toLocaleString()}
+                    ₦{overdueAmount.toLocaleString()}
                   </span>
                   <span className="stat-trend">
-                    <FiUsers /> {stats.overdueCount}{" "}
-                    {t?.feeManagement?.students || "students"}
+                    <FiUsers /> {stats.overdueCount} students
                   </span>
                 </div>
               </div>
 
               <div
-                className={`stat-card glass-effect ${
-                  hoveredCard === "rate" ? "hovered" : ""
-                }`}
+                className={`stat-card glass-effect ${hoveredCard === "rate" ? "hovered" : ""}`}
                 onMouseEnter={() => setHoveredCard("rate")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -1306,9 +1231,7 @@ function FeeManagement() {
                   <FiPieChart />
                 </div>
                 <div className="stat-content">
-                  <span className="stat-label">
-                    {t?.feeManagement?.collectionRate || "Collection Rate"}
-                  </span>
+                  <span className="stat-label">Collection Rate</span>
                   <span className="stat-value">{stats.collectionRate}%</span>
                   <div className="progress-bar">
                     <div style={{ width: `${stats.collectionRate}%` }}></div>
@@ -1323,21 +1246,16 @@ function FeeManagement() {
           className="mobile-filter-toggle glass-effect"
           onClick={() => setShowMobileFilters(!showMobileFilters)}
         >
-          <FiFilter />{" "}
-          {showMobileFilters
-            ? t?.common?.hideFilters || "Hide Filters"
-            : t?.common?.showFilters || "Show Filters"}
+          <FiFilter /> {showMobileFilters ? "Hide Filters" : "Show Filters"}
         </button>
 
         <div
-          className={`filters-section glass-effect ${
-            showMobileFilters ? "show" : ""
-          }`}
+          className={`filters-section glass-effect ${showMobileFilters ? "show" : ""}`}
         >
           <div className="filters-grid">
             <div className="filter-group">
               <label>
-                <FiCalendar /> {t?.feeManagement?.session || "Session"}
+                <FiCalendar /> Session
               </label>
               <select
                 value={session || ""}
@@ -1350,24 +1268,22 @@ function FeeManagement() {
                     </option>
                   ))
                 ) : (
-                  <option value="">
-                    {t?.feeManagement?.noSession || "No session available"}
-                  </option>
+                  <option value="">No session available</option>
                 )}
               </select>
             </div>
 
             <div className="filter-group">
               <label>
-                <FiClock /> {t?.feeManagement?.termLabel || "Term"}
+                <FiClock /> Term
               </label>
               <select
                 value={term || ""}
                 onChange={(e) => setTerm(e.target.value)}
               >
-                {terms.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {terms.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
                   </option>
                 ))}
               </select>
@@ -1376,10 +1292,7 @@ function FeeManagement() {
             {(isAdmin || isParent) && (
               <div className="filter-group">
                 <label>
-                  <FiUser />{" "}
-                  {isParent
-                    ? t?.feeManagement?.selectWard || "Ward"
-                    : t?.feeManagement?.selectStudent || "Student"}
+                  <FiUser /> {isParent ? "Ward" : "Student"}
                 </label>
                 <select
                   value={selectedStudent?.id || ""}
@@ -1398,9 +1311,7 @@ function FeeManagement() {
                   }}
                 >
                   <option value="">
-                    {isParent
-                      ? t?.feeManagement?.selectWard || "Select Ward"
-                      : t?.feeManagement?.selectStudent || "Select Student"}
+                    {isParent ? "Select Ward" : "Select Student"}
                   </option>
                   {students.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -1422,7 +1333,7 @@ function FeeManagement() {
                   }}
                   disabled={!selectedStudent}
                 >
-                  <FiPlus /> {t?.feeManagement?.addFee || "Add Fee"}
+                  <FiPlus /> Add Fee
                 </button>
               </div>
             )}
@@ -1435,7 +1346,7 @@ function FeeManagement() {
                 onClick={handleSendReminders}
                 disabled={loading}
               >
-                <FiBell /> {t?.feeManagement?.sendReminders || "Send Reminders"}
+                <FiBell /> Send Reminders
               </button>
             )}
 
@@ -1444,15 +1355,15 @@ function FeeManagement() {
                 className="btn-success"
                 onClick={() => setShowBulkPaymentModal(true)}
               >
-                <BsWallet2 /> {t?.feeManagement?.bulkPayment || "Bulk Payment"}
+                <BsWallet2 /> Bulk Payment
               </button>
             )}
 
             <button className="btn-excel" onClick={handleExportToExcel}>
-              <BsFileEarmarkExcel /> {t?.feeManagement?.excel || "Excel"}
+              <BsFileEarmarkExcel /> Excel
             </button>
             <button className="btn-pdf" onClick={handleExportToPDF}>
-              <BsFileEarmarkPdf /> {t?.feeManagement?.pdf || "PDF"}
+              <BsFileEarmarkPdf /> PDF
             </button>
           </div>
 
@@ -1461,10 +1372,7 @@ function FeeManagement() {
               <FiSearch />
               <input
                 type="text"
-                placeholder={
-                  t?.feeManagement?.searchByFeeType ||
-                  "Search by fee type or description..."
-                }
+                placeholder="Search by fee type or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1474,30 +1382,18 @@ function FeeManagement() {
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <option value="all">
-                {t?.feeManagement?.allStatus || "All Status"}
-              </option>
-              <option value="PAID">
-                {t?.feeManagement?.statuses?.PAID || "Paid"}
-              </option>
-              <option value="PARTIAL">
-                {t?.feeManagement?.statuses?.PARTIAL || "Partial"}
-              </option>
-              <option value="PENDING">
-                {t?.feeManagement?.statuses?.PENDING || "Pending"}
-              </option>
-              <option value="OVERDUE">
-                {t?.feeManagement?.statuses?.OVERDUE || "Overdue"}
-              </option>
+              <option value="all">All Status</option>
+              <option value="PAID">Paid</option>
+              <option value="PARTIAL">Partial</option>
+              <option value="PENDING">Pending</option>
+              <option value="OVERDUE">Overdue</option>
             </select>
 
             <select
               value={selectedFeeType}
               onChange={(e) => setSelectedFeeType(e.target.value)}
             >
-              <option value="all">
-                {t?.feeManagement?.allFeeTypes || "All Fee Types"}
-              </option>
+              <option value="all">All Fee Types</option>
               {feeTypes.map((type) => (
                 <option key={type} value={type}>
                   {t?.feeManagement?.feeTypes?.[type] || type}
@@ -1513,31 +1409,22 @@ function FeeManagement() {
             onClick={() => setActiveTab("fees")}
           >
             <FiDollarSign />{" "}
-            {isStudent
-              ? t?.feeManagement?.myFees || "My Fees"
-              : isParent
-                ? t?.feeManagement?.wardFees || "Ward Fees"
-                : t?.feeManagement?.studentFees || "Student Fees"}
+            {isStudent ? "My Fees" : isParent ? "Ward Fees" : "Student Fees"}
           </button>
 
           {canViewAdminTabs && (
             <>
               <button
-                className={`tab-btn ${
-                  activeTab === "all-students" ? "active" : ""
-                }`}
+                className={`tab-btn ${activeTab === "all-students" ? "active" : ""}`}
                 onClick={() => setActiveTab("all-students")}
               >
-                <FiUsers /> {t?.feeManagement?.allStudents || "All Students"}
+                <FiUsers /> All Students
               </button>
               <button
-                className={`tab-btn ${
-                  activeTab === "defaulters" ? "active" : ""
-                }`}
+                className={`tab-btn ${activeTab === "defaulters" ? "active" : ""}`}
                 onClick={() => setActiveTab("defaulters")}
               >
-                <FiAlertTriangle />{" "}
-                {t?.feeManagement?.defaulters || "Defaulters"}{" "}
+                <FiAlertTriangle /> Defaulters{" "}
                 <span className="badge">{defaulters.length}</span>
               </button>
             </>
@@ -1548,32 +1435,38 @@ function FeeManagement() {
           <div className="fees-tab glass-effect">
             {feeOwner ? (
               <>
-                <div className="student-info-card">
-                  <div className="student-avatar">
-                    <RiUserStarLine />
+                <div className="student-info-card ">
+                  <div className="student-left">
+                    <div className="student-avatar small">
+                      <RiUserStarLine />
+                    </div>
+                    <div className="student-details">
+                      <h3>{getStudentName(feeOwner)}</h3>
+                      <div className="student-meta">
+                        <span>
+                          <FiUser /> {feeOwner.admissionNumber || "-"}
+                        </span>
+                        <p></p>
+                        <span>
+                          <FiUsers /> {feeOwner.studentClass || "-"}{" "}
+                          {feeOwner.classArm || ""}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="student-details">
-                    <h3>{getStudentName(feeOwner)}</h3>
-                    <p>
-                      <FiUser /> {feeOwner.admissionNumber}
-                    </p>
-                    <p>
-                      <FiUsers /> {feeOwner.studentClass} {feeOwner.classArm}
-                    </p>
-                  </div>
-                  <div className="student-stats">
-                    <div>
-                      <span>{t?.feeManagement?.totalFees || "Total Fees"}</span>
-                      <strong>
+                  <div className="student-stats compact">
+                    <div className="stat-item">
+                      <span className="stat-label">Total</span>
+                      <span className="stat-value">
                         ₦
                         {fees
                           .reduce((sum, f) => sum + (Number(f.amount) || 0), 0)
                           .toLocaleString()}
-                      </strong>
+                      </span>
                     </div>
-                    <div>
-                      <span>{t?.feeManagement?.paid || "Paid"}</span>
-                      <strong className="text-success">
+                    <div className="stat-item">
+                      <span className="stat-label">Paid</span>
+                      <span className="stat-value text-success">
                         ₦
                         {fees
                           .reduce(
@@ -1581,16 +1474,16 @@ function FeeManagement() {
                             0,
                           )
                           .toLocaleString()}
-                      </strong>
+                      </span>
                     </div>
-                    <div>
-                      <span>{t?.feeManagement?.balance || "Balance"}</span>
-                      <strong className="text-danger">
+                    <div className="stat-item">
+                      <span className="stat-label">Balance</span>
+                      <span className="stat-value text-danger">
                         ₦
                         {fees
                           .reduce((sum, f) => sum + (Number(f.balance) || 0), 0)
                           .toLocaleString()}
-                      </strong>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1598,7 +1491,7 @@ function FeeManagement() {
                 {loading ? (
                   <div className="loading-spinner">
                     <FiLoader className="spin" />
-                    <p>{t?.common?.loading || "Loading fees..."}</p>
+                    <p>Loading fees...</p>
                   </div>
                 ) : (
                   <>
@@ -1607,22 +1500,14 @@ function FeeManagement() {
                         <thead>
                           <tr>
                             <th></th>
-                            <th>{t?.feeManagement?.feeType || "Fee Type"}</th>
-                            <th>
-                              {t?.feeManagement?.description || "Description"}
-                            </th>
-                            <th className="text-right">
-                              {t?.feeManagement?.amount || "Amount"}
-                            </th>
-                            <th className="text-right">
-                              {t?.feeManagement?.paid || "Paid"}
-                            </th>
-                            <th className="text-right">
-                              {t?.feeManagement?.balance || "Balance"}
-                            </th>
-                            <th>{t?.feeManagement?.dueDate || "Due Date"}</th>
-                            <th>{t?.feeManagement?.status || "Status"}</th>
-                            <th>{t?.feeManagement?.actions || "Actions"}</th>
+                            <th>Fee Type</th>
+                            <th>Description</th>
+                            <th className="text-right">Amount</th>
+                            <th className="text-right">Paid</th>
+                            <th className="text-right">Balance</th>
+                            <th>Due Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1691,10 +1576,7 @@ function FeeManagement() {
                                             });
                                             setShowPaymentModal(true);
                                           }}
-                                          title={
-                                            t?.feeManagement?.recordPayment ||
-                                            "Record Payment"
-                                          }
+                                          title="Record Payment"
                                         >
                                           <MdOutlinePayments />
                                         </button>
@@ -1703,10 +1585,7 @@ function FeeManagement() {
                                     <button
                                       className="btn-view"
                                       onClick={() => toggleRowExpansion(fee.id)}
-                                      title={
-                                        t?.feeManagement?.viewDetails ||
-                                        "View Details"
-                                      }
+                                      title="View Details"
                                     >
                                       <FiEye />
                                     </button>
@@ -1720,39 +1599,23 @@ function FeeManagement() {
                                     <div className="expanded-content">
                                       <div className="detail-grid">
                                         <div>
-                                          <h4>
-                                            {t?.feeManagement?.paymentHistory ||
-                                              "Payment History"}
-                                          </h4>
+                                          <h4>Payment History</h4>
                                           <p>
-                                            <strong>
-                                              {t?.feeManagement?.paid || "Paid"}
-                                              :
-                                            </strong>{" "}
-                                            ₦
+                                            <strong>Paid:</strong> ₦
                                             {(
                                               fee.paidAmount || 0
                                             ).toLocaleString()}
                                           </p>
                                           <p>
-                                            <strong>
-                                              {t?.feeManagement?.paymentDate ||
-                                                "Date"}
-                                              :
-                                            </strong>{" "}
+                                            <strong>Date:</strong>{" "}
                                             {fee.paidDate
                                               ? moment(fee.paidDate).format(
                                                   "DD/MM/YYYY",
                                                 )
-                                              : t?.feeManagement?.notPaid ||
-                                                "Not paid"}
+                                              : "Not paid"}
                                           </p>
                                           <p>
-                                            <strong>
-                                              {t?.feeManagement
-                                                ?.paymentMethod || "Method"}
-                                              :
-                                            </strong>{" "}
+                                            <strong>Method:</strong>{" "}
                                             {fee.paymentMethod
                                               ? t?.feeManagement
                                                   ?.paymentMethods?.[
@@ -1761,41 +1624,26 @@ function FeeManagement() {
                                               : "-"}
                                           </p>
                                         </div>
+
                                         <div>
-                                          <h4>
-                                            {t?.feeManagement?.reminders ||
-                                              "Reminders"}
-                                          </h4>
+                                          <h4>Reminders</h4>
                                           <p>
-                                            <strong>
-                                              {t?.feeManagement?.count ||
-                                                "Count"}
-                                              :
-                                            </strong>{" "}
+                                            <strong>Count:</strong>{" "}
                                             {fee.reminderCount || 0}
                                           </p>
                                           <p>
-                                            <strong>
-                                              {t?.feeManagement?.last || "Last"}
-                                              :
-                                            </strong>{" "}
+                                            <strong>Last:</strong>{" "}
                                             {fee.lastReminderSent
                                               ? moment(
                                                   fee.lastReminderSent,
                                                 ).format("DD/MM/YYYY")
-                                              : t?.feeManagement?.never ||
-                                                "Never"}
+                                              : "Never"}
                                           </p>
                                         </div>
+
                                         <div>
-                                          <h4>
-                                            {t?.feeManagement?.notes || "Notes"}
-                                          </h4>
-                                          <p>
-                                            {fee.notes ||
-                                              t?.feeManagement?.noNotes ||
-                                              "No notes"}
-                                          </p>
+                                          <h4>Notes</h4>
+                                          <p>{fee.notes || "No notes"}</p>
                                         </div>
                                       </div>
                                     </div>
@@ -1809,18 +1657,16 @@ function FeeManagement() {
                             <tr>
                               <td colSpan="9" className="empty-state">
                                 <FiDollarSign size={40} />
-                                <p>
-                                  {t?.feeManagement?.noFeesFound ||
-                                    "No fees found"}
-                                </p>
+                                <p>No fees found</p>
                                 {canManageFees && (
                                   <button
                                     className="btn-primary"
-                                    onClick={() => setShowForm(true)}
+                                    onClick={() => {
+                                      resetForm();
+                                      setShowForm(true);
+                                    }}
                                   >
-                                    <FiPlus />{" "}
-                                    {t?.feeManagement?.addFirstFee ||
-                                      "Add First Fee"}
+                                    <FiPlus /> Add First Fee
                                   </button>
                                 )}
                               </td>
@@ -1841,8 +1687,7 @@ function FeeManagement() {
                           <FiArrowLeft />
                         </button>
                         <span>
-                          {t?.feeManagement?.page || "Page"} {currentPage}{" "}
-                          {t?.feeManagement?.of || "of"} {totalPages}
+                          Page {currentPage} of {totalPages}
                         </span>
                         <button
                           onClick={() =>
@@ -1862,17 +1707,11 @@ function FeeManagement() {
             ) : (
               <div className="select-student-prompt">
                 <FiUsers size={50} />
-                <h3>
-                  {isParent
-                    ? t?.feeManagement?.selectWard || "Select a Ward"
-                    : t?.feeManagement?.selectStudent || "Select a Student"}
-                </h3>
+                <h3>{isParent ? "Select a Ward" : "Select a Student"}</h3>
                 <p>
                   {isScopedUser
-                    ? t?.feeManagement?.noStudentRecord ||
-                      "No student record available for this account"
-                    : t?.feeManagement?.selectStudentFirst ||
-                      "Choose a student from the dropdown above to view their fees"}
+                    ? "No student record available for this account"
+                    : "Choose a student from the dropdown above to view their fees"}
                 </p>
               </div>
             )}
@@ -1887,77 +1726,52 @@ function FeeManagement() {
                   <FiUsers />
                 </div>
                 <div className="stat-info">
-                  <span className="stat-label">
-                    {t?.feeManagement?.totalStudents || "Total Students"}
-                  </span>
+                  <span className="stat-label">Total Students</span>
                   <span className="stat-number">
                     {quickStats.totalStudents}
                   </span>
                 </div>
               </div>
+
               <div className="quick-stat-card paid">
                 <div className="stat-icon">
                   <FiCheckCircle />
                 </div>
                 <div className="stat-info">
-                  <span className="stat-label">
-                    {t?.feeManagement?.fullyPaid || "Fully Paid"}
-                  </span>
+                  <span className="stat-label">Fully Paid</span>
                   <span className="stat-number">{quickStats.paid}</span>
                 </div>
               </div>
+
               <div className="quick-stat-card outstanding">
                 <div className="stat-icon">
                   <FiClock />
                 </div>
                 <div className="stat-info">
-                  <span className="stat-label">
-                    {t?.feeManagement?.outstanding || "Outstanding"}
-                  </span>
+                  <span className="stat-label">Outstanding</span>
                   <span className="stat-number">{quickStats.outstanding}</span>
                 </div>
               </div>
+
               <div className="quick-stat-card overdue">
                 <div className="stat-icon">
                   <FiAlertTriangle />
                 </div>
                 <div className="stat-info">
-                  <span className="stat-label">
-                    {t?.feeManagement?.overdue || "Overdue"}
-                  </span>
+                  <span className="stat-label">Overdue</span>
                   <span className="stat-number">{quickStats.overdue}</span>
                 </div>
               </div>
+
               <div className="quick-stat-card no-fees">
                 <div className="stat-icon">
                   <FiXCircle />
                 </div>
                 <div className="stat-info">
-                  <span className="stat-label">
-                    {t?.feeManagement?.noFees || "No Fees"}
-                  </span>
+                  <span className="stat-label">No Fees</span>
                   <span className="stat-number">{quickStats.noFees}</span>
                 </div>
               </div>
-            </div>
-
-            <div className="status-legend">
-              <span>
-                <FiCheckCircle className="text-success" />{" "}
-                {t?.feeManagement?.statuses?.PAID || "Paid"}
-              </span>
-              <span>
-                <FiClock className="text-warning" />{" "}
-                {t?.feeManagement?.outstanding || "Outstanding"}
-              </span>
-              <span>
-                <FiAlertTriangle className="text-danger" />{" "}
-                {t?.feeManagement?.overdue || "Overdue"}
-              </span>
-              <span>
-                <FiXCircle className="text-secondary" />{" "}
-                {t?.feeManagement?.noFees || "No Fees"}
-              </span>
             </div>
 
             <div className="all-students-search">
@@ -1965,10 +1779,7 @@ function FeeManagement() {
                 <FiSearch />
                 <input
                   type="text"
-                  placeholder={
-                    t?.feeManagement?.searchStudents ||
-                    "Search students by name, admission number or class..."
-                  }
+                  placeholder="Search students by name, admission number or class..."
                   value={studentSearchTerm}
                   onChange={(e) => setStudentSearchTerm(e.target.value)}
                   className="student-search-input"
@@ -1983,17 +1794,15 @@ function FeeManagement() {
                 )}
               </div>
               <div className="search-results-count">
-                {t?.feeManagement?.foundStudents || "Found"}{" "}
-                {filteredStudents.length} {t?.feeManagement?.of || "of"}{" "}
-                {allStudentsFeeStatus.length}{" "}
-                {t?.feeManagement?.students || "students"}
+                Found {filteredStudents.length} of {allStudentsFeeStatus.length}{" "}
+                students
               </div>
             </div>
 
             {loading ? (
               <div className="loading-spinner">
                 <FiLoader className="spin" />
-                <p>{t?.common?.loading || "Loading all students..."}</p>
+                <p>Loading all students...</p>
               </div>
             ) : (
               <div className="table-responsive">
@@ -2001,22 +1810,16 @@ function FeeManagement() {
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>{t?.feeManagement?.student || "Student"}</th>
-                      <th>{t?.feeManagement?.admissionNo || "Admission"}</th>
-                      <th>{t?.feeManagement?.class || "Class"}</th>
-                      <th>{t?.feeManagement?.parent || "Parent"}</th>
-                      <th>{t?.feeManagement?.phone || "Phone"}</th>
-                      <th className="text-right">
-                        {t?.feeManagement?.totalFees || "Total (₦)"}
-                      </th>
-                      <th className="text-right">
-                        {t?.feeManagement?.paid || "Paid (₦)"}
-                      </th>
-                      <th className="text-right">
-                        {t?.feeManagement?.balance || "Balance (₦)"}
-                      </th>
-                      <th>{t?.feeManagement?.status || "Status"}</th>
-                      <th>{t?.feeManagement?.actions || "Actions"}</th>
+                      <th>Student</th>
+                      <th>Admission</th>
+                      <th>Class</th>
+                      <th>Parent</th>
+                      <th>Phone</th>
+                      <th className="text-right">Total (₦)</th>
+                      <th className="text-right">Paid (₦)</th>
+                      <th className="text-right">Balance (₦)</th>
+                      <th>Status</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2076,15 +1879,7 @@ function FeeManagement() {
                                 ? "₦0"
                                 : "-"}
                           </td>
-                          <td>
-                            <span
-                              className={`status-badge ${student.statusClass}`}
-                            >
-                              {student.statusIcon}{" "}
-                              {t?.feeManagement?.statuses?.[student.status] ||
-                                student.status}
-                            </span>
-                          </td>
+                          <td>{getStatusBadge(student.status)}</td>
                           <td>
                             <div className="action-buttons">
                               <button
@@ -2093,9 +1888,7 @@ function FeeManagement() {
                                   setSelectedStudent(student);
                                   setActiveTab("fees");
                                 }}
-                                title={
-                                  t?.feeManagement?.viewFees || "View Fees"
-                                }
+                                title="View Fees"
                               >
                                 <FiEye />
                               </button>
@@ -2106,10 +1899,7 @@ function FeeManagement() {
                                     onClick={() =>
                                       handleSendIndividualReminder(student)
                                     }
-                                    title={
-                                      t?.feeManagement?.sendReminder ||
-                                      "Send Reminder"
-                                    }
+                                    title="Send Reminder"
                                     disabled={!student.parentPhone}
                                   >
                                     <FiBell />
@@ -2119,10 +1909,7 @@ function FeeManagement() {
                                 <a
                                   href={`tel:${student.parentPhone}`}
                                   className="btn-call"
-                                  title={
-                                    t?.feeManagement?.callParent ||
-                                    "Call Parent"
-                                  }
+                                  title="Call Parent"
                                 >
                                   <FiPhone />
                                 </a>
@@ -2135,20 +1922,15 @@ function FeeManagement() {
                       <tr>
                         <td colSpan="11" className="empty-state">
                           <FiSearch size={50} className="mb-3 text-muted" />
-                          <h4>
-                            {t?.feeManagement?.noStudentsMatch ||
-                              "No students found"}
-                          </h4>
+                          <h4>No students found</h4>
                           <p className="text-muted">
-                            {t?.feeManagement?.noStudentsMatch ||
-                              "No students match your search criteria"}
+                            No students match your search criteria
                           </p>
                           <button
                             className="btn-primary mt-3"
                             onClick={() => setStudentSearchTerm("")}
                           >
-                            <FiX />{" "}
-                            {t?.feeManagement?.clearSearch || "Clear Search"}
+                            <FiX /> Clear Search
                           </button>
                         </td>
                       </tr>
@@ -2168,16 +1950,17 @@ function FeeManagement() {
                   <FiUsers />
                 </div>
                 <div className="summary-content">
-                  <span>{t?.feeManagement?.totalOwing || "Total Owing"}</span>
+                  <span>Total Owing</span>
                   <strong>{defaulters.length}</strong>
                 </div>
               </div>
+
               <div className="summary-card amount">
                 <div className="summary-icon">
                   <FiDollarSign />
                 </div>
                 <div className="summary-content">
-                  <span>{t?.feeManagement?.totalAmount || "Total Amount"}</span>
+                  <span>Total Amount</span>
                   <strong>
                     ₦
                     {defaulters
@@ -2189,14 +1972,13 @@ function FeeManagement() {
                   </strong>
                 </div>
               </div>
+
               <div className="summary-card overdue">
                 <div className="summary-icon">
                   <FiAlertTriangle />
                 </div>
                 <div className="summary-content">
-                  <span>
-                    {t?.feeManagement?.overdueStudents || "Overdue Students"}
-                  </span>
+                  <span>Overdue Students</span>
                   <strong>
                     {defaulters.filter((d) => d.overdueFees > 0).length}
                   </strong>
@@ -2208,16 +1990,14 @@ function FeeManagement() {
               <table className="defaulter-table">
                 <thead>
                   <tr>
-                    <th>{t?.feeManagement?.student || "Student"}</th>
-                    <th>{t?.feeManagement?.admissionNo || "Admission"}</th>
-                    <th>{t?.feeManagement?.class || "Class"}</th>
-                    <th>{t?.feeManagement?.parent || "Parent"}</th>
-                    <th>{t?.feeManagement?.phone || "Phone"}</th>
-                    <th className="text-right">
-                      {t?.feeManagement?.outstanding || "Outstanding"}
-                    </th>
-                    <th>{t?.feeManagement?.status || "Status"}</th>
-                    <th>{t?.feeManagement?.action || "Action"}</th>
+                    <th>Student</th>
+                    <th>Admission</th>
+                    <th>Class</th>
+                    <th>Parent</th>
+                    <th>Phone</th>
+                    <th className="text-right">Outstanding</th>
+                    <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2247,12 +2027,11 @@ function FeeManagement() {
                       <td>
                         {def.overdueFees > 0 ? (
                           <span className="badge-overdue-small">
-                            <FiAlertTriangle />{" "}
-                            {t?.feeManagement?.overdue || "Overdue"}
+                            <FiAlertTriangle /> Overdue
                           </span>
                         ) : (
                           <span className="badge-pending-small">
-                            <FiClock /> {t?.feeManagement?.pending || "Pending"}
+                            <FiClock /> Pending
                           </span>
                         )}
                       </td>
@@ -2260,9 +2039,7 @@ function FeeManagement() {
                         <button
                           className="btn-remind"
                           onClick={() => handleSendIndividualReminder(def)}
-                          title={
-                            t?.feeManagement?.sendReminder || "Send Reminder"
-                          }
+                          title="Send Reminder"
                         >
                           <FiBell />
                         </button>
@@ -2274,10 +2051,7 @@ function FeeManagement() {
                     <tr>
                       <td colSpan="8" className="empty-state">
                         <FiCheckCircle size={40} className="text-success" />
-                        <p>
-                          {t?.feeManagement?.noDefaulters ||
-                            "No defaulters found"}
-                        </p>
+                        <p>No defaulters found</p>
                       </td>
                     </tr>
                   )}
@@ -2298,8 +2072,7 @@ function FeeManagement() {
             >
               <div className="modal-header success">
                 <h3>
-                  <BsWallet2 />{" "}
-                  {t?.feeManagement?.bulkPayment || "Bulk Payment"}
+                  <BsWallet2 /> Bulk Payment
                 </h3>
                 <button
                   className="modal-close"
@@ -2308,20 +2081,16 @@ function FeeManagement() {
                   <FiX />
                 </button>
               </div>
+
               <div className="modal-body">
                 <div className="bulk-payment-summary">
                   <div className="summary-stats">
                     <div>
-                      <span>
-                        {t?.feeManagement?.selectedStudents ||
-                          "Selected Students"}
-                      </span>
+                      <span>Selected Students</span>
                       <strong>{bulkPaymentData.selectedStudents.length}</strong>
                     </div>
                     <div>
-                      <span>
-                        {t?.feeManagement?.totalBalance || "Total Balance"}
-                      </span>
+                      <span>Total Balance</span>
                       <strong>
                         ₦{calculateTotalSelectedAmount().toLocaleString()}
                       </strong>
@@ -2340,13 +2109,11 @@ function FeeManagement() {
                             onChange={handleSelectAllStudents}
                           />
                         </th>
-                        <th>{t?.feeManagement?.student || "Student"}</th>
-                        <th>{t?.feeManagement?.admissionNo || "Admission"}</th>
-                        <th>{t?.feeManagement?.class || "Class"}</th>
-                        <th className="text-right">
-                          {t?.feeManagement?.balance || "Balance (₦)"}
-                        </th>
-                        <th>{t?.feeManagement?.status || "Status"}</th>
+                        <th>Student</th>
+                        <th>Admission</th>
+                        <th>Class</th>
+                        <th className="text-right">Balance (₦)</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2370,15 +2137,7 @@ function FeeManagement() {
                           <td className="text-right">
                             ₦{(student.balance || 0).toLocaleString()}
                           </td>
-                          <td>
-                            <span
-                              className={`status-badge ${student.statusClass}`}
-                            >
-                              {student.statusIcon}{" "}
-                              {t?.feeManagement?.statuses?.[student.status] ||
-                                student.status}
-                            </span>
-                          </td>
+                          <td>{getStatusBadge(student.status)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2393,18 +2152,15 @@ function FeeManagement() {
                 >
                   <div className="form-row">
                     <div className="form-group">
-                      <label>
-                        {t?.feeManagement?.paymentAmount ||
-                          "Payment Amount (₦)"}
-                      </label>
+                      <label>Payment Amount (₦)</label>
                       <input
                         type="number"
                         value={bulkPaymentData.amount}
                         onChange={(e) =>
-                          setBulkPaymentData({
-                            ...bulkPaymentData,
+                          setBulkPaymentData((prev) => ({
+                            ...prev,
                             amount: e.target.value,
-                          })
+                          }))
                         }
                         max={calculateTotalSelectedAmount()}
                         min="1"
@@ -2412,82 +2168,60 @@ function FeeManagement() {
                         required
                       />
                       <small className="text-muted">
-                        {t?.feeManagement?.maxAmount || "Max"}: ₦
-                        {calculateTotalSelectedAmount().toLocaleString()}
+                        Max: ₦{calculateTotalSelectedAmount().toLocaleString()}
                       </small>
                     </div>
 
                     <div className="form-group">
-                      <label>
-                        {t?.feeManagement?.paymentMethod || "Payment Method"}
-                      </label>
+                      <label>Payment Method</label>
                       <select
                         value={bulkPaymentData.paymentMethod}
                         onChange={(e) =>
-                          setBulkPaymentData({
-                            ...bulkPaymentData,
+                          setBulkPaymentData((prev) => ({
+                            ...prev,
                             paymentMethod: e.target.value,
-                          })
+                          }))
                         }
-                        required
                       >
-                        <option value="CASH">
-                          {t?.feeManagement?.paymentMethods?.CASH || "Cash"}
-                        </option>
-                        <option value="TRANSFER">
-                          {t?.feeManagement?.paymentMethods?.TRANSFER ||
-                            "Bank Transfer"}
-                        </option>
-                        <option value="POS">
-                          {t?.feeManagement?.paymentMethods?.POS || "POS"}
-                        </option>
-                        <option value="CHEQUE">
-                          {t?.feeManagement?.paymentMethods?.CHEQUE || "Cheque"}
-                        </option>
-                        <option value="ONLINE">
-                          {t?.feeManagement?.paymentMethods?.ONLINE ||
-                            "Online Payment"}
-                        </option>
+                        <option value="CASH">Cash</option>
+                        <option value="TRANSFER">Bank Transfer</option>
+                        <option value="POS">POS</option>
+                        <option value="ONLINE">Online</option>
+                        <option value="CHEQUE">Cheque</option>
                       </select>
                     </div>
                   </div>
 
-                  <div className="form-group">
-                    <label>
-                      {t?.feeManagement?.reference || "Reference (Optional)"}
-                    </label>
-                    <input
-                      type="text"
-                      value={bulkPaymentData.reference}
-                      onChange={(e) =>
-                        setBulkPaymentData({
-                          ...bulkPaymentData,
-                          reference: e.target.value,
-                        })
-                      }
-                      placeholder={
-                        t?.feeManagement?.bulkPaymentReference ||
-                        "Bulk Payment Reference"
-                      }
-                    />
-                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Reference</label>
+                      <input
+                        type="text"
+                        value={bulkPaymentData.reference}
+                        onChange={(e) =>
+                          setBulkPaymentData((prev) => ({
+                            ...prev,
+                            reference: e.target.value,
+                          }))
+                        }
+                        placeholder="Reference / transaction ID"
+                      />
+                    </div>
 
-                  <div className="form-group">
-                    <label>{t?.feeManagement?.notes || "Notes"}</label>
-                    <textarea
-                      value={bulkPaymentData.notes}
-                      onChange={(e) =>
-                        setBulkPaymentData({
-                          ...bulkPaymentData,
-                          notes: e.target.value,
-                        })
-                      }
-                      rows="2"
-                      placeholder={
-                        t?.feeManagement?.notesOptional ||
-                        "Additional notes for bulk payment"
-                      }
-                    />
+                    <div className="form-group">
+                      <label>Notes</label>
+                      <input
+                        type="text"
+                        value={bulkPaymentData.notes}
+                        onChange={(e) =>
+                          setBulkPaymentData((prev) => ({
+                            ...prev,
+                            notes: e.target.value,
+                          }))
+                        }
+                        placeholder="Optional notes"
+                      />
+                    </div>
                   </div>
 
                   <div className="modal-footer">
@@ -2496,21 +2230,15 @@ function FeeManagement() {
                       className="btn-secondary"
                       onClick={() => setShowBulkPaymentModal(false)}
                     >
-                      {t?.feeManagement?.cancel || "Cancel"}
+                      Cancel
                     </button>
                     <button
                       type="submit"
                       className="btn-success"
-                      disabled={
-                        loading || bulkPaymentData.selectedStudents.length === 0
-                      }
+                      disabled={loading}
                     >
-                      {loading ? (
-                        <FiLoader className="spin" />
-                      ) : (
-                        t?.feeManagement?.processBulkPayment ||
-                        "Process Bulk Payment"
-                      )}
+                      {loading ? <FiLoader className="spin" /> : <BsWallet2 />}
+                      <span>Process Bulk Payment</span>
                     </button>
                   </div>
                 </form>
@@ -2519,135 +2247,130 @@ function FeeManagement() {
           </div>
         )}
 
-        {isAdmin && showForm && (
-          <div className="modal-overlay" onClick={() => setShowForm(false)}>
+        {showForm && (
+          <div
+            className="modal-overlay"
+            onClick={() => {
+              setShowForm(false);
+              resetForm();
+              setEditingFee(null);
+            }}
+          >
             <div
               className="modal-content glass-effect"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-header">
                 <h3>
-                  {editingFee ? <FiEdit2 /> : <FiPlus />}{" "}
-                  {editingFee
-                    ? t?.feeManagement?.editFee || "Edit Fee"
-                    : t?.feeManagement?.addNewFee || "Add New Fee"}
+                  <FiEdit2 /> {editingFee ? "Edit Fee" : "Create Fee"}
                 </h3>
                 <button
                   className="modal-close"
                   onClick={() => {
                     setShowForm(false);
-                    setEditingFee(null);
                     resetForm();
+                    setEditingFee(null);
                   }}
                 >
                   <FiX />
                 </button>
               </div>
+
               <div className="modal-body">
                 <form onSubmit={handleSubmit}>
-                  <div className="form-group">
-                    <label>{t?.feeManagement?.student || "Student"}</label>
-                    <input
-                      type="text"
-                      value={getStudentName(selectedStudent)}
-                      disabled
-                    />
-                  </div>
-
                   <div className="form-row">
                     <div className="form-group">
-                      <label>{t?.feeManagement?.session || "Session"}</label>
+                      <label>Student</label>
                       <select
-                        name="session"
-                        value={formData.session}
+                        name="studentId"
+                        value={formData.studentId}
                         onChange={handleInputChange}
                         required
                       >
-                        {availableSessions.length > 0 ? (
-                          availableSessions.map((s) => (
-                            <option key={s.id || s.session} value={s.session}>
-                              {s.session}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="">
-                            {t?.feeManagement?.noSession ||
-                              "No session available"}
-                          </option>
-                        )}
-                      </select>
-                    </div>
-
-                    <div className="form-group">
-                      <label>{t?.feeManagement?.termLabel || "Term"}</label>
-                      <select
-                        name="term"
-                        value={formData.term}
-                        onChange={handleInputChange}
-                        required
-                      >
-                        {terms.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
+                        <option value="">Select Student</option>
+                        {students.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {getStudentName(s)} - {s.admissionNumber}
                           </option>
                         ))}
                       </select>
                     </div>
-                  </div>
 
-                  <div className="form-row">
                     <div className="form-group">
-                      <label>
-                        {t?.feeManagement?.feeTypeLabel || "Fee Type"}
-                      </label>
+                      <label>Fee Type</label>
                       <select
                         name="feeType"
                         value={formData.feeType}
                         onChange={handleInputChange}
                         required
                       >
-                        {feeTypes.map((ft) => (
-                          <option key={ft} value={ft}>
-                            {t?.feeManagement?.feeTypes?.[ft] || ft}
+                        {feeTypes.map((type) => (
+                          <option key={type} value={type}>
+                            {t?.feeManagement?.feeTypes?.[type] || type}
                           </option>
                         ))}
                       </select>
                     </div>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Session</label>
+                      <input
+                        type="text"
+                        name="session"
+                        value={formData.session}
+                        onChange={handleInputChange}
+                        required
+                      />
+                    </div>
 
                     <div className="form-group">
-                      <label>
-                        {t?.feeManagement?.amountLabel || "Amount (₦)"}
-                      </label>
+                      <label>Term</label>
+                      <select
+                        name="term"
+                        value={formData.term}
+                        onChange={handleInputChange}
+                        required
+                      >
+                        {terms.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Description</label>
+                      <input
+                        type="text"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Amount (₦)</label>
                       <input
                         type="number"
                         name="amount"
                         value={formData.amount}
                         onChange={handleInputChange}
-                        required
                         min="1"
                         step="0.01"
+                        required
                       />
                     </div>
                   </div>
 
-                  <div className="form-group">
-                    <label>
-                      {t?.feeManagement?.descriptionLabel || "Description"}
-                    </label>
-                    <input
-                      type="text"
-                      name="description"
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      placeholder={t?.feeManagement?.optional || "Optional"}
-                    />
-                  </div>
-
                   <div className="form-row">
                     <div className="form-group">
-                      <label>
-                        {t?.feeManagement?.dueDateLabel || "Due Date"}
-                      </label>
+                      <label>Due Date</label>
                       <input
                         type="date"
                         name="dueDate"
@@ -2656,19 +2379,16 @@ function FeeManagement() {
                         required
                       />
                     </div>
-                  </div>
 
-                  <div className="form-group">
-                    <label>{t?.feeManagement?.notesLabel || "Notes"}</label>
-                    <textarea
-                      name="notes"
-                      value={formData.notes}
-                      onChange={handleInputChange}
-                      rows="3"
-                      placeholder={
-                        t?.feeManagement?.notesOptional || "Additional notes"
-                      }
-                    />
+                    <div className="form-group">
+                      <label>Notes</label>
+                      <input
+                        type="text"
+                        name="notes"
+                        value={formData.notes}
+                        onChange={handleInputChange}
+                      />
+                    </div>
                   </div>
 
                   <div className="modal-footer">
@@ -2677,24 +2397,19 @@ function FeeManagement() {
                       className="btn-secondary"
                       onClick={() => {
                         setShowForm(false);
-                        setEditingFee(null);
                         resetForm();
+                        setEditingFee(null);
                       }}
                     >
-                      {t?.feeManagement?.cancel || "Cancel"}
+                      Cancel
                     </button>
                     <button
                       type="submit"
                       className="btn-primary"
                       disabled={loading}
                     >
-                      {loading ? (
-                        <FiLoader className="spin" />
-                      ) : editingFee ? (
-                        t?.feeManagement?.update || "Update"
-                      ) : (
-                        t?.feeManagement?.create || "Create"
-                      )}
+                      {loading ? <FiLoader className="spin" /> : null}
+                      <span>{editingFee ? "Update" : "Create"}</span>
                     </button>
                   </div>
                 </form>
@@ -2706,7 +2421,10 @@ function FeeManagement() {
         {isAdmin && showPaymentModal && selectedFee && (
           <div
             className="modal-overlay"
-            onClick={() => setShowPaymentModal(false)}
+            onClick={() => {
+              setShowPaymentModal(false);
+              setSelectedFee(null);
+            }}
           >
             <div
               className="modal-content glass-effect"
@@ -2714,8 +2432,7 @@ function FeeManagement() {
             >
               <div className="modal-header success">
                 <h3>
-                  <FiCreditCard />{" "}
-                  {t?.feeManagement?.recordPayment || "Record Payment"}
+                  <FiCreditCard /> Record Payment
                 </h3>
                 <button
                   className="modal-close"
@@ -2727,29 +2444,23 @@ function FeeManagement() {
                   <FiX />
                 </button>
               </div>
+
               <div className="modal-body">
                 <div className="payment-summary">
                   <p>
-                    <strong>{t?.feeManagement?.student || "Student"}:</strong>{" "}
-                    {getStudentName(selectedStudent)}
+                    <strong>Student:</strong> {getStudentName(selectedStudent)}
                   </p>
                   <p>
-                    <strong>
-                      {t?.feeManagement?.feeTypeLabel || "Fee Type"}:
-                    </strong>{" "}
+                    <strong>Fee Type:</strong>{" "}
                     {t?.feeManagement?.feeTypes?.[selectedFee.feeType] ||
                       selectedFee.feeType}
                   </p>
                   <p>
-                    <strong>
-                      {t?.feeManagement?.totalAmount || "Total Amount"}:
-                    </strong>{" "}
-                    ₦{(selectedFee.amount || 0).toLocaleString()}
+                    <strong>Total Amount:</strong> ₦
+                    {(selectedFee.amount || 0).toLocaleString()}
                   </p>
                   <p>
-                    <strong>
-                      {t?.feeManagement?.balance || "Balance Due"}:
-                    </strong>{" "}
+                    <strong>Balance Due:</strong>{" "}
                     <span className="text-danger">
                       ₦{(selectedFee.balance || 0).toLocaleString()}
                     </span>
@@ -2758,17 +2469,15 @@ function FeeManagement() {
 
                 <form onSubmit={handleRecordPayment}>
                   <div className="form-group">
-                    <label>
-                      {t?.feeManagement?.paymentAmount || "Payment Amount (₦)"}
-                    </label>
+                    <label>Payment Amount (₦)</label>
                     <input
                       type="number"
                       value={paymentData.amount}
                       onChange={(e) =>
-                        setPaymentData({
-                          ...paymentData,
+                        setPaymentData((prev) => ({
+                          ...prev,
                           amount: e.target.value,
-                        })
+                        }))
                       }
                       max={selectedFee.balance}
                       min="1"
@@ -2778,52 +2487,50 @@ function FeeManagement() {
                   </div>
 
                   <div className="form-group">
-                    <label>
-                      {t?.feeManagement?.paymentMethod || "Payment Method"}
-                    </label>
+                    <label>Payment Method</label>
                     <select
                       value={paymentData.paymentMethod}
                       onChange={(e) =>
-                        setPaymentData({
-                          ...paymentData,
+                        setPaymentData((prev) => ({
+                          ...prev,
                           paymentMethod: e.target.value,
-                        })
+                        }))
                       }
                       required
                     >
-                      <option value="CASH">
-                        {t?.feeManagement?.paymentMethods?.CASH || "Cash"}
-                      </option>
-                      <option value="TRANSFER">
-                        {t?.feeManagement?.paymentMethods?.TRANSFER ||
-                          "Bank Transfer"}
-                      </option>
-                      <option value="POS">
-                        {t?.feeManagement?.paymentMethods?.POS || "POS"}
-                      </option>
-                      <option value="CHEQUE">
-                        {t?.feeManagement?.paymentMethods?.CHEQUE || "Cheque"}
-                      </option>
-                      <option value="ONLINE">
-                        {t?.feeManagement?.paymentMethods?.ONLINE ||
-                          "Online Payment"}
-                      </option>
+                      <option value="CASH">Cash</option>
+                      <option value="TRANSFER">Bank Transfer</option>
+                      <option value="POS">POS</option>
+                      <option value="ONLINE">Online</option>
+                      <option value="CHEQUE">Cheque</option>
                     </select>
                   </div>
 
                   <div className="form-group">
-                    <label>{t?.feeManagement?.reference || "Reference"}</label>
+                    <label>Reference</label>
                     <input
                       type="text"
                       value={paymentData.reference}
                       onChange={(e) =>
-                        setPaymentData({
-                          ...paymentData,
+                        setPaymentData((prev) => ({
+                          ...prev,
                           reference: e.target.value,
-                        })
+                        }))
                       }
-                      placeholder={
-                        t?.feeManagement?.transactionId || "Transaction ID"
+                      placeholder="Reference / receipt number"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Notes</label>
+                    <input
+                      type="text"
+                      value={paymentData.notes}
+                      onChange={(e) =>
+                        setPaymentData((prev) => ({
+                          ...prev,
+                          notes: e.target.value,
+                        }))
                       }
                     />
                   </div>
@@ -2837,7 +2544,7 @@ function FeeManagement() {
                         setSelectedFee(null);
                       }}
                     >
-                      {t?.feeManagement?.cancel || "Cancel"}
+                      Cancel
                     </button>
                     <button
                       type="submit"
@@ -2847,8 +2554,9 @@ function FeeManagement() {
                       {loading ? (
                         <FiLoader className="spin" />
                       ) : (
-                        t?.feeManagement?.recordPayment || "Record Payment"
+                        <MdOutlinePayments />
                       )}
+                      <span>Record Payment</span>
                     </button>
                   </div>
                 </form>

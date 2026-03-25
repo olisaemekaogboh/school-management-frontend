@@ -13,7 +13,10 @@ import Footer from "./components/Footer";
 import Home from "./components/Home";
 import About from "./components/About";
 import Contact from "./components/Contact";
-
+import PrivacyPolicy from "./components/PrivacyPolicy";
+import TermsOfService from "./components/TermsOfService";
+import Faq from "./components/Faq";
+import EmailQueueManagement from "./components/EmailQueueManagement";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import ForgotPassword from "./components/ForgotPassword";
@@ -97,6 +100,12 @@ function App() {
                   <Route path="/" element={<Home />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/contact" element={<Contact />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route
+                    path="/terms-of-service"
+                    element={<TermsOfService />}
+                  />
+                  <Route path="/faq" element={<Faq />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -154,6 +163,14 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole="ADMIN">
                         <StudentForm />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/email-queue"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <EmailQueueManagement />
                       </ProtectedRoute>
                     }
                   />

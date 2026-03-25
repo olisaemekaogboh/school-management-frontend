@@ -119,7 +119,6 @@ function Navbar() {
       icon: <FaEnvelope />,
       label: t.common.contact,
     },
-    // Removed login and register from here to prevent duplication
   ];
 
   const adminNavItems = [
@@ -220,7 +219,11 @@ function Navbar() {
         },
         { path: "/events", label: t.navbar.events, icon: <FaCalendarAlt /> },
         { path: "/transport/routes", label: t.navbar.routes, icon: <FaBus /> },
-
+        {
+          path: "/email-queue",
+          label: "Email Queue",
+          icon: <FaEnvelope />,
+        },
         { path: "/library", label: t.navbar.library, icon: <FaBook /> },
       ],
     },
@@ -483,7 +486,6 @@ function Navbar() {
             ))}
           </ul>
 
-          {/* Authentication buttons - only shown when user is not logged in */}
           {!isAuthenticated && (
             <div className="auth-buttons ms-lg-3">
               <Link to="/login" className="btn btn-outline-light me-2">
@@ -495,7 +497,6 @@ function Navbar() {
             </div>
           )}
 
-          {/* User menu - only shown when user is logged in */}
           {isAuthenticated && (
             <div className="user-menu ms-lg-3">
               <div className="nav-dropdown">

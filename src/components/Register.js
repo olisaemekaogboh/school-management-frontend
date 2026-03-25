@@ -72,7 +72,7 @@ function Register() {
     setVerifying(true);
     try {
       const response = await fetch(
-        `http://localhost:8080/api/public/verify-student?admissionNumber=${encodeURIComponent(
+        `https://localhost:8443/api/public/verify-student?admissionNumber=${encodeURIComponent(
           verificationData.admissionNumber.trim(),
         )}`,
       );
@@ -124,13 +124,13 @@ function Register() {
       let response;
       if (verificationData.parentEmail) {
         response = await fetch(
-          `http://localhost:8080/api/public/verify-parent/email?email=${encodeURIComponent(
+          `https://localhost:8443/api/public/verify-parent/email?email=${encodeURIComponent(
             verificationData.parentEmail,
           )}`,
         );
       } else {
         response = await fetch(
-          `http://localhost:8080/api/public/verify-parent/phone?phone=${encodeURIComponent(
+          `https://localhost:8443/api/public/verify-parent/phone?phone=${encodeURIComponent(
             verificationData.parentPhone,
           )}`,
         );

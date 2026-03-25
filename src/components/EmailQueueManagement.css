@@ -1,0 +1,189 @@
+/* src/components/EmailQueueManagement.css */
+
+.email-queue-container {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+  transition: background-color 0.3s ease;
+}
+
+.email-queue-container.dark-mode {
+  background-color: #1a1a2e;
+  color: #e4e6eb;
+}
+
+.email-queue-container.dark-mode .card {
+  background-color: #2d2d44;
+  border-color: #3d3d5c;
+  color: #e4e6eb;
+}
+
+.email-queue-container.dark-mode .card-header {
+  background-color: #25253a;
+  border-bottom-color: #3d3d5c;
+}
+
+.email-queue-container.dark-mode .table {
+  color: #e4e6eb;
+}
+
+.email-queue-container.dark-mode .table-hover tbody tr:hover {
+  background-color: #3d3d5c;
+}
+
+.email-queue-container.dark-mode .form-control,
+.email-queue-container.dark-mode .form-select {
+  background-color: #25253a;
+  border-color: #3d3d5c;
+  color: #e4e6eb;
+}
+
+.email-queue-container.dark-mode .form-control:focus,
+.email-queue-container.dark-mode .form-select:focus {
+  background-color: #2d2d44;
+  border-color: #0d6efd;
+  color: #e4e6eb;
+}
+
+/* Stat Cards */
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.dark-mode .stat-card {
+  background: #2d2d44;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.stat-card-body {
+  padding: 1rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+}
+
+.dark-mode .stat-label {
+  color: #9ca3af;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+/* Badge Styles */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 30px;
+}
+
+.badge-sent {
+  background-color: #28a745;
+  color: white;
+}
+
+.badge-failed {
+  background-color: #dc3545;
+  color: white;
+}
+
+.badge-pending {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.badge-processing {
+  background-color: #17a2b8;
+  color: white;
+}
+
+.badge-retrying {
+  background-color: #6c757d;
+  color: white;
+}
+
+.badge-default {
+  background-color: #e9ecef;
+  color: #212529;
+}
+
+.dark-mode .badge-default {
+  background-color: #3d3d5c;
+  color: #e4e6eb;
+}
+
+/* Spinner Animation */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Table Styles */
+.table {
+  margin-bottom: 0;
+}
+
+.table th {
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-top: none;
+  background-color: #f8f9fa;
+}
+
+.dark-mode .table th {
+  background-color: #25253a;
+  border-bottom-color: #3d3d5c;
+}
+
+.table td {
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+
+/* Button Styles */
+.btn-outline-warning {
+  border-color: #ffc107;
+  color: #ffc107;
+}
+
+.btn-outline-warning:hover {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.dark-mode .btn-outline-warning {
+  border-color: #ffc107;
+  color: #ffc107;
+}
+
+/* Alert Styles */
+.alert {
+  border-radius: 10px;
+}

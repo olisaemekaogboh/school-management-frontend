@@ -221,9 +221,9 @@ function TeacherForm() {
 
       if (teacher.profilePictureUrl) {
         setProfilePicturePreview(
-          teacher.profilePictureUrl.startsWith("http")
+          teacher.profilePictureUrl.startsWith("https")
             ? teacher.profilePictureUrl
-            : `http://localhost:8080/uploads/teachers/${teacher.profilePictureUrl}`,
+            : `https://localhost:8443/uploads/teachers/${teacher.profilePictureUrl}`,
         );
       }
     } catch (error) {

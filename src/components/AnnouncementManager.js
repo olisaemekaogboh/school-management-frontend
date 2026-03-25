@@ -10,10 +10,7 @@ import {
   FaEdit,
   FaTrash,
   FaBell,
-  FaDownload,
   FaUsers,
-  FaChalkboardTeacher,
-  FaUserGraduate,
   FaExclamationTriangle,
   FaInfoCircle,
   FaCheckCircle,
@@ -78,9 +75,9 @@ function AnnouncementManager() {
     deleteConfirm:
       t?.announcementManager?.deleteConfirm ||
       "Are you sure you want to delete this announcement?",
-    sendSmsConfirm:
-      t?.announcementManager?.sendSmsConfirm ||
-      "Send SMS notification for this announcement to all recipients?",
+    sendNotificationsConfirm:
+      t?.announcementManager?.sendNotificationsConfirm ||
+      "Send notifications for this announcement to all recipients? This may send SMS and email where available.",
   };
 
   const [announcements, setAnnouncements] = useState([]);
@@ -89,8 +86,7 @@ function AnnouncementManager() {
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [filter, setFilter] = useState("all");
   const [calendarEvents, setCalendarEvents] = useState([]);
-  const [calendarLoading, setCalendarLoading] = useState(false);
-  const [sendingSms, setSendingSms] = useState(false);
+  const [sendingNotifications, setSendingNotifications] = useState(false);
   const [smsResults, setSmsResults] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(
     moment().format("YYYY-MM"),
@@ -380,10 +376,10 @@ function AnnouncementManager() {
     }
   };
 
-  const handleSendSms = async (announcement) => {
+  const handleSendNotifications = async (announcement) => {
     if (
       !window.confirm(
-        ui.sendSmsConfirm.replace(
+        ui.sendNotificationsConfirm.replace(
           "this announcement",
           `"${announcement.title}"`,
         ),
@@ -392,7 +388,7 @@ function AnnouncementManager() {
       return;
     }
 
-    setSendingSms(true);
+    setSendingNotifications(true);
     try {
       const response = await announcementAPI.sendNotifications(announcement.id);
 
@@ -400,33 +396,46 @@ function AnnouncementManager() {
         const successCount = response.data.successCount || 0;
         const failedCount = response.data.failedCount || 0;
         const failedNumbers = response.data.failedNumbers || [];
+        const message = response.data.message || "";
 
-        if (successCount > 0) {
-          toast.success(`✅ ${successCount} SMS message(s) sent successfully!`);
-        }
-
-        if (failedCount > 0) {
-          toast.warning(`⚠️ ${failedCount} message(s) failed to send`);
-          setSmsResults({
-            successCount,
-            failedCount,
-            failedNumbers,
-            message: response.data.message || "SMS delivery report",
-          });
-        } else {
+        if (successCount > 0 && failedCount === 0) {
           toast.success(
-            `✅ All ${successCount} SMS messages sent successfully!`,
+            message ||
+              `✅ Notifications processed successfully for "${announcement.title}"`,
+          );
+        } else if (successCount > 0 && failedCount > 0) {
+          toast.warning(
+            message ||
+              `⚠️ Notifications partially processed for "${announcement.title}"`,
+          );
+        } else if (failedCount > 0) {
+          toast.error(
+            message || `❌ Notifications failed for "${announcement.title}"`,
+          );
+        } else {
+          toast.info(
+            message ||
+              `Notification request completed for "${announcement.title}"`,
           );
         }
 
+        setSmsResults({
+          successCount,
+          failedCount,
+          failedNumbers,
+          message:
+            message ||
+            "Notification processing report. SMS and email may both be included depending on backend configuration.",
+        });
+
         setTimeout(() => {
           fetchAnnouncements();
-        }, 2000);
+        }, 1500);
       }
     } catch (error) {
-      console.error("Error sending SMS:", error);
+      console.error("Error sending notifications:", error);
 
-      let errorMessage = "Failed to send SMS notifications";
+      let errorMessage = "Failed to send notifications";
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.response?.data) {
@@ -445,7 +454,7 @@ function AnnouncementManager() {
         failedNumbers: [],
       });
     } finally {
-      setSendingSms(false);
+      setSendingNotifications(false);
     }
   };
 
@@ -869,7 +878,6 @@ function AnnouncementManager() {
         </div>
       </div>
 
-      {/* SMS History Modal */}
       {showSmsHistory && (
         <div
           className="modal fade show d-block"
@@ -890,7 +898,6 @@ function AnnouncementManager() {
               <div className="modal-body">
                 {smsHistory && smsHistory.length > 0 ? (
                   <>
-                    {/* Summary Cards */}
                     <div className="row mb-4">
                       <div className="col-md-3">
                         <div className="border p-3 rounded text-center bg-success text-white">
@@ -938,7 +945,6 @@ function AnnouncementManager() {
                       </div>
                     </div>
 
-                    {/* Delivery Timeline */}
                     {smsHistory.length > 0 && (
                       <div className="mb-4">
                         <h6>Delivery Timeline</h6>
@@ -979,7 +985,6 @@ function AnnouncementManager() {
                       </div>
                     )}
 
-                    {/* SMS List */}
                     <div className="table-responsive">
                       <table className="table table-striped table-hover">
                         <thead>
@@ -1078,11 +1083,8 @@ function AnnouncementManager() {
                     <button
                       className="btn btn-primary"
                       onClick={() => {
-                        const failedNumbers = smsHistory
-                          .filter((s) => s.status === "FAILED")
-                          .map((s) => s.parentPhone);
-                        if (failedNumbers.length > 0 && selectedAnnouncement) {
-                          handleSendSms(selectedAnnouncement);
+                        if (selectedAnnouncement) {
+                          handleSendNotifications(selectedAnnouncement);
                           setShowSmsHistory(false);
                         }
                       }}
@@ -1097,7 +1099,6 @@ function AnnouncementManager() {
         </div>
       )}
 
-      {/* Announcement Form Modal */}
       {showForm && (
         <div
           className="modal fade show d-block"
@@ -1398,7 +1399,6 @@ function AnnouncementManager() {
         </div>
       )}
 
-      {/* SMS Results Modal */}
       {smsResults && (
         <div
           className="modal fade show d-block"
@@ -1408,7 +1408,7 @@ function AnnouncementManager() {
             <div className="modal-content">
               <div className="modal-header bg-info text-white">
                 <h5 className="modal-title">
-                  <FaBell className="me-2" /> SMS Delivery Report
+                  <FaBell className="me-2" /> Notification Report
                 </h5>
                 <button
                   type="button"
@@ -1430,14 +1430,14 @@ function AnnouncementManager() {
                         <div className="text-success">
                           <FaCheckCircle size={60} />
                           <h4 className="mt-3">
-                            All Messages Sent Successfully!
+                            Notifications Processed Successfully!
                           </h4>
                         </div>
                       ) : smsResults.failedCount > 0 &&
                         smsResults.successCount === 0 ? (
                         <div className="text-danger">
                           <FaTimesCircle size={60} />
-                          <h4 className="mt-3">All Messages Failed</h4>
+                          <h4 className="mt-3">Notifications Failed</h4>
                         </div>
                       ) : (
                         <div className="text-warning">
@@ -1499,7 +1499,6 @@ function AnnouncementManager() {
                     className="btn btn-warning"
                     onClick={() => {
                       setSmsResults(null);
-                      // Retry logic here
                     }}
                   >
                     Retry Failed
@@ -1511,7 +1510,6 @@ function AnnouncementManager() {
         </div>
       )}
 
-      {/* Announcements List */}
       <div className="row">
         <div className="col-12">
           {loading ? (
@@ -1604,11 +1602,13 @@ function AnnouncementManager() {
                         <div className="d-flex gap-2">
                           <button
                             className="btn btn-sm btn-info"
-                            onClick={() => handleSendSms(announcement)}
-                            disabled={sendingSms}
-                            title="Send SMS Notifications"
+                            onClick={() =>
+                              handleSendNotifications(announcement)
+                            }
+                            disabled={sendingNotifications}
+                            title="Send Notifications (SMS + Email)"
                           >
-                            {sendingSms ? (
+                            {sendingNotifications ? (
                               <FaSpinner className="spinner" />
                             ) : (
                               <FaBell />

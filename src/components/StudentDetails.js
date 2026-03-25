@@ -232,7 +232,7 @@ function StudentDetails() {
   const getImageUrl = () => {
     if (!student?.profilePictureUrl) return null;
     const filename = student.profilePictureUrl.split("/").pop();
-    return `http://localhost:8080/uploads/profile-pictures/${filename}`;
+    return `https://localhost:8443/uploads/profile-pictures/${filename}`;
   };
 
   const safeFixed = (value, digits = 2) => {

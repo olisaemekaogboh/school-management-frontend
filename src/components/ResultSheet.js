@@ -458,10 +458,10 @@ function ResultSheet() {
       resultData?.studentInfo?.profilePictureUrl || student?.profilePictureUrl;
 
     if (!rawUrl) return null;
-    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+    if (rawUrl.startsWith("https://") || rawUrl.startsWith("https://")) {
       return rawUrl;
     }
-    return `http://localhost:8080${rawUrl}`;
+    return `https://localhost:8443${rawUrl}`;
   }, [resultData, student]);
 
   const totalSchoolDays = normalizedSummary.totalSchoolDays;

@@ -223,8 +223,8 @@ const TeacherManagement = () => {
     if (teacher.profilePictureUrl.startsWith("http"))
       return teacher.profilePictureUrl;
     if (teacher.profilePictureUrl.startsWith("uploads/"))
-      return `http://localhost:8080/${teacher.profilePictureUrl}`;
-    return `http://localhost:8080/uploads/teachers/${teacher.profilePictureUrl}`;
+      return `https://localhost:8443/${teacher.profilePictureUrl}`;
+    return `https://localhost:8443/uploads/teachers/${teacher.profilePictureUrl}`;
   };
 
   const handleInputChange = (e) => {

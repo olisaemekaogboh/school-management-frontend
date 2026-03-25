@@ -189,9 +189,9 @@ function SessionResultSheet() {
   };
 
   const studentPhotoUrl = resultData?.studentInfo?.profilePictureUrl
-    ? `http://localhost:8080${resultData.studentInfo.profilePictureUrl}`
+    ? `https://localhost:8443${resultData.studentInfo.profilePictureUrl}`
     : student?.profilePictureUrl
-      ? `http://localhost:8080${student.profilePictureUrl}`
+      ? `https://localhost:8443${student.profilePictureUrl}`
       : null;
 
   if (loading) {
