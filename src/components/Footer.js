@@ -31,6 +31,7 @@ import {
   FaBullhorn,
   FaLayerGroup,
   FaSchool,
+  FaComments, // Added for Support Center
 } from "react-icons/fa";
 import "./Footer.css";
 
@@ -103,6 +104,12 @@ function Footer() {
       to: "/contact",
       icon: <FaArrowRight className="link-icon" />,
       label: t.common.contact,
+    },
+    // Support Center link for admin
+    {
+      to: "/support",
+      icon: <FaComments className="link-icon" />,
+      label: t.navbar.support || "Support Center",
     },
   ];
 
@@ -204,6 +211,12 @@ function Footer() {
       icon: <FaArrowRight className="link-icon" />,
       label: t.common.contact,
     },
+    // Support Center link for teacher
+    {
+      to: "/support",
+      icon: <FaComments className="link-icon" />,
+      label: t.navbar.support || "Support Center",
+    },
   ];
 
   const teacherAcademicLinks = [
@@ -269,6 +282,12 @@ function Footer() {
       icon: <FaArrowRight className="link-icon" />,
       label: t.common.contact,
     },
+    // Support Center link for parent
+    {
+      to: "/support",
+      icon: <FaComments className="link-icon" />,
+      label: t.navbar.support || "Support Center",
+    },
   ];
 
   const parentAcademicLinks = [
@@ -333,6 +352,12 @@ function Footer() {
       to: "/contact",
       icon: <FaArrowRight className="link-icon" />,
       label: t.common.contact,
+    },
+    // Support Center link for student
+    {
+      to: "/support",
+      icon: <FaComments className="link-icon" />,
+      label: t.navbar.support || "Support Center",
     },
   ];
 

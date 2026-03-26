@@ -99,6 +99,17 @@ const sendData = (method, url, data) => {
   });
 };
 
+export const supportAPI = {
+  createTicket: (data) => api.post("/support/tickets", data),
+  getMyTickets: () => api.get("/support/tickets/my"),
+  getAllTickets: () => api.get("/support/tickets"),
+  getTicketDetails: (ticketId) => api.get(`/support/tickets/${ticketId}`),
+  sendMessage: (ticketId, data) =>
+    api.post(`/support/tickets/${ticketId}/messages`, data),
+  closeTicket: (ticketId) => api.patch(`/support/tickets/${ticketId}/close`),
+  reopenTicket: (ticketId) => api.patch(`/support/tickets/${ticketId}/reopen`),
+};
+
 /* ================================
    AUTH HELPERS
 ================================ */

@@ -31,6 +31,7 @@ import {
   FaUserGraduate,
   FaBullhorn,
   FaEnvelope,
+  FaComments, // Added for Support Center
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -233,6 +234,13 @@ function Navbar() {
       icon: <FaUserShield />,
       label: t.navbar.users,
     },
+    // Support Center link for admin
+    {
+      type: "link",
+      path: "/support",
+      icon: <FaComments />,
+      label: t.navbar.support || "Support",
+    },
   ];
 
   const teacherNavItems = [
@@ -275,6 +283,13 @@ function Navbar() {
       path: "/timetable",
       icon: <FaCalendarAlt />,
       label: t.navbar.myTimetable,
+    },
+    // Support Center link for teacher
+    {
+      type: "link",
+      path: "/support",
+      icon: <FaComments />,
+      label: t.navbar.support || "Support",
     },
   ];
 
@@ -321,6 +336,13 @@ function Navbar() {
       icon: <FaBus />,
       label: t.navbar.busTracking,
     },
+    // Support Center link for parent
+    {
+      type: "link",
+      path: "/support",
+      icon: <FaComments />,
+      label: t.navbar.support || "Support",
+    },
   ];
 
   const studentNavItems = [
@@ -365,6 +387,13 @@ function Navbar() {
       path: "/transport/tracking",
       icon: <FaBus />,
       label: t.navbar.busTracking,
+    },
+    // Support Center link for student
+    {
+      type: "link",
+      path: "/support",
+      icon: <FaComments />,
+      label: t.navbar.support || "Support",
     },
   ];
 

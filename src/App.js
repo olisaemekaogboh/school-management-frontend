@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-
+import SupportCenter from "./components/SupportCenter";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Home from "./components/Home";
@@ -303,7 +303,16 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-
+                  <Route
+                    path="/support"
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={["ADMIN", "TEACHER", "PARENT", "STUDENT"]}
+                      >
+                        <SupportCenter />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="/library"
                     element={
