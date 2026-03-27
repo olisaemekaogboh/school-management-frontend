@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import moment from "moment";
 import { toast } from "react-toastify";
 import {
@@ -13,8 +13,9 @@ import {
   FaFileExcel,
   FaTimes,
   FaSpinner,
+  FaUser,
 } from "react-icons/fa";
-import { teacherAPI } from "../services/api";
+import { teacherAPI, subjectAPI } from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useDarkMode } from "../contexts/DarkModeContext";
 import "./TeacherManagement.css";
@@ -46,36 +47,6 @@ const initialFormState = {
   qualifications: [],
 };
 
-const subjectOptions = [
-  "Mathematics",
-  "English",
-  "Biology",
-  "Chemistry",
-  "Physics",
-  "Economics",
-  "Government",
-  "Literature",
-  "History",
-  "Geography",
-  "Agricultural Science",
-  "Further Mathematics",
-  "Computer Science",
-  "Civic Education",
-  "CRS",
-  "Islamic Studies",
-  "Yoruba",
-  "Igbo",
-  "Hausa",
-  "French",
-  "Physical Education",
-  "Basic Science",
-  "Basic Technology",
-  "Business Studies",
-  "Home Economics",
-  "Music",
-  "Fine Arts",
-];
-
 const employmentStatuses = [
   "ACTIVE",
   "ON_LEAVE",
@@ -95,7 +66,9 @@ function TeacherManagement() {
 
   const [teachers, setTeachers] = useState([]);
   const [statistics, setStatistics] = useState(null);
+  const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -107,10 +80,39 @@ function TeacherManagement() {
 
   const [formData, setFormData] = useState(initialFormState);
   const [profilePicture, setProfilePicture] = useState(null);
-  const [newSubject, setNewSubject] = useState("");
   const [newQualification, setNewQualification] = useState("");
 
-  const fetchTeachers = async () => {
+  const API_BASE =
+    process.env.REACT_APP_API_BASE_URL?.replace("/api", "") ||
+    "https://localhost:8443";
+
+  const getTeacherImageSrc = useCallback(
+    (teacher) => {
+      if (!teacher) return "";
+
+      const raw =
+        teacher.profilePictureUrl ||
+        teacher.profileImageUrl ||
+        teacher.imageUrl ||
+        teacher.photoUrl ||
+        "";
+
+      if (!raw) return "";
+
+      if (raw.startsWith("http://") || raw.startsWith("https://")) {
+        return raw;
+      }
+
+      if (raw.startsWith("/uploads/")) {
+        return `${API_BASE}${raw}`;
+      }
+
+      return `${API_BASE}/uploads/${raw.replace(/^.*[\\/]/, "")}`;
+    },
+    [API_BASE],
+  );
+
+  const fetchTeachers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await teacherAPI.getAllTeachers();
@@ -123,9 +125,9 @@ function TeacherManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  const fetchStatistics = async () => {
+  const fetchStatistics = useCallback(async () => {
     try {
       const response = await teacherAPI.getTeacherStatistics();
       setStatistics(response?.data || null);
@@ -133,12 +135,46 @@ function TeacherManagement() {
       console.error(error);
       setStatistics(null);
     }
-  };
+  }, []);
+
+  const fetchSubjects = useCallback(async () => {
+    setSubjectsLoading(true);
+    try {
+      const response = await subjectAPI.getAllSubjects();
+      const rawSubjects = Array.isArray(response?.data) ? response.data : [];
+
+      const normalizedSubjects = rawSubjects
+        .map((subject) => {
+          if (typeof subject === "string") return subject;
+
+          return (
+            subject?.name ||
+            subject?.subjectName ||
+            subject?.title ||
+            subject?.code ||
+            ""
+          );
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+
+      setSubjects(normalizedSubjects);
+    } catch (error) {
+      console.error(error);
+      setSubjects([]);
+      toast.error(
+        t?.teacherManagement?.subjectLoadFailed || "Failed to load subjects",
+      );
+    } finally {
+      setSubjectsLoading(false);
+    }
+  }, [t]);
 
   useEffect(() => {
     fetchTeachers();
     fetchStatistics();
-  }, []);
+    fetchSubjects();
+  }, [fetchTeachers, fetchStatistics, fetchSubjects]);
 
   const filteredTeachers = useMemo(() => {
     let data = [...teachers];
@@ -157,6 +193,7 @@ function TeacherManagement() {
           teacher.specialization,
           teacher.department,
           teacher.designation,
+          ...(Array.isArray(teacher.subjects) ? teacher.subjects : []),
         ]
           .filter(Boolean)
           .map(String)
@@ -180,7 +217,6 @@ function TeacherManagement() {
   const resetForm = () => {
     setFormData(initialFormState);
     setProfilePicture(null);
-    setNewSubject("");
     setNewQualification("");
     setEditingTeacher(null);
   };
@@ -229,7 +265,20 @@ function TeacherManagement() {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, options } = e.target;
+
+    if (name === "subjects") {
+      const selectedValues = Array.from(options)
+        .filter((option) => option.selected)
+        .map((option) => option.value);
+
+      setFormData((prev) => ({
+        ...prev,
+        subjects: selectedValues,
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -240,25 +289,6 @@ function TeacherManagement() {
     const file = e.target.files?.[0];
     if (!file) return;
     setProfilePicture(file);
-  };
-
-  const addSubject = () => {
-    const value = newSubject.trim();
-    if (!value) return;
-    if (formData.subjects.includes(value)) return;
-
-    setFormData((prev) => ({
-      ...prev,
-      subjects: [...prev.subjects, value],
-    }));
-    setNewSubject("");
-  };
-
-  const removeSubject = (subject) => {
-    setFormData((prev) => ({
-      ...prev,
-      subjects: prev.subjects.filter((s) => s !== subject),
-    }));
   };
 
   const addQualification = () => {
@@ -311,6 +341,7 @@ function TeacherManagement() {
     try {
       const payload = buildTeacherPayload();
       const multipart = new FormData();
+
       multipart.append(
         "teacher",
         new Blob([JSON.stringify(payload)], { type: "application/json" }),
@@ -499,18 +530,20 @@ function TeacherManagement() {
         </select>
       </div>
 
-      <div className="table-container">
+      <div className="table-container" style={{ overflowX: "auto" }}>
         {loading ? (
           <div className="loading-state">
             <FaSpinner className="spin" /> Loading...
           </div>
         ) : (
-          <table className="table">
+          <table className="table" style={{ minWidth: 1100 }}>
             <thead>
               <tr>
                 <th>{t?.teacherManagement?.employeeId || "Employee ID"}</th>
                 <th>{t?.teacherManagement?.teacherId || "Teacher ID"}</th>
-                <th>{t?.teacherManagement?.name || "Name"}</th>
+                <th style={{ minWidth: 260 }}>
+                  {t?.teacherManagement?.name || "Name"}
+                </th>
                 <th>{t?.common?.email || "Email"}</th>
                 <th>{t?.common?.phone || "Phone"}</th>
                 <th>
@@ -528,45 +561,114 @@ function TeacherManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredTeachers.map((teacher) => (
-                  <tr key={teacher.id}>
-                    <td>
-                      <strong>{teacher.employeeId || "-"}</strong>
-                    </td>
-                    <td>{teacher.teacherId || "-"}</td>
-                    <td>
-                      {`${teacher.firstName || ""} ${teacher.lastName || ""}`.trim()}
-                    </td>
-                    <td>{teacher.email || "-"}</td>
-                    <td>{teacher.phoneNumber || "-"}</td>
-                    <td>{teacher.specialization || "-"}</td>
-                    <td>{teacher.employmentStatus || teacher.status || "-"}</td>
-                    <td>
-                      <div
-                        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-                      >
-                        <button
-                          className="btn btn-sm btn-info"
-                          onClick={() => setViewingTeacher(teacher)}
+                filteredTeachers.map((teacher) => {
+                  const teacherImage = getTeacherImageSrc(teacher);
+
+                  return (
+                    <tr key={teacher.id}>
+                      <td>
+                        <strong>{teacher.employeeId || "-"}</strong>
+                      </td>
+                      <td>{teacher.teacherId || "-"}</td>
+                      <td>
+                        <div
+                          className="teacher-name"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            minWidth: 220,
+                          }}
                         >
-                          <FaEye />
-                        </button>
-                        <button
-                          className="btn btn-sm btn-warning"
-                          onClick={() => openEditForm(teacher)}
+                          {teacherImage ? (
+                            <img
+                              src={teacherImage}
+                              alt={`${teacher.firstName || ""} ${teacher.lastName || ""}`}
+                              className="teacher-avatar-small"
+                              style={{
+                                width: 52,
+                                height: 52,
+                                minWidth: 52,
+                                borderRadius: "50%",
+                                objectFit: "cover",
+                                border: darkMode
+                                  ? "2px solid #374151"
+                                  : "2px solid #e5e7eb",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              className="teacher-avatar-placeholder"
+                              style={{
+                                width: 52,
+                                height: 52,
+                                minWidth: 52,
+                                borderRadius: "50%",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                background: darkMode ? "#1f2937" : "#f3f4f6",
+                                border: darkMode
+                                  ? "2px solid #374151"
+                                  : "2px solid #e5e7eb",
+                              }}
+                            >
+                              <FaUser />
+                            </div>
+                          )}
+                          <div>
+                            <div style={{ fontWeight: 700 }}>
+                              {`${teacher.firstName || ""} ${teacher.lastName || ""}`.trim()}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                opacity: 0.75,
+                                marginTop: 2,
+                              }}
+                            >
+                              {(teacher.subjects || [])
+                                .slice(0, 2)
+                                .join(", ") ||
+                                teacher.specialization ||
+                                "-"}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{teacher.email || "-"}</td>
+                      <td>{teacher.phoneNumber || "-"}</td>
+                      <td>{teacher.specialization || "-"}</td>
+                      <td>
+                        {teacher.employmentStatus || teacher.status || "-"}
+                      </td>
+                      <td>
+                        <div
+                          style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
                         >
-                          <FaEdit />
-                        </button>
-                        <button
-                          className="btn btn-sm btn-danger"
-                          onClick={() => handleDelete(teacher)}
-                        >
-                          <FaTrash />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          <button
+                            className="btn btn-sm btn-info"
+                            onClick={() => setViewingTeacher(teacher)}
+                          >
+                            <FaEye />
+                          </button>
+                          <button
+                            className="btn btn-sm btn-warning"
+                            onClick={() => openEditForm(teacher)}
+                          >
+                            <FaEdit />
+                          </button>
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={() => handleDelete(teacher)}
+                          >
+                            <FaTrash />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -574,12 +676,13 @@ function TeacherManagement() {
       </div>
 
       {showForm && (
-        <div className="modal-overlay">
-          <div className="modal-content large-modal">
-            <div className="modal-header">
+        <div className={`tm-modal-overlay ${darkMode ? "dark-mode" : ""}`}>
+          <div className="tm-modal-content large-modal">
+            <div className="tm-modal-header">
               <h3>{editingTeacher ? "Edit Teacher" : "Add Teacher"}</h3>
               <button
-                className="btn btn-icon"
+                type="button"
+                className="tm-icon-button"
                 onClick={() => {
                   setShowForm(false);
                   resetForm();
@@ -589,284 +692,293 @@ function TeacherManagement() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="teacher-form">
-              <div
-                className="form-grid"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-                  gap: 14,
-                }}
-              >
-                <input
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  placeholder="First Name"
-                  required
-                />
-                <input
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  placeholder="Last Name"
-                  required
-                />
-                <input
-                  name="middleName"
-                  value={formData.middleName}
-                  onChange={handleInputChange}
-                  placeholder="Middle Name"
-                />
-                <input
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="Email"
-                  required
-                />
-                <input
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleInputChange}
-                  placeholder="Phone Number"
-                />
-                <input
-                  name="alternatePhone"
-                  value={formData.alternatePhone}
-                  onChange={handleInputChange}
-                  placeholder="Alternate Phone"
-                />
-                <input
-                  name="employeeId"
-                  value={formData.employeeId}
-                  onChange={handleInputChange}
-                  placeholder="Employee ID (optional)"
-                />
-                <input
-                  name="qualification"
-                  value={formData.qualification}
-                  onChange={handleInputChange}
-                  placeholder="Qualification"
-                />
-                <input
-                  name="specialization"
-                  value={formData.specialization}
-                  onChange={handleInputChange}
-                  placeholder="Specialization"
-                />
-                <input
-                  name="department"
-                  value={formData.department}
-                  onChange={handleInputChange}
-                  placeholder="Department"
-                />
-                <input
-                  name="designation"
-                  value={formData.designation}
-                  onChange={handleInputChange}
-                  placeholder="Designation"
-                />
-                <input
-                  name="yearsOfExperience"
-                  type="number"
-                  min="0"
-                  value={formData.yearsOfExperience}
-                  onChange={handleInputChange}
-                  placeholder="Years of Experience"
-                />
-                <input
-                  name="dateOfBirth"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={handleInputChange}
-                />
-                <input
-                  name="dateOfJoining"
-                  type="date"
-                  value={formData.dateOfJoining}
-                  onChange={handleInputChange}
-                />
+            <form onSubmit={handleSubmit} className="tm-form-shell">
+              <div className="tm-modal-body">
+                <div className="profile-upload">
+                  <div className="profile-preview">
+                    {profilePicture ? (
+                      <img
+                        src={URL.createObjectURL(profilePicture)}
+                        alt="Selected profile preview"
+                      />
+                    ) : getTeacherImageSrc(editingTeacher) ? (
+                      <img
+                        src={getTeacherImageSrc(editingTeacher)}
+                        alt="Teacher profile"
+                      />
+                    ) : (
+                      <div className="profile-placeholder">
+                        <FaUser />
+                      </div>
+                    )}
+                  </div>
 
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleInputChange}
-                >
-                  <option value="">Gender</option>
-                  {genders.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
+                  <div className="profile-upload-controls">
+                    <label className="btn-upload">
+                      Choose Profile Picture
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                    <small>
+                      JPG, PNG or JPEG. Leave empty if you do not want to change
+                      it.
+                    </small>
+                  </div>
+                </div>
 
-                <select
-                  name="maritalStatus"
-                  value={formData.maritalStatus}
-                  onChange={handleInputChange}
-                >
-                  <option value="">Marital Status</option>
-                  {maritalStatuses.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                <div className="tm-form-grid">
+                  <input
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleInputChange}
+                    placeholder="First Name"
+                    required
+                  />
+                  <input
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleInputChange}
+                    placeholder="Last Name"
+                    required
+                  />
+                  <input
+                    name="middleName"
+                    value={formData.middleName}
+                    onChange={handleInputChange}
+                    placeholder="Middle Name"
+                  />
+                  <input
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Email"
+                    required
+                  />
+                  <input
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
+                    placeholder="Phone Number"
+                  />
+                  <input
+                    name="alternatePhone"
+                    value={formData.alternatePhone}
+                    onChange={handleInputChange}
+                    placeholder="Alternate Phone"
+                  />
+                  <input
+                    name="employeeId"
+                    value={formData.employeeId}
+                    onChange={handleInputChange}
+                    placeholder="Employee ID (optional)"
+                  />
+                  <input
+                    name="qualification"
+                    value={formData.qualification}
+                    onChange={handleInputChange}
+                    placeholder="Qualification"
+                  />
+                  <input
+                    name="specialization"
+                    value={formData.specialization}
+                    onChange={handleInputChange}
+                    placeholder="Specialization"
+                  />
+                  <input
+                    name="department"
+                    value={formData.department}
+                    onChange={handleInputChange}
+                    placeholder="Department"
+                  />
+                  <input
+                    name="designation"
+                    value={formData.designation}
+                    onChange={handleInputChange}
+                    placeholder="Designation"
+                  />
+                  <input
+                    name="yearsOfExperience"
+                    type="number"
+                    min="0"
+                    value={formData.yearsOfExperience}
+                    onChange={handleInputChange}
+                    placeholder="Years of Experience"
+                  />
+                  <input
+                    name="dateOfBirth"
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={handleInputChange}
+                  />
+                  <input
+                    name="dateOfJoining"
+                    type="date"
+                    value={formData.dateOfJoining}
+                    onChange={handleInputChange}
+                  />
 
-                <select
-                  name="employmentStatus"
-                  value={formData.employmentStatus}
-                  onChange={handleInputChange}
-                >
-                  {employmentStatuses.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  name="employmentType"
-                  value={formData.employmentType}
-                  onChange={handleInputChange}
-                >
-                  {employmentTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  name="emergencyContactName"
-                  value={formData.emergencyContactName}
-                  onChange={handleInputChange}
-                  placeholder="Emergency Contact Name"
-                />
-                <input
-                  name="emergencyContactPhone"
-                  value={formData.emergencyContactPhone}
-                  onChange={handleInputChange}
-                  placeholder="Emergency Contact Phone"
-                />
-                <input
-                  name="emergencyContactRelationship"
-                  value={formData.emergencyContactRelationship}
-                  onChange={handleInputChange}
-                  placeholder="Emergency Contact Relationship"
-                />
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                />
-              </div>
-
-              <textarea
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                placeholder="Address"
-                rows="3"
-                style={{ width: "100%", marginTop: 14 }}
-              />
-
-              <div style={{ marginTop: 16 }}>
-                <label>Subjects</label>
-                <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
                   <select
-                    value={newSubject}
-                    onChange={(e) => setNewSubject(e.target.value)}
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleInputChange}
                   >
-                    <option value="">Select subject</option>
-                    {subjectOptions.map((subject) => (
-                      <option key={subject} value={subject}>
-                        {subject}
+                    <option value="">Gender</option>
+                    {genders.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={addSubject}
-                  >
-                    Add Subject
-                  </button>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    marginTop: 10,
-                  }}
-                >
-                  {formData.subjects.map((subject) => (
-                    <span key={subject} className="badge badge-info">
-                      {subject}{" "}
-                      <button
-                        type="button"
-                        onClick={() => removeSubject(subject)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
 
-              <div style={{ marginTop: 16 }}>
-                <label>Qualifications</label>
-                <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                  <select
+                    name="maritalStatus"
+                    value={formData.maritalStatus}
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Marital Status</option>
+                    {maritalStatuses.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    name="employmentStatus"
+                    value={formData.employmentStatus}
+                    onChange={handleInputChange}
+                  >
+                    {employmentStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    name="employmentType"
+                    value={formData.employmentType}
+                    onChange={handleInputChange}
+                  >
+                    {employmentTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+
                   <input
-                    value={newQualification}
-                    onChange={(e) => setNewQualification(e.target.value)}
-                    placeholder="Add qualification"
+                    name="emergencyContactName"
+                    value={formData.emergencyContactName}
+                    onChange={handleInputChange}
+                    placeholder="Emergency Contact Name"
                   />
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={addQualification}
-                  >
-                    Add Qualification
-                  </button>
+                  <input
+                    name="emergencyContactPhone"
+                    value={formData.emergencyContactPhone}
+                    onChange={handleInputChange}
+                    placeholder="Emergency Contact Phone"
+                  />
+                  <input
+                    name="emergencyContactRelationship"
+                    value={formData.emergencyContactRelationship}
+                    onChange={handleInputChange}
+                    placeholder="Emergency Contact Relationship"
+                  />
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    marginTop: 10,
-                  }}
-                >
-                  {formData.qualifications.map((qualification) => (
-                    <span key={qualification} className="badge badge-secondary">
-                      {qualification}{" "}
-                      <button
-                        type="button"
-                        onClick={() => removeQualification(qualification)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+
+                <textarea
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  placeholder="Address"
+                  rows="3"
+                  className="tm-full-width"
+                />
+
+                <div className="tm-section">
+                  <label>{t?.teacherManagement?.subjects || "Subjects"}</label>
+                  <select
+                    name="subjects"
+                    multiple
+                    value={formData.subjects}
+                    onChange={handleInputChange}
+                    className="tm-full-width"
+                    style={{ minHeight: 180, marginTop: 8 }}
+                  >
+                    {subjectsLoading ? (
+                      <option value="" disabled>
+                        Loading subjects...
+                      </option>
+                    ) : subjects.length === 0 ? (
+                      <option value="" disabled>
+                        No subjects found in Subject Management
+                      </option>
+                    ) : (
+                      subjects.map((subject) => (
+                        <option key={subject} value={subject}>
+                          {subject}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <small
+                    style={{ display: "block", marginTop: 8, opacity: 0.75 }}
+                  >
+                    Hold Ctrl (or Cmd on Mac) to select multiple subjects.
+                  </small>
+
+                  <div className="tm-chip-wrap" style={{ marginTop: 12 }}>
+                    {formData.subjects.map((subject) => (
+                      <span key={subject} className="tm-chip">
+                        {subject}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="tm-section">
+                  <label>Qualifications</label>
+                  <div className="tm-inline-row">
+                    <input
+                      value={newQualification}
+                      onChange={(e) => setNewQualification(e.target.value)}
+                      placeholder="Add qualification"
+                    />
+                    <button
+                      type="button"
+                      className="tm-secondary-button"
+                      onClick={addQualification}
+                    >
+                      Add Qualification
+                    </button>
+                  </div>
+
+                  <div className="tm-chip-wrap">
+                    {formData.qualifications.map((qualification) => (
+                      <span key={qualification} className="tm-chip alt">
+                        {qualification}
+                        <button
+                          type="button"
+                          onClick={() => removeQualification(qualification)}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  justifyContent: "flex-end",
-                  marginTop: 20,
-                }}
-              >
+              <div className="tm-modal-footer">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="tm-secondary-button"
                   onClick={() => {
                     setShowForm(false);
                     resetForm();
@@ -874,9 +986,10 @@ function TeacherManagement() {
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="btn btn-primary"
+                  className="tm-primary-button"
                   disabled={saving}
                 >
                   {saving ? (
@@ -896,7 +1009,7 @@ function TeacherManagement() {
       )}
 
       {viewingTeacher && (
-        <div className="modal-overlay">
+        <div className={`modal-overlay ${darkMode ? "dark-mode" : ""}`}>
           <div className="modal-content">
             <div className="modal-header">
               <h3>Teacher Details</h3>
@@ -908,58 +1021,90 @@ function TeacherManagement() {
               </button>
             </div>
 
-            <div
-              className="details-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-                gap: 12,
-              }}
-            >
-              <div>
-                <strong>Name:</strong>{" "}
-                {`${viewingTeacher.firstName || ""} ${viewingTeacher.lastName || ""}`.trim()}
-              </div>
-              <div>
-                <strong>Employee ID:</strong> {viewingTeacher.employeeId || "-"}
-              </div>
-              <div>
-                <strong>Teacher ID:</strong> {viewingTeacher.teacherId || "-"}
-              </div>
-              <div>
-                <strong>Email:</strong> {viewingTeacher.email || "-"}
-              </div>
-              <div>
-                <strong>Phone:</strong> {viewingTeacher.phoneNumber || "-"}
-              </div>
-              <div>
-                <strong>Status:</strong>{" "}
-                {viewingTeacher.employmentStatus ||
-                  viewingTeacher.status ||
-                  "-"}
-              </div>
-              <div>
-                <strong>Specialization:</strong>{" "}
-                {viewingTeacher.specialization || "-"}
-              </div>
-              <div>
-                <strong>Qualification:</strong>{" "}
-                {viewingTeacher.qualification || "-"}
-              </div>
-              <div>
-                <strong>Department:</strong> {viewingTeacher.department || "-"}
-              </div>
-              <div>
-                <strong>Designation:</strong>{" "}
-                {viewingTeacher.designation || "-"}
-              </div>
-              <div>
-                <strong>Date Joined:</strong>{" "}
-                {viewingTeacher.dateOfJoining || "-"}
-              </div>
-              <div>
-                <strong>Subjects:</strong>{" "}
-                {(viewingTeacher.subjects || []).join(", ") || "-"}
+            <div className="modal-body">
+              <div className="teacher-profile">
+                <div className="profile-header">
+                  <div className="profile-image">
+                    {getTeacherImageSrc(viewingTeacher) ? (
+                      <img
+                        src={getTeacherImageSrc(viewingTeacher)}
+                        alt={`${viewingTeacher.firstName || ""} ${viewingTeacher.lastName || ""}`}
+                      />
+                    ) : (
+                      <div className="profile-placeholder">
+                        <FaUser />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="profile-title">
+                    <h2>
+                      {`${viewingTeacher.firstName || ""} ${viewingTeacher.lastName || ""}`.trim()}
+                    </h2>
+                    <div className="teacher-id">
+                      {viewingTeacher.employeeId || "-"} /{" "}
+                      {viewingTeacher.teacherId || "-"}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="details-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <strong>Name:</strong>{" "}
+                    {`${viewingTeacher.firstName || ""} ${viewingTeacher.lastName || ""}`.trim()}
+                  </div>
+                  <div>
+                    <strong>Employee ID:</strong>{" "}
+                    {viewingTeacher.employeeId || "-"}
+                  </div>
+                  <div>
+                    <strong>Teacher ID:</strong>{" "}
+                    {viewingTeacher.teacherId || "-"}
+                  </div>
+                  <div>
+                    <strong>Email:</strong> {viewingTeacher.email || "-"}
+                  </div>
+                  <div>
+                    <strong>Phone:</strong> {viewingTeacher.phoneNumber || "-"}
+                  </div>
+                  <div>
+                    <strong>Status:</strong>{" "}
+                    {viewingTeacher.employmentStatus ||
+                      viewingTeacher.status ||
+                      "-"}
+                  </div>
+                  <div>
+                    <strong>Specialization:</strong>{" "}
+                    {viewingTeacher.specialization || "-"}
+                  </div>
+                  <div>
+                    <strong>Qualification:</strong>{" "}
+                    {viewingTeacher.qualification || "-"}
+                  </div>
+                  <div>
+                    <strong>Department:</strong>{" "}
+                    {viewingTeacher.department || "-"}
+                  </div>
+                  <div>
+                    <strong>Designation:</strong>{" "}
+                    {viewingTeacher.designation || "-"}
+                  </div>
+                  <div>
+                    <strong>Date Joined:</strong>{" "}
+                    {viewingTeacher.dateOfJoining || "-"}
+                  </div>
+                  <div>
+                    <strong>Subjects:</strong>{" "}
+                    {(viewingTeacher.subjects || []).join(", ") || "-"}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

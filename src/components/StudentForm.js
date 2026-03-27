@@ -1,12 +1,10 @@
-// src/components/StudentForm.js
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { studentAPI } from "../services/api";
+import { studentAPI, classAPI } from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useDarkMode } from "../contexts/DarkModeContext";
 import {
   NIGERIAN_STATES,
-  STUDENT_CLASSES,
   CLASS_ARMS,
   GENDERS,
   STUDENT_STATUSES,
@@ -42,6 +40,7 @@ function StudentForm() {
     nationality: "Nigerian",
     studentClass: "",
     classArm: "",
+    classId: "",
     status: "ACTIVE",
     previousSchool: "",
     parentName: "",
@@ -60,103 +59,142 @@ function StudentForm() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [classesLoading, setClassesLoading] = useState(false);
+  const [availableClasses, setAvailableClasses] = useState([]);
   const [availableLGAs, setAvailableLGAs] = useState([]);
   const [generatedAdmissionNo, setGeneratedAdmissionNo] = useState("");
   const [profilePreview, setProfilePreview] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errors, setErrors] = useState({});
 
-  const CANONICAL_CLASS_OPTIONS = useMemo(() => {
-    return (STUDENT_CLASSES || []).map((cls) => ({
-      value: String(cls).trim(),
-      label: String(cls).trim(),
-    }));
-  }, []);
+  const normalizeSpaces = useCallback(
+    (value) =>
+      String(value || "")
+        .trim()
+        .replace(/\s+/g, " "),
+    [],
+  );
 
-  const buildProfileImageUrl = (url) => {
-    if (!url) return "";
-    if (url.startsWith("https")) return url;
-    return `https://localhost:8443${url}`;
-  };
+  const normalizeClassValue = useCallback(
+    (value) => {
+      if (!value) return "";
 
-  const normalizeSpaces = (value) =>
-    String(value || "")
-      .trim()
-      .replace(/\s+/g, " ");
+      const raw = normalizeSpaces(value);
+      const compact = raw.toLowerCase().replace(/\s+/g, "");
 
-  const normalizeClassValue = (value) => {
-    if (!value) return "";
+      const aliasMap = {
+        nursery: "Nursery",
+        nursery1: "Nursery 1",
+        nursery2: "Nursery 2",
+        kg1: "Kindergarten 1",
+        kg2: "Kindergarten 2",
+        kindergarten1: "Kindergarten 1",
+        kindergarten2: "Kindergarten 2",
+        primary1: "Primary 1",
+        primary2: "Primary 2",
+        primary3: "Primary 3",
+        primary4: "Primary 4",
+        primary5: "Primary 5",
+        primary6: "Primary 6",
+        pry1: "Primary 1",
+        pry2: "Primary 2",
+        pry3: "Primary 3",
+        pry4: "Primary 4",
+        pry5: "Primary 5",
+        pry6: "Primary 6",
+        jss1: "JSS 1",
+        jss2: "JSS 2",
+        jss3: "JSS 3",
+        js1: "JSS 1",
+        js2: "JSS 2",
+        js3: "JSS 3",
+        ss1: "SSS 1",
+        ss2: "SSS 2",
+        ss3: "SSS 3",
+        sss1: "SSS 1",
+        sss2: "SSS 2",
+        sss3: "SSS 3",
+      };
 
-    const raw = normalizeSpaces(value);
-    const compact = raw.toLowerCase().replace(/\s+/g, "");
+      return aliasMap[compact] || raw;
+    },
+    [normalizeSpaces],
+  );
 
-    const aliasMap = {
-      nursery: "Nursery",
-      nursery1: "Nursery 1",
-      nursery2: "Nursery 2",
-      kg1: "Kindergarten 1",
-      kg2: "Kindergarten 2",
-      kindergarten1: "Kindergarten 1",
-      kindergarten2: "Kindergarten 2",
-      primary1: "Primary 1",
-      primary2: "Primary 2",
-      primary3: "Primary 3",
-      primary4: "Primary 4",
-      primary5: "Primary 5",
-      primary6: "Primary 6",
-      pry1: "Primary 1",
-      pry2: "Primary 2",
-      pry3: "Primary 3",
-      pry4: "Primary 4",
-      pry5: "Primary 5",
-      pry6: "Primary 6",
-      jss1: "JSS 1",
-      jss2: "JSS 2",
-      jss3: "JSS 3",
-      js1: "JSS 1",
-      js2: "JSS 2",
-      js3: "JSS 3",
-      ss1: "SSS 1",
-      ss2: "SSS 2",
-      ss3: "SSS 3",
-      sss1: "SSS 1",
-      sss2: "SSS 2",
-      sss3: "SSS 3",
-    };
-
-    if (aliasMap[compact]) {
-      return aliasMap[compact];
-    }
-
-    const exactMatch = CANONICAL_CLASS_OPTIONS.find(
-      (item) => item.value.toLowerCase() === raw.toLowerCase(),
-    );
-    if (exactMatch) {
-      return exactMatch.value;
-    }
-
-    return raw;
-  };
-
-  const normalizeArmValue = (value) => {
+  const normalizeArmValue = useCallback((value) => {
     if (!value) return "";
     return String(value).trim().toUpperCase();
-  };
+  }, []);
 
-  const resolveStudentClassFromResponse = (student) => {
-    return normalizeClassValue(
-      student?.studentClass ||
-        student?.className ||
-        student?.schoolClass?.className ||
-        "",
-    );
-  };
+  const buildProfileImageUrl = useCallback((url) => {
+    if (!url) return "";
+    if (url.startsWith("https://") || url.startsWith("http://")) return url;
+    return `https://localhost:8443${url}`;
+  }, []);
 
-  const resolveClassArmFromResponse = (student) => {
-    return normalizeArmValue(
-      student?.classArm || student?.arm || student?.schoolClass?.arm || "",
-    );
-  };
+  const buildClassLabel = useCallback(
+    (cls) => {
+      const className = normalizeClassValue(
+        cls?.className || cls?.studentClass || "",
+      );
+      const arm = normalizeArmValue(cls?.arm || cls?.classArm || "");
+      return arm ? `${className} - ${arm}` : className;
+    },
+    [normalizeArmValue, normalizeClassValue],
+  );
+
+  const findClassByNameAndArm = useCallback(
+    (className, arm, classes) => {
+      const normalizedClassName = normalizeClassValue(className);
+      const normalizedArm = normalizeArmValue(arm);
+
+      return (
+        classes.find(
+          (cls) =>
+            normalizeClassValue(cls.className) === normalizedClassName &&
+            normalizeArmValue(cls.arm) === normalizedArm,
+        ) || null
+      );
+    },
+    [normalizeArmValue, normalizeClassValue],
+  );
+
+  const resolveStudentClassFromResponse = useCallback(
+    (student) =>
+      normalizeClassValue(
+        student?.studentClass ||
+          student?.className ||
+          student?.schoolClass?.className ||
+          "",
+      ),
+    [normalizeClassValue],
+  );
+
+  const resolveClassArmFromResponse = useCallback(
+    (student) =>
+      normalizeArmValue(
+        student?.classArm || student?.arm || student?.schoolClass?.arm || "",
+      ),
+    [normalizeArmValue],
+  );
+
+  const fetchClasses = useCallback(async () => {
+    setClassesLoading(true);
+    try {
+      const response = await classAPI.getAllClasses();
+      const data = Array.isArray(response?.data) ? response.data : [];
+      setAvailableClasses(data);
+    } catch (error) {
+      console.error("Error fetching classes:", error);
+      toast.error(t?.studentForm?.classLoadFailed || "Failed to load classes");
+    } finally {
+      setClassesLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    fetchClasses();
+  }, [fetchClasses]);
 
   useEffect(() => {
     if (isEditMode) {
@@ -164,22 +202,52 @@ function StudentForm() {
     } else {
       generateAdmissionNumber();
     }
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (formData.stateOfOrigin) {
-      setAvailableLGAs(LGA_BY_STATE[formData.stateOfOrigin] || []);
+      const lgas = LGA_BY_STATE[formData.stateOfOrigin] || [];
+      setAvailableLGAs(lgas);
 
-      if (
-        formData.localGovtArea &&
-        !LGA_BY_STATE[formData.stateOfOrigin]?.includes(formData.localGovtArea)
-      ) {
+      if (formData.localGovtArea && !lgas.includes(formData.localGovtArea)) {
         setFormData((prev) => ({ ...prev, localGovtArea: "" }));
       }
     } else {
       setAvailableLGAs([]);
     }
   }, [formData.stateOfOrigin, formData.localGovtArea]);
+
+  useEffect(() => {
+    if (
+      !formData.classId &&
+      formData.studentClass &&
+      formData.classArm &&
+      availableClasses.length
+    ) {
+      const matchedClass = findClassByNameAndArm(
+        formData.studentClass,
+        formData.classArm,
+        availableClasses,
+      );
+
+      if (matchedClass) {
+        setFormData((prev) => ({
+          ...prev,
+          classId: matchedClass.id,
+          studentClass: normalizeClassValue(matchedClass.className),
+          classArm: normalizeArmValue(matchedClass.arm),
+        }));
+      }
+    }
+  }, [
+    availableClasses,
+    findClassByNameAndArm,
+    formData.classArm,
+    formData.classId,
+    formData.studentClass,
+    normalizeArmValue,
+    normalizeClassValue,
+  ]);
 
   const fetchStudent = async () => {
     setLoading(true);
@@ -191,6 +259,11 @@ function StudentForm() {
         ? moment(student.dateOfBirth).format("YYYY-MM-DD")
         : "";
 
+      const resolvedStudentClass = resolveStudentClassFromResponse(student);
+      const resolvedClassArm = resolveClassArmFromResponse(student);
+      const resolvedClassId =
+        student?.classId || student?.schoolClass?.id || "";
+
       setFormData({
         firstName: student.firstName || "",
         lastName: student.lastName || "",
@@ -199,8 +272,9 @@ function StudentForm() {
         dateOfBirth: formattedDate,
         religion: student.religion || "",
         nationality: student.nationality || "Nigerian",
-        studentClass: resolveStudentClassFromResponse(student),
-        classArm: resolveClassArmFromResponse(student),
+        studentClass: resolvedStudentClass,
+        classArm: resolvedClassArm,
+        classId: resolvedClassId,
         status: student.status || "ACTIVE",
         previousSchool: student.previousSchool || "",
         parentName: student.parentName || "",
@@ -243,24 +317,53 @@ function StudentForm() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-
     let nextValue = type === "checkbox" ? checked : value;
 
     if (name === "studentClass") {
-      nextValue = normalizeClassValue(nextValue);
-    }
+      const normalizedClass = normalizeClassValue(nextValue);
+      setFormData((prev) => ({
+        ...prev,
+        studentClass: normalizedClass,
+        classId: "",
+      }));
+    } else if (name === "classArm") {
+      const normalizedArm = normalizeArmValue(nextValue);
+      setFormData((prev) => ({
+        ...prev,
+        classArm: normalizedArm,
+        classId: "",
+      }));
+    } else if (name === "classId") {
+      const selectedClass = availableClasses.find(
+        (cls) => String(cls.id) === String(nextValue),
+      );
 
-    if (name === "classArm") {
-      nextValue = normalizeArmValue(nextValue);
+      setFormData((prev) => ({
+        ...prev,
+        classId: nextValue,
+        studentClass: selectedClass
+          ? normalizeClassValue(selectedClass.className)
+          : prev.studentClass,
+        classArm: selectedClass
+          ? normalizeArmValue(selectedClass.arm)
+          : prev.classArm,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: nextValue,
+      }));
     }
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: nextValue,
-    }));
 
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
+    }
+
+    if (
+      (name === "studentClass" || name === "classArm" || name === "classId") &&
+      errors.classId
+    ) {
+      setErrors((prev) => ({ ...prev, classId: null }));
     }
   };
 
@@ -276,7 +379,6 @@ function StudentForm() {
     }
 
     const validTypes = ["image/jpeg", "image/png", "image/gif", "image/jpg"];
-
     if (!validTypes.includes(file.type)) {
       toast.error(
         t?.studentForm?.invalidFileType ||
@@ -321,38 +423,52 @@ function StudentForm() {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.firstName?.trim())
+    if (!formData.firstName?.trim()) {
       newErrors.firstName =
         t?.studentForm?.firstNameRequired || "First name is required";
-    if (!formData.lastName?.trim())
+    }
+    if (!formData.lastName?.trim()) {
       newErrors.lastName =
         t?.studentForm?.lastNameRequired || "Last name is required";
-    if (!formData.studentClass)
+    }
+    if (!formData.studentClass) {
       newErrors.studentClass =
         t?.studentForm?.classRequired || "Class is required";
-    if (!formData.classArm)
+    }
+    if (!formData.classArm) {
       newErrors.classArm =
         t?.studentForm?.classArmRequired || "Class arm is required";
-    if (!formData.gender)
+    }
+    if (!formData.classId) {
+      newErrors.classId = t?.studentForm?.classRequired || "Class is required";
+    }
+    if (!formData.gender) {
       newErrors.gender = t?.studentForm?.genderRequired || "Gender is required";
-    if (!formData.dateOfBirth)
+    }
+    if (!formData.dateOfBirth) {
       newErrors.dateOfBirth =
         t?.studentForm?.dobRequired || "Date of birth is required";
-    if (!formData.parentName?.trim())
+    }
+    if (!formData.parentName?.trim()) {
       newErrors.parentName =
         t?.studentForm?.parentNameRequired || "Parent name is required";
-    if (!formData.parentPhone?.trim())
+    }
+    if (!formData.parentPhone?.trim()) {
       newErrors.parentPhone =
         t?.studentForm?.parentPhoneRequired || "Parent phone is required";
-    if (!formData.address?.trim())
+    }
+    if (!formData.address?.trim()) {
       newErrors.address =
         t?.studentForm?.addressRequired || "Address is required";
-    if (!formData.localGovtArea)
+    }
+    if (!formData.localGovtArea) {
       newErrors.localGovtArea =
         t?.studentForm?.lgaRequired || "Local Government Area is required";
-    if (!formData.stateOfOrigin)
+    }
+    if (!formData.stateOfOrigin) {
       newErrors.stateOfOrigin =
         t?.studentForm?.stateRequired || "State of Origin is required";
+    }
 
     if (formData.parentPhone && !/^\d{11}$/.test(formData.parentPhone)) {
       newErrors.parentPhone =
@@ -376,16 +492,6 @@ function StudentForm() {
         t?.studentForm?.emailInvalid || "Invalid email format";
     }
 
-    const normalizedClass = normalizeClassValue(formData.studentClass);
-    const isKnownClass = CANONICAL_CLASS_OPTIONS.some(
-      (item) => item.value === normalizedClass,
-    );
-
-    if (normalizedClass && !isKnownClass) {
-      newErrors.studentClass =
-        t?.studentForm?.validClassRequired || "Please select a valid class";
-    }
-
     if (
       formData.classArm &&
       !CLASS_ARMS.includes(normalizeArmValue(formData.classArm))
@@ -398,6 +504,41 @@ function StudentForm() {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  const classOptions = useMemo(() => {
+    return availableClasses.map((cls) => ({
+      id: cls.id,
+      className: normalizeClassValue(cls.className),
+      arm: normalizeArmValue(cls.arm),
+      label: buildClassLabel(cls),
+    }));
+  }, [
+    availableClasses,
+    buildClassLabel,
+    normalizeArmValue,
+    normalizeClassValue,
+  ]);
+
+  const filteredClassOptions = useMemo(() => {
+    if (!formData.studentClass && !formData.classArm) return classOptions;
+
+    return classOptions.filter((cls) => {
+      const classMatches = formData.studentClass
+        ? cls.className === normalizeClassValue(formData.studentClass)
+        : true;
+      const armMatches = formData.classArm
+        ? cls.arm === normalizeArmValue(formData.classArm)
+        : true;
+
+      return classMatches && armMatches;
+    });
+  }, [
+    classOptions,
+    formData.classArm,
+    formData.studentClass,
+    normalizeArmValue,
+    normalizeClassValue,
+  ]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -422,6 +563,7 @@ function StudentForm() {
         nationality: formData.nationality?.trim() || "Nigerian",
         studentClass: normalizeClassValue(formData.studentClass),
         classArm: normalizeArmValue(formData.classArm),
+        classId: Number(formData.classId),
         previousSchool: formData.previousSchool?.trim() || "",
         parentName: formData.parentName.trim(),
         parentPhone: formData.parentPhone.trim(),
@@ -445,7 +587,12 @@ function StudentForm() {
 
       if (formData.profilePicture instanceof File) {
         const formDataToSend = new FormData();
-        formDataToSend.append("student", JSON.stringify(studentData));
+        formDataToSend.append(
+          "student",
+          new Blob([JSON.stringify(studentData)], {
+            type: "application/json",
+          }),
+        );
         formDataToSend.append("profilePicture", formData.profilePicture);
 
         response = isEditMode
@@ -505,7 +652,7 @@ function StudentForm() {
   }
 
   return (
-    <div className="form-container">
+    <div className={`form-container ${darkMode ? "dark-mode" : ""}`}>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="mb-0">
           {isEditMode
@@ -854,11 +1001,13 @@ function StudentForm() {
                   <option value="">
                     {t?.common?.select || "Select Class"}
                   </option>
-                  {CANONICAL_CLASS_OPTIONS.map((cls) => (
-                    <option key={cls.value} value={cls.value}>
-                      {cls.label}
-                    </option>
-                  ))}
+                  {[...new Set(classOptions.map((cls) => cls.className))].map(
+                    (className) => (
+                      <option key={className} value={className}>
+                        {className}
+                      </option>
+                    ),
+                  )}
                 </select>
                 {errors.studentClass && (
                   <div className="invalid-feedback">{errors.studentClass}</div>
@@ -886,6 +1035,42 @@ function StudentForm() {
                 {errors.classArm && (
                   <div className="invalid-feedback">{errors.classArm}</div>
                 )}
+              </div>
+
+              <div className="col-md-4 mb-3">
+                <label className="form-label">
+                  {t?.studentForm?.class || "Class"}{" "}
+                  <span className="text-danger">*</span>
+                </label>
+                <select
+                  className={`form-select ${errors.classId ? "is-invalid" : ""}`}
+                  name="classId"
+                  value={formData.classId}
+                  onChange={handleChange}
+                  disabled={classesLoading || filteredClassOptions.length === 0}
+                >
+                  <option value="">
+                    {classesLoading
+                      ? "Loading classes..."
+                      : t?.common?.select || "Select Class"}
+                  </option>
+                  {filteredClassOptions.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.classId && (
+                  <div className="invalid-feedback">{errors.classId}</div>
+                )}
+                {formData.studentClass &&
+                  formData.classArm &&
+                  filteredClassOptions.length === 0 && (
+                    <small className="text-danger">
+                      No matching class record found for the selected class and
+                      arm.
+                    </small>
+                  )}
               </div>
 
               <div className="col-md-4 mb-3">

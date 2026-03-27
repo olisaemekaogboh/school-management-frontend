@@ -13,7 +13,11 @@
 .navbar-school.scrolled {
   padding: 0.6rem 1rem;
 }
-
+.btn-login {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: white !important;
+}
 .school-logo {
   display: inline-flex;
   align-items: center;
