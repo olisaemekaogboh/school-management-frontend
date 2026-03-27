@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import {
   FaEnvelope,
   FaLock,
@@ -26,6 +27,7 @@ function Login() {
   const [loginError, setLoginError] = useState("");
   const { login, user } = useAuth();
   const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || "/dashboard";
@@ -108,7 +110,7 @@ function Login() {
   };
 
   return (
-    <div className="auth-container">
+    <div className={`auth-container ${darkMode ? "dark-mode" : ""}`}>
       <div className="auth-bg-decoration">
         <div className="auth-circle auth-circle-1"></div>
         <div className="auth-circle auth-circle-2"></div>

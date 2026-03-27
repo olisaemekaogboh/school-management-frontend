@@ -129,7 +129,12 @@ function StudentForm() {
   const buildProfileImageUrl = useCallback((url) => {
     if (!url) return "";
     if (url.startsWith("https://") || url.startsWith("http://")) return url;
-    return `https://localhost:8443${url}`;
+
+    const base =
+      process.env.REACT_APP_API_URL?.replace(/\/api\/?$/, "") ||
+      "http://localhost:8080";
+
+    return url.startsWith("/") ? `${base}${url}` : `${base}/${url}`;
   }, []);
 
   const buildClassLabel = useCallback(
@@ -138,7 +143,7 @@ function StudentForm() {
         cls?.className || cls?.studentClass || "",
       );
       const arm = normalizeArmValue(cls?.arm || cls?.classArm || "");
-      return arm ? `${className} - ${arm}` : className;
+      return cls?.classCode || (arm ? `${className} - ${arm}` : className);
     },
     [normalizeArmValue, normalizeClassValue],
   );
@@ -233,7 +238,7 @@ function StudentForm() {
       if (matchedClass) {
         setFormData((prev) => ({
           ...prev,
-          classId: matchedClass.id,
+          classId: String(matchedClass.id),
           studentClass: normalizeClassValue(matchedClass.className),
           classArm: normalizeArmValue(matchedClass.arm),
         }));
@@ -274,7 +279,7 @@ function StudentForm() {
         nationality: student.nationality || "Nigerian",
         studentClass: resolvedStudentClass,
         classArm: resolvedClassArm,
-        classId: resolvedClassId,
+        classId: resolvedClassId ? String(resolvedClassId) : "",
         status: student.status || "ACTIVE",
         previousSchool: student.previousSchool || "",
         parentName: student.parentName || "",
@@ -317,7 +322,7 @@ function StudentForm() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    let nextValue = type === "checkbox" ? checked : value;
+    const nextValue = type === "checkbox" ? checked : value;
 
     if (name === "studentClass") {
       const normalizedClass = normalizeClassValue(nextValue);
@@ -368,7 +373,7 @@ function StudentForm() {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
@@ -555,15 +560,15 @@ function StudentForm() {
 
     try {
       const studentData = {
-        ...formData,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         middleName: formData.middleName?.trim() || "",
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth,
         religion: formData.religion?.trim() || "",
         nationality: formData.nationality?.trim() || "Nigerian",
-        studentClass: normalizeClassValue(formData.studentClass),
-        classArm: normalizeArmValue(formData.classArm),
         classId: Number(formData.classId),
+        status: formData.status,
         previousSchool: formData.previousSchool?.trim() || "",
         parentName: formData.parentName.trim(),
         parentPhone: formData.parentPhone.trim(),
@@ -575,24 +580,17 @@ function StudentForm() {
         emergencyContactPhone: formData.emergencyContactPhone?.trim() || "",
         emergencyContactRelationship:
           formData.emergencyContactRelationship?.trim() || "",
+        excludeFromPromotion: !!formData.excludeFromPromotion,
         promotionHoldReason: formData.excludeFromPromotion
           ? formData.promotionHoldReason?.trim() || ""
           : "",
       };
 
-      delete studentData.profilePicture;
-      delete studentData.profilePictureUrl;
-
       let response;
 
       if (formData.profilePicture instanceof File) {
         const formDataToSend = new FormData();
-        formDataToSend.append(
-          "student",
-          new Blob([JSON.stringify(studentData)], {
-            type: "application/json",
-          }),
-        );
+        formDataToSend.append("student", JSON.stringify(studentData));
         formDataToSend.append("profilePicture", formData.profilePicture);
 
         response = isEditMode
@@ -610,6 +608,7 @@ function StudentForm() {
         setFormData((prev) => ({
           ...prev,
           profilePictureUrl: response.data.profilePictureUrl,
+          profilePicture: null,
         }));
       }
 
@@ -664,7 +663,7 @@ function StudentForm() {
           className="btn btn-secondary"
           onClick={() => navigate("/students")}
         >
-          <FaArrowLeft className="me-2" />{" "}
+          <FaArrowLeft className="me-2" />
           {t?.common?.backToList || "Back to List"}
         </button>
       </div>
@@ -686,7 +685,7 @@ function StudentForm() {
             <div className="card">
               <div className="card-header bg-primary text-white">
                 <h5 className="mb-0">
-                  <FaCamera className="me-2" />{" "}
+                  <FaCamera className="me-2" />
                   {t?.studentForm?.studentPhotograph || "Student Photograph"}
                 </h5>
               </div>
@@ -765,14 +764,14 @@ function StudentForm() {
                       type="file"
                       id="profilePictureInput"
                       className="d-none"
-                      accept="image/jpeg,image/png,image/gif"
+                      accept="image/jpeg,image/png,image/gif,image/jpg"
                       onChange={handleFileChange}
                     />
 
                     {!profilePreview && (
                       <button
                         type="button"
-                        className="btn btn-outline-nigerian btn-sm"
+                        className="btn btn-outline-success btn-sm"
                         onClick={() =>
                           document.getElementById("profilePictureInput").click()
                         }
@@ -947,9 +946,7 @@ function StudentForm() {
                   value={formData.religion}
                   onChange={handleChange}
                 >
-                  <option value="">
-                    {t?.common?.select || "Select Religion"}
-                  </option>
+                  <option value="">{t?.common?.select || "Select"}</option>
                   {RELIGIONS.map((religion) => (
                     <option key={religion} value={religion}>
                       {religion}
@@ -975,103 +972,6 @@ function StudentForm() {
                   ))}
                 </select>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card mb-4">
-          <div className="card-header bg-success text-white">
-            <h5 className="mb-0">
-              {t?.studentForm?.academicInformation || "Academic Information"}
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="row">
-              <div className="col-md-4 mb-3">
-                <label className="form-label">
-                  {t?.studentForm?.class || "Class"}{" "}
-                  <span className="text-danger">*</span>
-                </label>
-                <select
-                  className={`form-select ${errors.studentClass ? "is-invalid" : ""}`}
-                  name="studentClass"
-                  value={formData.studentClass}
-                  onChange={handleChange}
-                >
-                  <option value="">
-                    {t?.common?.select || "Select Class"}
-                  </option>
-                  {[...new Set(classOptions.map((cls) => cls.className))].map(
-                    (className) => (
-                      <option key={className} value={className}>
-                        {className}
-                      </option>
-                    ),
-                  )}
-                </select>
-                {errors.studentClass && (
-                  <div className="invalid-feedback">{errors.studentClass}</div>
-                )}
-              </div>
-
-              <div className="col-md-4 mb-3">
-                <label className="form-label">
-                  {t?.studentForm?.classArm || "Class Arm"}{" "}
-                  <span className="text-danger">*</span>
-                </label>
-                <select
-                  className={`form-select ${errors.classArm ? "is-invalid" : ""}`}
-                  name="classArm"
-                  value={formData.classArm}
-                  onChange={handleChange}
-                >
-                  <option value="">{t?.common?.select || "Select Arm"}</option>
-                  {CLASS_ARMS.map((arm) => (
-                    <option key={arm} value={arm}>
-                      {arm}
-                    </option>
-                  ))}
-                </select>
-                {errors.classArm && (
-                  <div className="invalid-feedback">{errors.classArm}</div>
-                )}
-              </div>
-
-              <div className="col-md-4 mb-3">
-                <label className="form-label">
-                  {t?.studentForm?.class || "Class"}{" "}
-                  <span className="text-danger">*</span>
-                </label>
-                <select
-                  className={`form-select ${errors.classId ? "is-invalid" : ""}`}
-                  name="classId"
-                  value={formData.classId}
-                  onChange={handleChange}
-                  disabled={classesLoading || filteredClassOptions.length === 0}
-                >
-                  <option value="">
-                    {classesLoading
-                      ? "Loading classes..."
-                      : t?.common?.select || "Select Class"}
-                  </option>
-                  {filteredClassOptions.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.classId && (
-                  <div className="invalid-feedback">{errors.classId}</div>
-                )}
-                {formData.studentClass &&
-                  formData.classArm &&
-                  filteredClassOptions.length === 0 && (
-                    <small className="text-danger">
-                      No matching class record found for the selected class and
-                      arm.
-                    </small>
-                  )}
-              </div>
 
               <div className="col-md-4 mb-3">
                 <label className="form-label">
@@ -1091,42 +991,75 @@ function StudentForm() {
                 </select>
               </div>
 
-              <div className="col-md-6 mb-3">
+              <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  {t?.studentForm?.previousSchool || "Previous School Attended"}
+                  {t?.studentForm?.classLabel || "Class"}{" "}
+                  <span className="text-danger">*</span>
+                </label>
+                <select
+                  className={`form-select ${errors.classId ? "is-invalid" : ""}`}
+                  name="classId"
+                  value={formData.classId}
+                  onChange={handleChange}
+                  disabled={classesLoading}
+                >
+                  <option value="">
+                    {classesLoading
+                      ? t?.common?.loading || "Loading..."
+                      : t?.common?.select || "Select Class"}
+                  </option>
+                  {filteredClassOptions.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.classId && (
+                  <div className="invalid-feedback">{errors.classId}</div>
+                )}
+              </div>
+
+              <div className="col-md-4 mb-3">
+                <label className="form-label">
+                  {t?.studentForm?.className || "Class Name"}
                 </label>
                 <input
                   type="text"
-                  className="form-control"
-                  name="previousSchool"
-                  value={formData.previousSchool}
+                  className={`form-control ${errors.studentClass ? "is-invalid" : ""}`}
+                  name="studentClass"
+                  value={formData.studentClass}
                   onChange={handleChange}
-                  placeholder={
-                    t?.studentForm?.previousSchoolPlaceholder ||
-                    "Enter previous school name"
-                  }
                 />
-                <small className="text-muted">
-                  {t?.studentForm?.firstSchoolHint ||
-                    "Leave blank if this is their first school"}
-                </small>
+                {errors.studentClass && (
+                  <div className="invalid-feedback">{errors.studentClass}</div>
+                )}
               </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="card mb-4">
-          <div className="card-header bg-success text-white">
-            <h5 className="mb-0">
-              {t?.studentForm?.parentGuardianInfo ||
-                "Parent/Guardian Information"}
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="row">
+              <div className="col-md-4 mb-3">
+                <label className="form-label">
+                  {t?.studentForm?.classArm || "Class Arm"}
+                </label>
+                <select
+                  className={`form-select ${errors.classArm ? "is-invalid" : ""}`}
+                  name="classArm"
+                  value={formData.classArm}
+                  onChange={handleChange}
+                >
+                  <option value="">{t?.common?.select || "Select"}</option>
+                  {CLASS_ARMS.map((arm) => (
+                    <option key={arm} value={arm}>
+                      {arm}
+                    </option>
+                  ))}
+                </select>
+                {errors.classArm && (
+                  <div className="invalid-feedback">{errors.classArm}</div>
+                )}
+              </div>
+
               <div className="col-md-6 mb-3">
                 <label className="form-label">
-                  {t?.studentForm?.parentName || "Parent/Guardian Name"}{" "}
+                  {t?.studentForm?.parentName || "Parent Name"}{" "}
                   <span className="text-danger">*</span>
                 </label>
                 <input
@@ -1141,9 +1074,9 @@ function StudentForm() {
                 )}
               </div>
 
-              <div className="col-md-3 mb-3">
+              <div className="col-md-6 mb-3">
                 <label className="form-label">
-                  {t?.studentForm?.phoneNumber || "Phone Number"}{" "}
+                  {t?.studentForm?.parentPhone || "Parent Phone"}{" "}
                   <span className="text-danger">*</span>
                 </label>
                 <input
@@ -1152,17 +1085,15 @@ function StudentForm() {
                   name="parentPhone"
                   value={formData.parentPhone}
                   onChange={handleChange}
-                  placeholder="08012345678"
-                  maxLength="11"
                 />
                 {errors.parentPhone && (
                   <div className="invalid-feedback">{errors.parentPhone}</div>
                 )}
               </div>
 
-              <div className="col-md-3 mb-3">
+              <div className="col-md-6 mb-3">
                 <label className="form-label">
-                  {t?.studentForm?.email || "Email"}
+                  {t?.studentForm?.parentEmail || "Parent Email"}
                 </label>
                 <input
                   type="email"
@@ -1170,25 +1101,26 @@ function StudentForm() {
                   name="parentEmail"
                   value={formData.parentEmail}
                   onChange={handleChange}
-                  placeholder="parent@example.com"
                 />
                 {errors.parentEmail && (
                   <div className="invalid-feedback">{errors.parentEmail}</div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="card mb-4">
-          <div className="card-header bg-success text-white">
-            <h5 className="mb-0">
-              {t?.studentForm?.addressInformation || "Address Information"}
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="row">
               <div className="col-md-6 mb-3">
+                <label className="form-label">
+                  {t?.studentForm?.previousSchool || "Previous School"}
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  name="previousSchool"
+                  value={formData.previousSchool}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="col-md-12 mb-3">
                 <label className="form-label">
                   {t?.studentForm?.address || "Address"}{" "}
                   <span className="text-danger">*</span>
@@ -1216,9 +1148,7 @@ function StudentForm() {
                   value={formData.stateOfOrigin}
                   onChange={handleChange}
                 >
-                  <option value="">
-                    {t?.common?.select || "Select State"}
-                  </option>
+                  <option value="">{t?.common?.select || "Select"}</option>
                   {NIGERIAN_STATES.map((state) => (
                     <option key={state} value={state}>
                       {state}
@@ -1230,10 +1160,9 @@ function StudentForm() {
                 )}
               </div>
 
-              <div className="col-md-4 mb-3">
+              <div className="col-md-6 mb-3">
                 <label className="form-label">
-                  {t?.studentForm?.localGovernmentArea ||
-                    "Local Government Area"}{" "}
+                  {t?.studentForm?.localGovtArea || "Local Government Area"}{" "}
                   <span className="text-danger">*</span>
                 </label>
                 <select
@@ -1243,7 +1172,7 @@ function StudentForm() {
                   onChange={handleChange}
                   disabled={!formData.stateOfOrigin}
                 >
-                  <option value="">{t?.common?.select || "Select LGA"}</option>
+                  <option value="">{t?.common?.select || "Select"}</option>
                   {availableLGAs.map((lga) => (
                     <option key={lga} value={lga}>
                       {lga}
@@ -1254,18 +1183,7 @@ function StudentForm() {
                   <div className="invalid-feedback">{errors.localGovtArea}</div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="card mb-4">
-          <div className="card-header bg-success text-white">
-            <h5 className="mb-0">
-              {t?.studentForm?.emergencyContact || "Emergency Contact"}
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="row">
               <div className="col-md-4 mb-3">
                 <label className="form-label">
                   {t?.studentForm?.emergencyContactName ||
@@ -1291,8 +1209,6 @@ function StudentForm() {
                   name="emergencyContactPhone"
                   value={formData.emergencyContactPhone}
                   onChange={handleChange}
-                  placeholder="08012345678"
-                  maxLength="11"
                 />
                 {errors.emergencyContactPhone && (
                   <div className="invalid-feedback">
@@ -1303,81 +1219,48 @@ function StudentForm() {
 
               <div className="col-md-4 mb-3">
                 <label className="form-label">
-                  {t?.studentForm?.relationship || "Relationship"}
+                  {t?.studentForm?.emergencyContactRelationship ||
+                    "Emergency Contact Relationship"}
                 </label>
-                <select
-                  className="form-select"
+                <input
+                  type="text"
+                  className="form-control"
                   name="emergencyContactRelationship"
                   value={formData.emergencyContactRelationship}
                   onChange={handleChange}
-                >
-                  <option value="">
-                    {t?.common?.select || "Select Relationship"}
-                  </option>
-                  <option value="Parent">
-                    {t?.studentForm?.parent || "Parent"}
-                  </option>
-                  <option value="Guardian">
-                    {t?.studentForm?.guardian || "Guardian"}
-                  </option>
-                  <option value="Sibling">
-                    {t?.studentForm?.sibling || "Sibling"}
-                  </option>
-                  <option value="Relative">
-                    {t?.studentForm?.relative || "Relative"}
-                  </option>
-                  <option value="Other">
-                    {t?.studentForm?.other || "Other"}
-                  </option>
-                </select>
+                />
               </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="card mb-4">
-          <div className="card-header bg-warning">
-            <h5 className="mb-0">
-              {t?.studentForm?.promotionSettings || "Promotion Settings"}
-            </h5>
-          </div>
-          <div className="card-body">
-            <div className="row">
-              <div className="col-md-4 mb-3">
-                <div className="form-check">
-                  <input
-                    type="checkbox"
-                    className="form-check-input"
-                    name="excludeFromPromotion"
-                    id="excludeFromPromotion"
-                    checked={formData.excludeFromPromotion}
-                    onChange={handleChange}
-                  />
-                  <label
-                    className="form-check-label"
-                    htmlFor="excludeFromPromotion"
-                  >
-                    {t?.studentForm?.excludeFromPromotion ||
-                      "Exclude from automatic promotion"}
-                  </label>
-                </div>
+              <div className="col-md-12 mb-3 form-check">
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  id="excludeFromPromotion"
+                  name="excludeFromPromotion"
+                  checked={formData.excludeFromPromotion}
+                  onChange={handleChange}
+                />
+                <label
+                  className="form-check-label"
+                  htmlFor="excludeFromPromotion"
+                >
+                  {t?.studentForm?.excludeFromPromotion ||
+                    "Exclude from promotion"}
+                </label>
               </div>
 
               {formData.excludeFromPromotion && (
-                <div className="col-md-8 mb-3">
+                <div className="col-md-12 mb-3">
                   <label className="form-label">
-                    {t?.studentForm?.exclusionReason || "Reason for exclusion"}
+                    {t?.studentForm?.promotionHoldReason ||
+                      "Promotion Hold Reason"}
                   </label>
-                  <input
-                    type="text"
+                  <textarea
                     className="form-control"
                     name="promotionHoldReason"
                     value={formData.promotionHoldReason}
                     onChange={handleChange}
-                    placeholder={
-                      t?.studentForm?.exclusionReasonPlaceholder ||
-                      "Enter reason for holding student back"
-                    }
+                    rows="2"
                   />
                 </div>
               )}
@@ -1385,29 +1268,29 @@ function StudentForm() {
           </div>
         </div>
 
-        <div className="d-flex gap-2 mt-4">
-          <button type="submit" className="btn btn-nigerian" disabled={loading}>
-            {loading ? (
-              <>
-                <FaSpinner className="me-2 spin" />
-                {t?.common?.saving || "Saving..."}
-              </>
-            ) : (
-              <>
-                <FaSave className="me-2" />
-                {isEditMode
-                  ? t?.studentForm?.updateStudent || "Update Student"
-                  : t?.studentForm?.registerStudent || "Register Student"}
-              </>
-            )}
-          </button>
-
+        <div className="d-flex justify-content-end gap-2">
           <button
             type="button"
             className="btn btn-secondary"
             onClick={() => navigate("/students")}
           >
+            <FaArrowLeft className="me-2" />
             {t?.common?.cancel || "Cancel"}
+          </button>
+          <button type="submit" className="btn btn-success" disabled={loading}>
+            {loading ? (
+              <>
+                <FaSpinner className="me-2 spin" />
+                {t?.common?.processing || "Processing..."}
+              </>
+            ) : (
+              <>
+                <FaSave className="me-2" />
+                {isEditMode
+                  ? t?.common?.update || "Update"
+                  : t?.common?.create || "Create"}
+              </>
+            )}
           </button>
         </div>
       </form>

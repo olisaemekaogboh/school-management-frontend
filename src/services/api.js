@@ -246,15 +246,9 @@ export const teacherAPI = {
   getTeacherByTeacherId: (teacherId) =>
     api.get(`/teachers/teacher-id/${teacherId}`),
 
-  createTeacher: (formData) =>
-    api.post("/teachers", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }),
+  createTeacher: (data) => sendData("post", "/teachers", data),
 
-  updateTeacher: (id, formData) =>
-    api.put(`/teachers/${id}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }),
+  updateTeacher: (id, data) => sendData("put", `/teachers/${id}`, data),
 
   deleteTeacher: (id) => api.delete(`/teachers/${id}`),
   searchTeachers: (term) => api.get("/teachers/search", { params: { term } }),
@@ -303,7 +297,6 @@ export const teacherAPI = {
   markMyClassAttendance: (classId, payload) =>
     api.post(`/teachers/me/classes/${classId}/attendance`, payload),
 };
-
 /* ================================
    SUBJECT API
 ================================ */
@@ -372,23 +365,56 @@ export const classAPI = {
    RESULT API
 ================================ */
 export const resultAPI = {
-  addOrUpdateResultDTO: (resultData) =>
-    api.post(`/results/student/${resultData.studentId}`, resultData),
+  // =========================
+  // SAFE DTO VERSION (BEST)
+  // =========================
+  addOrUpdateResultDTO: (resultData) => {
+    const studentId = resultData.studentId || resultData.student?.id;
 
-  addOrUpdateResult: (studentId, subject, session, term, scores) =>
-    api.post(`/results/student/${studentId}`, {
+    if (!studentId) {
+      throw new Error("studentId is required");
+    }
+
+    if (!resultData.subjectId) {
+      throw new Error("subjectId is required");
+    }
+
+    return api.post(`/results/student/${studentId}`, resultData);
+  },
+
+  // =========================
+  // SIMPLE VERSION (FIXED)
+  // =========================
+  addOrUpdateResult: (
+    studentId,
+    subjectId, // ✅ FIXED
+    session,
+    term,
+    scores = {},
+  ) => {
+    if (!studentId) throw new Error("studentId is required");
+    if (!subjectId) throw new Error("subjectId is required");
+    if (!session) throw new Error("session is required");
+    if (!term) throw new Error("term is required");
+
+    return api.post(`/results/student/${studentId}`, {
       studentId,
-      subject,
+      subjectId, // ✅ FIXED HERE
       session,
       term,
-      resumptionTest: scores?.resumptionTest ?? 0,
-      assignments: scores?.assignments ?? 0,
-      project: scores?.project ?? 0,
-      midtermTest: scores?.midtermTest ?? 0,
-      secondTest: scores?.secondTest ?? 0,
-      examination: scores?.examination ?? 0,
-    }),
+      resumptionTest: scores.resumptionTest ?? 0,
+      assignments: scores.assignments ?? 0,
+      project: scores.project ?? 0,
+      midtermTest: scores.midtermTest ?? 0,
+      secondTest: scores.secondTest ?? 0,
+      examination: scores.examination ?? 0,
+      remarks: scores.remarks ?? "",
+    });
+  },
 
+  // =========================
+  // FETCH RESULTS
+  // =========================
   getStudentResults: (studentId, session, term) =>
     api.get(`/results/student/${studentId}`, {
       params: { session, term },
@@ -404,13 +430,22 @@ export const resultAPI = {
       params: { session },
     }),
 
-  getClassRankings: (className, session, term, arm) =>
+  getMyTermResult: (session, term) =>
+    api.get(`/results/me/term`, {
+      params: { session, term },
+    }),
+
+  getMyAnnualResult: (session) =>
+    api.get(`/results/me/annual`, {
+      params: { session },
+    }),
+
+  // =========================
+  // RANKINGS
+  // =========================
+  getClassRankings: (className, session, term, arm = null) =>
     api.get(`/results/rankings/class/${encodeURIComponent(className)}`, {
-      params: {
-        session,
-        term,
-        ...(arm ? { arm } : {}),
-      },
+      params: arm ? { session, term, arm } : { session, term },
     }),
 
   getArmRankings: (className, arm, session, term) =>
@@ -426,6 +461,9 @@ export const resultAPI = {
       params: { session, term },
     }),
 
+  // =========================
+  // CALCULATIONS
+  // =========================
   calculateAllTermResults: (session, term) =>
     api.post("/results/calculate/term", null, {
       params: { session, term },
@@ -436,15 +474,16 @@ export const resultAPI = {
       params: { session },
     }),
 
-  getMyTermResult: (session, term) =>
-    api.get("/results/me/term", {
-      params: { session, term },
-    }),
-
-  getMyAnnualResult: (session) =>
-    api.get("/results/me/annual", {
-      params: { session },
-    }),
+  // =========================
+  // STATISTICS
+  // =========================
+  getClassStatistics: (className, arm, session, term) =>
+    api.get(
+      `/results/statistics/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
+      {
+        params: { session, term },
+      },
+    ),
 };
 
 export const emailQueueAPI = {

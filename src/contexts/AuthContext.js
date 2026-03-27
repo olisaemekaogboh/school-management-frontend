@@ -34,6 +34,27 @@ const normalizeRoleValue = (roleValue) => {
     .toUpperCase();
 };
 
+const buildImageUrl = (value) => {
+  if (!value) return "";
+
+  const cleaned = String(value).trim();
+  if (!cleaned) return "";
+
+  if (
+    cleaned.startsWith("http://") ||
+    cleaned.startsWith("https://") ||
+    cleaned.startsWith("data:image/")
+  ) {
+    return cleaned;
+  }
+
+  const base =
+    process.env.REACT_APP_API_URL?.replace(/\/api\/?$/, "") ||
+    "http://localhost:8080";
+
+  return cleaned.startsWith("/") ? `${base}${cleaned}` : `${base}/${cleaned}`;
+};
+
 const normalizeUser = (rawUser) => {
   if (!rawUser) return null;
 
@@ -124,16 +145,33 @@ const normalizeUser = (rawUser) => {
       studentProfile?.admissionNumber,
       studentProfile?.admissionNo,
     ),
+
+    classId: pickFirst(
+      rawUser.classId,
+      studentProfile?.classId,
+      studentProfile?.schoolClass?.id,
+    ),
+
     studentClass: pickFirst(
       rawUser.studentClass,
       studentProfile?.studentClass,
       studentProfile?.className,
+      studentProfile?.schoolClass?.className,
     ),
+
     classArm: pickFirst(
       rawUser.classArm,
       studentProfile?.classArm,
       studentProfile?.arm,
+      studentProfile?.schoolClass?.arm,
     ),
+
+    classCode: pickFirst(
+      rawUser.classCode,
+      studentProfile?.classCode,
+      studentProfile?.schoolClass?.classCode,
+    ),
+
     status: pickFirst(
       rawUser.status,
       studentProfile?.status,
@@ -141,11 +179,33 @@ const normalizeUser = (rawUser) => {
       parentProfile?.status,
       "ACTIVE",
     ),
-    profilePictureUrl: pickFirst(
-      rawUser.profilePictureUrl,
-      studentProfile?.profilePictureUrl,
-      teacherProfile?.profilePictureUrl,
-      parentProfile?.profilePictureUrl,
+
+    profilePictureUrl: buildImageUrl(
+      pickFirst(
+        rawUser.profilePictureUrl,
+        rawUser.profileImageUrl,
+        rawUser.photoUrl,
+        rawUser.imageUrl,
+        rawUser.passport,
+
+        studentProfile?.profilePictureUrl,
+        studentProfile?.profileImageUrl,
+        studentProfile?.photoUrl,
+        studentProfile?.imageUrl,
+        studentProfile?.passport,
+
+        teacherProfile?.profilePictureUrl,
+        teacherProfile?.profileImageUrl,
+        teacherProfile?.photoUrl,
+        teacherProfile?.imageUrl,
+        teacherProfile?.passport,
+
+        parentProfile?.profilePictureUrl,
+        parentProfile?.profileImageUrl,
+        parentProfile?.photoUrl,
+        parentProfile?.imageUrl,
+        parentProfile?.passport,
+      ),
     ),
   };
 };

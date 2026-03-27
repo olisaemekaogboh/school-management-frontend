@@ -1,4 +1,3 @@
-// src/components/TeacherForm.js
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -144,11 +143,22 @@ function TeacherForm() {
       : [];
   }, [formData.stateOfOrigin]);
 
+  const buildProfileImageUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("https://") || url.startsWith("http://")) return url;
+
+    const base =
+      process.env.REACT_APP_API_URL?.replace(/\/api\/?$/, "") ||
+      "http://localhost:8080";
+
+    return url.startsWith("/") ? `${base}${url}` : `${base}/${url}`;
+  };
+
   useEffect(() => {
     if (id) {
       fetchTeacher(id);
     }
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (
@@ -221,10 +231,10 @@ function TeacherForm() {
 
       if (teacher.profilePictureUrl) {
         setProfilePicturePreview(
-          teacher.profilePictureUrl.startsWith("https")
-            ? teacher.profilePictureUrl
-            : `https://localhost:8443/uploads/teachers/${teacher.profilePictureUrl}`,
+          buildProfileImageUrl(teacher.profilePictureUrl),
         );
+      } else {
+        setProfilePicturePreview("");
       }
     } catch (error) {
       console.error("Error fetching teacher:", error);
@@ -237,7 +247,7 @@ function TeacherForm() {
 
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
-    let nextValue = type === "number" ? parseInt(value, 10) || 0 : value;
+    const nextValue = type === "number" ? parseInt(value, 10) || 0 : value;
 
     setFormData((prev) => {
       const updated = { ...prev, [name]: nextValue };
@@ -253,7 +263,7 @@ function TeacherForm() {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     setUploadError("");
 
     if (file) {
@@ -403,10 +413,7 @@ function TeacherForm() {
       });
 
       const formDataToSend = new FormData();
-      const teacherBlob = new Blob([JSON.stringify(teacherData)], {
-        type: "application/json",
-      });
-      formDataToSend.append("teacher", teacherBlob);
+      formDataToSend.append("teacher", JSON.stringify(teacherData));
 
       if (profilePicture) {
         formDataToSend.append("profilePicture", profilePicture);
@@ -629,6 +636,7 @@ function TeacherForm() {
               <FaUserTie />{" "}
               {t?.teacherForm?.personalInformation || "Personal Information"}
             </h3>
+
             <div className="form-row">
               <div className="form-group">
                 <label>
@@ -647,6 +655,7 @@ function TeacherForm() {
                   <small className="error-text">{formErrors.firstName}</small>
                 )}
               </div>
+
               <div className="form-group">
                 <label>{t?.teacherForm?.middleName || "Middle Name"}</label>
                 <input
@@ -657,6 +666,7 @@ function TeacherForm() {
                   placeholder={t?.teacherForm?.middleName || "Middle Name"}
                 />
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.lastName || "Last Name"}{" "}
@@ -675,6 +685,7 @@ function TeacherForm() {
                 )}
               </div>
             </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>
@@ -694,6 +705,7 @@ function TeacherForm() {
                   <small className="error-text">{formErrors.email}</small>
                 )}
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.common?.phone || "Phone Number"}{" "}
@@ -711,6 +723,7 @@ function TeacherForm() {
                   <small className="error-text">{formErrors.phoneNumber}</small>
                 )}
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.alternatePhone || "Alternate Phone"}
@@ -724,6 +737,7 @@ function TeacherForm() {
                 />
               </div>
             </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>{t?.teacherForm?.dateOfBirth || "Date of Birth"}</label>
@@ -734,6 +748,7 @@ function TeacherForm() {
                   onChange={handleInputChange}
                 />
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.gender || "Gender"}{" "}
@@ -758,6 +773,7 @@ function TeacherForm() {
                   <small className="error-text">{formErrors.gender}</small>
                 )}
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.maritalStatus || "Marital Status"}
@@ -776,6 +792,7 @@ function TeacherForm() {
                 </select>
               </div>
             </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>
@@ -789,6 +806,7 @@ function TeacherForm() {
                   min="0"
                 />
               </div>
+
               <div className="form-group">
                 <label>{t?.teacherForm?.religion || "Religion"}</label>
                 <select
@@ -806,6 +824,7 @@ function TeacherForm() {
                   ))}
                 </select>
               </div>
+
               <div className="form-group">
                 <label>{t?.teacherForm?.nationality || "Nationality"}</label>
                 <select
@@ -821,6 +840,7 @@ function TeacherForm() {
                 </select>
               </div>
             </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>
@@ -841,6 +861,7 @@ function TeacherForm() {
                   ))}
                 </select>
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.localGovernmentArea ||
@@ -867,6 +888,7 @@ function TeacherForm() {
             <h3>
               <FaMapMarkerAlt /> {t?.teacherForm?.address || "Address"}
             </h3>
+
             <div className="form-group full-width">
               <label>{t?.teacherForm?.address || "Address"}</label>
               <textarea
@@ -877,6 +899,7 @@ function TeacherForm() {
                 placeholder="Street address"
               />
             </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>{t?.teacherForm?.city || "City"}</label>
@@ -888,6 +911,7 @@ function TeacherForm() {
                   placeholder="City"
                 />
               </div>
+
               <div className="form-group">
                 <label>{t?.teacherForm?.state || "State/Province"}</label>
                 <select
@@ -905,6 +929,7 @@ function TeacherForm() {
                   ))}
                 </select>
               </div>
+
               <div className="form-group">
                 <label>{t?.teacherForm?.country || "Country"}</label>
                 <input
@@ -912,32 +937,17 @@ function TeacherForm() {
                   name="country"
                   value={formData.country}
                   onChange={handleInputChange}
-                  placeholder="Country"
                 />
               </div>
             </div>
-            {formData.state && stateLGAs.length > 0 && (
-              <div className="form-row">
-                <div className="form-group">
-                  <label>{t?.teacherForm?.stateLGAs || "State LGAs"}</label>
-                  <select disabled>
-                    <option>
-                      {stateLGAs.length}{" "}
-                      {t?.teacherForm?.lgaAvailable || "LGAs available for"}{" "}
-                      {formData.state}
-                    </option>
-                  </select>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="form-section">
             <h3>
               <FaBriefcase />{" "}
-              {t?.teacherForm?.professionalInformation ||
-                "Professional Information"}
+              {t?.teacherForm?.employmentDetails || "Employment Details"}
             </h3>
+
             <div className="form-row">
               <div className="form-group">
                 <label>
@@ -950,12 +960,12 @@ function TeacherForm() {
                   value={formData.employeeId}
                   onChange={handleInputChange}
                   className={formErrors.employeeId ? "error" : ""}
-                  placeholder="EMP001"
                 />
                 {formErrors.employeeId && (
                   <small className="error-text">{formErrors.employeeId}</small>
                 )}
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.department || "Department"}{" "}
@@ -967,12 +977,10 @@ function TeacherForm() {
                   onChange={handleInputChange}
                   className={formErrors.department ? "error" : ""}
                 >
-                  <option value="">
-                    {t?.common?.select || "Select Department"}
-                  </option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
+                  <option value="">{t?.common?.select || "Select"}</option>
+                  {departments.map((department) => (
+                    <option key={department} value={department}>
+                      {department}
                     </option>
                   ))}
                 </select>
@@ -980,6 +988,7 @@ function TeacherForm() {
                   <small className="error-text">{formErrors.department}</small>
                 )}
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.designation || "Designation"}{" "}
@@ -991,52 +1000,13 @@ function TeacherForm() {
                   value={formData.designation}
                   onChange={handleInputChange}
                   className={formErrors.designation ? "error" : ""}
-                  placeholder="e.g., Senior Teacher, Head of Department"
                 />
                 {formErrors.designation && (
                   <small className="error-text">{formErrors.designation}</small>
                 )}
               </div>
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>
-                  {t?.teacherForm?.qualification || "Qualification"}
-                </label>
-                <input
-                  type="text"
-                  name="qualification"
-                  value={formData.qualification}
-                  onChange={handleInputChange}
-                  placeholder="e.g., B.Sc, M.Ed, etc."
-                />
-              </div>
-              <div className="form-group">
-                <label>
-                  {t?.teacherForm?.specialization || "Specialization"}
-                </label>
-                <input
-                  type="text"
-                  name="specialization"
-                  value={formData.specialization}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Mathematics, Physics"
-                />
-              </div>
-              <div className="form-group">
-                <label>
-                  {t?.teacherForm?.yearsOfExperience || "Years of Experience"}
-                </label>
-                <input
-                  type="number"
-                  name="yearsOfExperience"
-                  value={formData.yearsOfExperience}
-                  onChange={handleInputChange}
-                  min="0"
-                  placeholder="0"
-                />
-              </div>
-            </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>
@@ -1056,6 +1026,7 @@ function TeacherForm() {
                   </small>
                 )}
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.employmentType || "Employment Type"}
@@ -1067,58 +1038,88 @@ function TeacherForm() {
                 >
                   {employmentTypes.map((type) => (
                     <option key={type} value={type}>
-                      {type.replace("_", " ")}
+                      {type}
                     </option>
                   ))}
                 </select>
               </div>
+
+              <div className="form-group">
+                <label>
+                  {t?.teacherForm?.yearsOfExperience || "Years of Experience"}
+                </label>
+                <input
+                  type="number"
+                  name="yearsOfExperience"
+                  value={formData.yearsOfExperience}
+                  onChange={handleInputChange}
+                  min="0"
+                />
+              </div>
             </div>
-            <div className="form-group full-width">
-              <label>{t?.teacherForm?.biography || "Biography"}</label>
-              <textarea
-                name="biography"
-                value={formData.biography}
-                onChange={handleInputChange}
-                rows="3"
-                placeholder={
-                  t?.teacherForm?.biographyPlaceholder || "Brief biography..."
-                }
-              />
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>
+                  {t?.teacherForm?.qualification || "Qualification"}
+                </label>
+                <input
+                  type="text"
+                  name="qualification"
+                  value={formData.qualification}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  {t?.teacherForm?.specialization || "Specialization"}
+                </label>
+                <input
+                  type="text"
+                  name="specialization"
+                  value={formData.specialization}
+                  onChange={handleInputChange}
+                />
+              </div>
             </div>
           </div>
 
           <div className="form-section">
             <h3>
-              <FaBook /> {t?.teacherForm?.subjectsTaught || "Subjects Taught"}
+              <FaBook /> {t?.teacherForm?.subjects || "Subjects"}
             </h3>
+
             {subjects.map((subject, index) => (
-              <div key={index} className="array-item">
-                <select
-                  value={subject}
-                  onChange={(e) => handleSubjectChange(index, e.target.value)}
-                  className="form-control"
-                >
-                  <option value="">
-                    {t?.common?.select || "Select Subject"}
-                  </option>
-                  {subjectOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
+              <div className="form-row" key={`subject-${index}`}>
+                <div className="form-group">
+                  <select
+                    value={subject}
+                    onChange={(e) => handleSubjectChange(index, e.target.value)}
+                  >
+                    <option value="">
+                      {t?.common?.select || "Select Subject"}
                     </option>
-                  ))}
-                </select>
+                    {subjectOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   type="button"
-                  className="btn-remove"
+                  className="btn-icon danger"
                   onClick={() => handleRemoveSubject(index)}
                 >
                   <FaTrash />
                 </button>
               </div>
             ))}
+
             <button
               type="button"
-              className="btn-add"
+              className="btn-secondary"
               onClick={handleAddSubject}
             >
               <FaPlus /> {t?.teacherForm?.addSubject || "Add Subject"}
@@ -1131,32 +1132,34 @@ function TeacherForm() {
               {t?.teacherForm?.additionalQualifications ||
                 "Additional Qualifications"}
             </h3>
-            {qualifications.map((qual, index) => (
-              <div key={index} className="array-item">
-                <input
-                  type="text"
-                  value={qual}
-                  onChange={(e) =>
-                    handleQualificationChange(index, e.target.value)
-                  }
-                  placeholder={
-                    t?.teacherForm?.qualificationPlaceholder ||
-                    "Qualification (e.g., TRCN Certificate)"
-                  }
-                  className="form-control"
-                />
+
+            {qualifications.map((qualification, index) => (
+              <div className="form-row" key={`qualification-${index}`}>
+                <div className="form-group">
+                  <input
+                    type="text"
+                    value={qualification}
+                    onChange={(e) =>
+                      handleQualificationChange(index, e.target.value)
+                    }
+                    placeholder={
+                      t?.teacherForm?.qualification || "Qualification"
+                    }
+                  />
+                </div>
                 <button
                   type="button"
-                  className="btn-remove"
+                  className="btn-icon danger"
                   onClick={() => handleRemoveQualification(index)}
                 >
                   <FaTrash />
                 </button>
               </div>
             ))}
+
             <button
               type="button"
-              className="btn-add"
+              className="btn-secondary"
               onClick={handleAddQualification}
             >
               <FaPlus />{" "}
@@ -1166,10 +1169,12 @@ function TeacherForm() {
 
           <div className="form-section">
             <h3>{t?.teacherForm?.emergencyContact || "Emergency Contact"}</h3>
+
             <div className="form-row">
               <div className="form-group">
                 <label>
-                  {t?.teacherForm?.contactName || "Contact Name"}{" "}
+                  {t?.teacherForm?.emergencyContactName ||
+                    "Emergency Contact Name"}{" "}
                   <span className="required">*</span>
                 </label>
                 <input
@@ -1178,7 +1183,6 @@ function TeacherForm() {
                   value={formData.emergencyContactName}
                   onChange={handleInputChange}
                   className={formErrors.emergencyContactName ? "error" : ""}
-                  placeholder="Emergency contact name"
                 />
                 {formErrors.emergencyContactName && (
                   <small className="error-text">
@@ -1186,9 +1190,11 @@ function TeacherForm() {
                   </small>
                 )}
               </div>
+
               <div className="form-group">
                 <label>
-                  {t?.common?.phone || "Contact Phone"}{" "}
+                  {t?.teacherForm?.emergencyContactPhone ||
+                    "Emergency Contact Phone"}{" "}
                   <span className="required">*</span>
                 </label>
                 <input
@@ -1197,7 +1203,6 @@ function TeacherForm() {
                   value={formData.emergencyContactPhone}
                   onChange={handleInputChange}
                   className={formErrors.emergencyContactPhone ? "error" : ""}
-                  placeholder="08012345678"
                 />
                 {formErrors.emergencyContactPhone && (
                   <small className="error-text">
@@ -1205,14 +1210,17 @@ function TeacherForm() {
                   </small>
                 )}
               </div>
+
               <div className="form-group">
-                <label>{t?.teacherForm?.relationship || "Relationship"}</label>
+                <label>
+                  {t?.teacherForm?.emergencyContactRelationship ||
+                    "Relationship"}
+                </label>
                 <input
                   type="text"
                   name="emergencyContactRelationship"
                   value={formData.emergencyContactRelationship}
                   onChange={handleInputChange}
-                  placeholder="e.g., Spouse, Parent"
                 />
               </div>
             </div>
@@ -1220,6 +1228,7 @@ function TeacherForm() {
 
           <div className="form-section">
             <h3>{t?.teacherForm?.bankDetails || "Bank Details"}</h3>
+
             <div className="form-row">
               <div className="form-group">
                 <label>{t?.teacherForm?.bankName || "Bank Name"}</label>
@@ -1231,6 +1240,7 @@ function TeacherForm() {
                   placeholder="Bank Name"
                 />
               </div>
+
               <div className="form-group">
                 <label>
                   {t?.teacherForm?.accountNumber || "Account Number"}
@@ -1244,6 +1254,7 @@ function TeacherForm() {
                 />
               </div>
             </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>{t?.teacherForm?.accountName || "Account Name"}</label>
@@ -1255,6 +1266,7 @@ function TeacherForm() {
                   placeholder="Account Name"
                 />
               </div>
+
               <div className="form-group">
                 <label>{t?.teacherForm?.pensionId || "Pension ID"}</label>
                 <input
@@ -1266,6 +1278,7 @@ function TeacherForm() {
                 />
               </div>
             </div>
+
             <div className="form-group full-width">
               <label>{t?.teacherForm?.taxId || "Tax ID"}</label>
               <input
@@ -1280,6 +1293,7 @@ function TeacherForm() {
 
           <div className="form-section">
             <h3>{t?.teacherForm?.nextOfKin || "Next of Kin"}</h3>
+
             <div className="form-row">
               <div className="form-group">
                 <label>{t?.teacherForm?.name || "Name"}</label>
@@ -1291,6 +1305,7 @@ function TeacherForm() {
                   placeholder="Next of Kin Name"
                 />
               </div>
+
               <div className="form-group">
                 <label>{t?.common?.phone || "Phone"}</label>
                 <input
@@ -1302,6 +1317,7 @@ function TeacherForm() {
                 />
               </div>
             </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>{t?.teacherForm?.relationship || "Relationship"}</label>
@@ -1310,10 +1326,11 @@ function TeacherForm() {
                   name="nextOfKinRelationship"
                   value={formData.nextOfKinRelationship}
                   onChange={handleInputChange}
-                  placeholder="e.g., Brother, Sister"
+                  placeholder="e.g. Brother, Sister"
                 />
               </div>
             </div>
+
             <div className="form-group full-width">
               <label>{t?.teacherForm?.address || "Address"}</label>
               <textarea
@@ -1355,6 +1372,7 @@ function TeacherForm() {
             >
               <FaTimes /> {t?.common?.cancel || "Cancel"}
             </button>
+
             <button type="submit" className="btn-primary" disabled={submitting}>
               {submitting ? (
                 <>

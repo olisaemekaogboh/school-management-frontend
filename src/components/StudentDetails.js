@@ -1,5 +1,4 @@
-// src/components/StudentDetails.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, resultAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -71,9 +70,13 @@ function StudentDetails() {
 
   const terms = ["FIRST", "SECOND", "THIRD"];
 
+  const apiBase =
+    process.env.REACT_APP_API_BASE_URL?.replace("/api", "") ||
+    "https://localhost:8443";
+
   useEffect(() => {
     fetchStudentDetails();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!student || !session) return;
@@ -85,7 +88,7 @@ function StudentDetails() {
     } else if (activeTab === "history") {
       fetchAllResults();
     }
-  }, [activeTab, session, term, student]);
+  }, [activeTab, session, term, student]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchStudentDetails = async () => {
     try {
@@ -132,12 +135,12 @@ function StudentDetails() {
     for (const sess of sessionsToCheck) {
       history[sess] = {};
 
-      for (const t of terms) {
+      for (const currentTerm of terms) {
         try {
-          const response = await resultAPI.getTermResult(id, sess, t);
-          history[sess][t] = response.data;
+          const response = await resultAPI.getTermResult(id, sess, currentTerm);
+          history[sess][currentTerm] = response.data;
         } catch {
-          history[sess][t] = null;
+          history[sess][currentTerm] = null;
         }
       }
     }
@@ -152,7 +155,7 @@ function StudentDetails() {
       window.confirm(
         t?.studentDetails?.confirmDelete ||
           `Are you sure you want to delete ${
-            student.fullName || `${student.firstName} ${student.lastName}`
+            studentDisplayName
           }? This action cannot be undone.`,
       )
     ) {
@@ -173,7 +176,79 @@ function StudentDetails() {
 
   const handlePrint = () => window.print();
 
-  const calculateAge = (dateOfBirth) => moment().diff(dateOfBirth, "years");
+  const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return "-";
+    const years = moment().diff(dateOfBirth, "years");
+    return Number.isFinite(years) ? years : "-";
+  };
+
+  const renderValue = useCallback(
+    (value, fallback = null) => {
+      const fallbackValue =
+        fallback || t?.common?.notSpecified || "Not specified";
+
+      if (value === null || value === undefined) return fallbackValue;
+      if (typeof value === "string" && !value.trim()) return fallbackValue;
+      return value;
+    },
+    [t],
+  );
+
+  const studentDisplayName = useMemo(() => {
+    if (!student) return "";
+    return (
+      student.fullName ||
+      [student.firstName, student.middleName, student.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim() ||
+      t?.studentDetails?.unknownStudent ||
+      "Unknown Student"
+    );
+  }, [student, t]);
+
+  const studentClassDisplay = useMemo(() => {
+    if (!student) return "-";
+
+    const className =
+      student.studentClass ||
+      student.className ||
+      student.schoolClass?.className ||
+      student.schoolClassName ||
+      "";
+
+    const arm =
+      student.classArm ||
+      student.arm ||
+      student.schoolClass?.arm ||
+      student.schoolClassArm ||
+      "";
+
+    return [className, arm].filter(Boolean).join(" ") || "-";
+  }, [student]);
+
+  const admissionNumber = useMemo(() => {
+    if (!student) return "-";
+    return (
+      student.admissionNumber ||
+      student.studentId ||
+      student.registrationNumber ||
+      "-"
+    );
+  }, [student]);
+
+  const admissionDateDisplay = useMemo(() => {
+    if (!student) return "-";
+
+    const raw =
+      student.admissionDate ||
+      student.createdAt ||
+      student.dateAdmitted ||
+      student.registrationDate;
+
+    return raw ? moment(raw).format("DD/MM/YYYY") : "-";
+  }, [student]);
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -207,7 +282,7 @@ function StudentDetails() {
     const badge = badges[status] || {
       class: "bg-secondary",
       icon: null,
-      label: status,
+      label: renderValue(status, "Unknown"),
     };
 
     return (
@@ -231,14 +306,204 @@ function StudentDetails() {
 
   const getImageUrl = () => {
     if (!student?.profilePictureUrl) return null;
-    const filename = student.profilePictureUrl.split("/").pop();
-    return `https://localhost:8443/uploads/profile-pictures/${filename}`;
+
+    const raw = String(student.profilePictureUrl).trim();
+    if (!raw) return null;
+
+    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+      return raw;
+    }
+
+    if (raw.startsWith("/uploads/")) {
+      return `${apiBase}${raw}`;
+    }
+
+    const filename = raw.split("/").pop();
+    return `${apiBase}/uploads/${filename}`;
   };
 
   const safeFixed = (value, digits = 2) => {
     const n = Number(value);
     return Number.isFinite(n) ? n.toFixed(digits) : "0.00";
   };
+
+  const numberValue = useCallback((...values) => {
+    for (const value of values) {
+      const num = Number(value);
+      if (Number.isFinite(num)) return num;
+    }
+    return 0;
+  }, []);
+
+  const annualSummaryResolved = useMemo(() => {
+    if (!annualResult) return null;
+
+    const summary =
+      annualResult.annualSummary ||
+      annualResult.summary ||
+      annualResult.resultSummary ||
+      annualResult;
+
+    const termResultsMap =
+      annualResult.termResults ||
+      annualResult.terms ||
+      annualResult.termSummaries ||
+      {};
+
+    const firstTermTotal = numberValue(
+      summary?.firstTermTotal,
+      summary?.firstTermScore,
+      summary?.first,
+      termResultsMap?.FIRST?.totalScore,
+      termResultsMap?.FIRST?.total,
+      annualResult?.firstTermTotal,
+    );
+
+    const secondTermTotal = numberValue(
+      summary?.secondTermTotal,
+      summary?.secondTermScore,
+      summary?.second,
+      termResultsMap?.SECOND?.totalScore,
+      termResultsMap?.SECOND?.total,
+      annualResult?.secondTermTotal,
+    );
+
+    const thirdTermTotal = numberValue(
+      summary?.thirdTermTotal,
+      summary?.thirdTermScore,
+      summary?.third,
+      termResultsMap?.THIRD?.totalScore,
+      termResultsMap?.THIRD?.total,
+      annualResult?.thirdTermTotal,
+    );
+
+    const computedAnnualTotal =
+      firstTermTotal + secondTermTotal + thirdTermTotal;
+
+    const annualTotal = numberValue(
+      summary?.annualTotal,
+      summary?.totalScore,
+      summary?.grandTotal,
+      annualResult?.annualTotal,
+      annualResult?.totalScore,
+      computedAnnualTotal,
+    );
+
+    const annualAverage = numberValue(
+      summary?.annualAverage,
+      summary?.average,
+      summary?.avg,
+      annualResult?.annualAverage,
+      annualResult?.average,
+      annualTotal > 0 ? annualTotal / 3 : 0,
+    );
+
+    const position =
+      summary?.positionInClass ||
+      summary?.classPosition ||
+      annualResult?.positionInClass ||
+      annualResult?.classPosition ||
+      "N/A";
+
+    const grade = summary?.grade || annualResult?.grade || "N/A";
+
+    const remark =
+      summary?.remark ||
+      summary?.remarks ||
+      annualResult?.remark ||
+      annualResult?.remarks ||
+      "-";
+
+    return {
+      firstTermTotal,
+      secondTermTotal,
+      thirdTermTotal,
+      annualTotal,
+      annualAverage,
+      position,
+      grade,
+      remark,
+    };
+  }, [annualResult, numberValue]);
+
+  const annualSubjects = useMemo(() => {
+    if (!annualResult) return [];
+
+    const directSubjects =
+      annualResult.subjects ||
+      annualResult.annualSubjects ||
+      annualResult.subjectResults ||
+      annualResult.results;
+
+    if (Array.isArray(directSubjects) && directSubjects.length > 0) {
+      return directSubjects.map((item) => ({
+        subject: item.subject || item.subjectName || item.name || "-",
+        firstTerm: numberValue(item.firstTerm, item.firstTermScore, item.term1),
+        secondTerm: numberValue(
+          item.secondTerm,
+          item.secondTermScore,
+          item.term2,
+        ),
+        thirdTerm: numberValue(item.thirdTerm, item.thirdTermScore, item.term3),
+        total: numberValue(item.total, item.annualTotal, item.totalScore),
+        average: numberValue(item.average, item.avg),
+        grade: item.grade || "-",
+        remark: item.remark || item.remarks || "-",
+      }));
+    }
+
+    const termResultsMap =
+      annualResult.termResults ||
+      annualResult.terms ||
+      annualResult.termSummaries;
+
+    if (!termResultsMap) return [];
+
+    const aggregate = {};
+
+    const addTermSubjects = (termKey, targetField) => {
+      const subjects = termResultsMap?.[termKey]?.subjects;
+      if (!Array.isArray(subjects)) return;
+
+      subjects.forEach((subject) => {
+        const subjectName =
+          subject.subject || subject.subjectName || subject.name || "-";
+
+        if (!aggregate[subjectName]) {
+          aggregate[subjectName] = {
+            subject: subjectName,
+            firstTerm: 0,
+            secondTerm: 0,
+            thirdTerm: 0,
+            total: 0,
+            average: 0,
+            grade: "-",
+            remark: "-",
+          };
+        }
+
+        aggregate[subjectName][targetField] = numberValue(
+          subject.total,
+          subject.totalScore,
+        );
+      });
+    };
+
+    addTermSubjects("FIRST", "firstTerm");
+    addTermSubjects("SECOND", "secondTerm");
+    addTermSubjects("THIRD", "thirdTerm");
+
+    return Object.values(aggregate).map((item) => {
+      const total = item.firstTerm + item.secondTerm + item.thirdTerm;
+      const average = total > 0 ? total / 3 : 0;
+
+      return {
+        ...item,
+        total,
+        average,
+      };
+    });
+  }, [annualResult, numberValue]);
 
   const viewResultSheet = () => {
     if (!student || !session || !term) {
@@ -250,13 +515,15 @@ function StudentDetails() {
     }
 
     navigate(
-      `/results/${student.id}?session=${encodeURIComponent(session)}&term=${encodeURIComponent(term)}`,
+      `/results/${student.id}?session=${encodeURIComponent(
+        session,
+      )}&term=${encodeURIComponent(term)}`,
     );
   };
 
   if (loading || loadingSession) {
     return (
-      <div className="spinner-container">
+      <div className={`spinner-container ${darkMode ? "dark-mode" : ""}`}>
         <div className="spinner-border spinner-border-nigerian" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
@@ -279,7 +546,7 @@ function StudentDetails() {
   const imageUrl = getImageUrl();
 
   return (
-    <div className="student-details">
+    <div className={`student-details ${darkMode ? "dark-mode" : ""}`}>
       <div className="d-flex justify-content-between align-items-center mb-4 no-print flex-wrap gap-2">
         <h2 className="mb-0">
           {t?.studentDetails?.profile || "Student Profile"}
@@ -335,7 +602,7 @@ function StudentDetails() {
                   {imageUrl && !imageError ? (
                     <img
                       src={imageUrl}
-                      alt={student.fullName}
+                      alt={studentDisplayName}
                       className="profile-image"
                       onError={(e) => {
                         setImageError(true);
@@ -364,11 +631,11 @@ function StudentDetails() {
                   )}
                 </div>
 
-                <h4 className="mt-3 mb-2">{student.fullName}</h4>
+                <h4 className="mt-3 mb-2">{studentDisplayName}</h4>
                 <div className="mb-2">{getStatusBadge(student.status)}</div>
                 <div className="student-id-badge">
                   <small className="text-muted">
-                    {t?.studentDetails?.id || "ID"}: {student.admissionNumber}
+                    {t?.studentDetails?.id || "ID"}: {admissionNumber}
                   </small>
                 </div>
               </div>
@@ -382,10 +649,10 @@ function StudentDetails() {
                     <h6>
                       {t?.studentDetails?.admissionNumber || "Admission Number"}
                     </h6>
-                    <p className="fw-bold">{student.admissionNumber}</p>
+                    <p className="fw-bold">{admissionNumber}</p>
                     <small>
                       {t?.studentDetails?.admitted || "Admitted"}:{" "}
-                      {moment(student.admissionDate).format("DD/MM/YYYY")}
+                      {admissionDateDisplay}
                     </small>
                   </div>
                 </div>
@@ -395,9 +662,7 @@ function StudentDetails() {
                     <h6>
                       {t?.studentDetails?.currentClass || "Current Class"}
                     </h6>
-                    <p className="fw-bold">
-                      {student.studentClass} {student.classArm}
-                    </p>
+                    <p className="fw-bold">{studentClassDisplay}</p>
                     {student.excludeFromPromotion && (
                       <small className="text-danger">
                         {t?.studentDetails?.excludedFromPromotion ||
@@ -416,13 +681,15 @@ function StudentDetails() {
                     </p>
                     <small>
                       {t?.studentDetails?.dob || "DOB"}:{" "}
-                      {moment(student.dateOfBirth).format("DD/MM/YYYY")}
+                      {student.dateOfBirth
+                        ? moment(student.dateOfBirth).format("DD/MM/YYYY")
+                        : "-"}
                     </small>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-3 text-muted">
+              <div className="mt-3 text-muted sd-active-session">
                 {t?.feeManagement?.activeSession || "Active Session"}:{" "}
                 <strong>
                   {session || t?.common?.noActiveSession || "No active session"}
@@ -435,207 +702,246 @@ function StudentDetails() {
         </div>
       </div>
 
-      <ul className="nav nav-tabs mb-4">
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "info" ? "active" : ""}`}
-            onClick={() => setActiveTab("info")}
-          >
-            <FaUserGraduate className="me-2" />{" "}
-            {t?.studentDetails?.personalInfo || "Personal Info"}
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "results" ? "active" : ""}`}
-            onClick={() => setActiveTab("results")}
-          >
-            <FaChartBar className="me-2" />{" "}
-            {t?.studentDetails?.termResults || "Term Results"}
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "annual" ? "active" : ""}`}
-            onClick={() => setActiveTab("annual")}
-          >
-            <FaAward className="me-2" />{" "}
-            {t?.studentDetails?.annualResult || "Annual Result"}
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "history" ? "active" : ""}`}
-            onClick={() => setActiveTab("history")}
-          >
-            <FaHistory className="me-2" />{" "}
-            {t?.studentDetails?.resultHistory || "Result History"}
-          </button>
-        </li>
-      </ul>
+      <div className="sd-tabs-wrap">
+        <ul className="nav nav-tabs mb-4 sd-tabs">
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === "info" ? "active" : ""}`}
+              onClick={() => setActiveTab("info")}
+            >
+              <FaUserGraduate className="me-2" />{" "}
+              {t?.studentDetails?.personalInfo || "Personal Info"}
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === "results" ? "active" : ""}`}
+              onClick={() => setActiveTab("results")}
+            >
+              <FaChartBar className="me-2" />{" "}
+              {t?.studentDetails?.termResults || "Term Results"}
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === "annual" ? "active" : ""}`}
+              onClick={() => setActiveTab("annual")}
+            >
+              <FaAward className="me-2" />{" "}
+              {t?.studentDetails?.annualResult || "Annual Result"}
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === "history" ? "active" : ""}`}
+              onClick={() => setActiveTab("history")}
+            >
+              <FaHistory className="me-2" />{" "}
+              {t?.studentDetails?.resultHistory || "Result History"}
+            </button>
+          </li>
+        </ul>
+      </div>
 
-      <div className="tab-content">
+      <div className="tab-content sd-content-scroll">
         {activeTab === "info" && (
           <div className="row">
             <div className="col-md-6 mb-4">
-              <div className="card h-100">
+              <div className="card h-100 sd-card">
                 <div className="card-header bg-primary text-white">
                   <h5 className="mb-0">
                     {t?.studentDetails?.personalDetails || "Personal Details"}
                   </h5>
                 </div>
                 <div className="card-body">
-                  <table className="table">
-                    <tbody>
-                      <tr>
-                        <th style={{ width: "200px" }}>
-                          {t?.studentDetails?.fullName || "Full Name"}:
-                        </th>
-                        <td className="fw-bold">{student.fullName}</td>
-                      </tr>
-                      <tr>
-                        <th>{t?.studentDetails?.gender || "Gender"}:</th>
-                        <td>
-                          <FaVenusMars className="me-2" /> {student.gender}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>{t?.studentDetails?.dob || "Date of Birth"}:</th>
-                        <td>
-                          <FaCalendarAlt className="me-2" />{" "}
-                          {moment(student.dateOfBirth).format("DD/MM/YYYY")}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>{t?.studentDetails?.age || "Age"}:</th>
-                        <td>
-                          {calculateAge(student.dateOfBirth)}{" "}
-                          {t?.studentDetails?.years || "years"}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>{t?.studentDetails?.religion || "Religion"}:</th>
-                        <td>
-                          {student.religion ||
-                            t?.common?.notSpecified ||
-                            "Not specified"}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>
-                          {t?.studentDetails?.nationality || "Nationality"}:
-                        </th>
-                        <td>{student.nationality || "Nigerian"}</td>
-                      </tr>
-                      <tr>
-                        <th>
-                          {t?.studentDetails?.stateOfOrigin ||
-                            "State of Origin"}
-                          :
-                        </th>
-                        <td>{student.stateOfOrigin}</td>
-                      </tr>
-                      <tr>
-                        <th>{t?.studentDetails?.lga || "LGA"}:</th>
-                        <td>{student.localGovtArea}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div className="table-responsive">
+                    <table className="table sd-table">
+                      <tbody>
+                        <tr>
+                          <th style={{ width: "200px" }}>
+                            {t?.studentDetails?.fullName || "Full Name"}:
+                          </th>
+                          <td className="fw-bold">{studentDisplayName}</td>
+                        </tr>
+                        <tr>
+                          <th>{t?.studentDetails?.gender || "Gender"}:</th>
+                          <td>
+                            <FaVenusMars className="me-2" />{" "}
+                            {renderValue(student.gender)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>{t?.studentDetails?.dob || "Date of Birth"}:</th>
+                          <td>
+                            <FaCalendarAlt className="me-2" />{" "}
+                            {student.dateOfBirth
+                              ? moment(student.dateOfBirth).format("DD/MM/YYYY")
+                              : renderValue(null)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>{t?.studentDetails?.age || "Age"}:</th>
+                          <td>
+                            {calculateAge(student.dateOfBirth)}{" "}
+                            {t?.studentDetails?.years || "years"}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>{t?.studentDetails?.religion || "Religion"}:</th>
+                          <td>{renderValue(student.religion)}</td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.nationality || "Nationality"}:
+                          </th>
+                          <td>
+                            {renderValue(student.nationality, "Nigerian")}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.stateOfOrigin ||
+                              "State of Origin"}
+                            :
+                          </th>
+                          <td>{renderValue(student.stateOfOrigin)}</td>
+                        </tr>
+                        <tr>
+                          <th>{t?.studentDetails?.lga || "LGA"}:</th>
+                          <td>{renderValue(student.localGovtArea)}</td>
+                        </tr>
+                        <tr>
+                          <th>{t?.studentDetails?.class || "Class"}:</th>
+                          <td>{studentClassDisplay}</td>
+                        </tr>
+                        <tr>
+                          <th>{t?.studentDetails?.status || "Status"}:</th>
+                          <td>{renderValue(student.status)}</td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.admissionDate ||
+                              "Admission Date"}
+                            :
+                          </th>
+                          <td>{admissionDateDisplay}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="col-md-6 mb-4">
-              <div className="card h-100">
+              <div className="card h-100 sd-card">
                 <div className="card-header bg-success text-white">
                   <h5 className="mb-0">
                     {t?.studentDetails?.contactInfo || "Contact Information"}
                   </h5>
                 </div>
                 <div className="card-body">
-                  <table className="table">
-                    <tbody>
-                      <tr>
-                        <th style={{ width: "200px" }}>
-                          {t?.studentDetails?.address || "Address"}:
-                        </th>
-                        <td>
-                          <FaMapMarkerAlt className="me-2" /> {student.address}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>
-                          {t?.studentDetails?.parentGuardian ||
-                            "Parent/Guardian"}
-                          :
-                        </th>
-                        <td>
-                          <FaUsers className="me-2" /> {student.parentName}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>
-                          {t?.studentDetails?.parentPhone || "Parent Phone"}:
-                        </th>
-                        <td>
-                          <FaPhone className="me-2" /> {student.parentPhone}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>
-                          {t?.studentDetails?.parentEmail || "Parent Email"}:
-                        </th>
-                        <td>
-                          <FaEnvelope className="me-2" />{" "}
-                          {student.parentEmail ||
-                            t?.common?.notProvided ||
-                            "Not provided"}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div className="table-responsive">
+                    <table className="table sd-table">
+                      <tbody>
+                        <tr>
+                          <th style={{ width: "200px" }}>
+                            {t?.studentDetails?.address || "Address"}:
+                          </th>
+                          <td>
+                            <FaMapMarkerAlt className="me-2" />{" "}
+                            {renderValue(student.address)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.parentGuardian ||
+                              "Parent/Guardian"}
+                            :
+                          </th>
+                          <td>
+                            <FaUsers className="me-2" />{" "}
+                            {renderValue(student.parentName)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.parentPhone || "Parent Phone"}:
+                          </th>
+                          <td>
+                            <FaPhone className="me-2" />{" "}
+                            {renderValue(student.parentPhone)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.parentEmail || "Parent Email"}:
+                          </th>
+                          <td>
+                            <FaEnvelope className="me-2" />{" "}
+                            {renderValue(
+                              student.parentEmail,
+                              t?.common?.notProvided || "Not provided",
+                            )}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.previousSchool ||
+                              "Previous School"}
+                            :
+                          </th>
+                          <td>{renderValue(student.previousSchool, "-")}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
-              <div className="card mt-4">
+              <div className="card mt-4 sd-card">
                 <div className="card-header bg-warning">
                   <h5 className="mb-0">
                     {t?.studentDetails?.emergencyContact || "Emergency Contact"}
                   </h5>
                 </div>
                 <div className="card-body">
-                  <table className="table">
-                    <tbody>
-                      <tr>
-                        <th style={{ width: "200px" }}>
-                          {t?.studentDetails?.name || "Name"}:
-                        </th>
-                        <td>
-                          {student.emergencyContactName ||
-                            t?.common?.notSpecified ||
-                            "Not specified"}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>{t?.common?.phone || "Phone"}:</th>
-                        <td>
-                          {student.emergencyContactPhone ||
-                            t?.common?.notSpecified ||
-                            "Not specified"}
-                        </td>
-                      </tr>
-                      <tr>
-                        <th>
-                          {t?.studentDetails?.relationship || "Relationship"}:
-                        </th>
-                        <td>
-                          {student.emergencyContactRelationship ||
-                            t?.common?.notSpecified ||
-                            "Not specified"}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div className="table-responsive">
+                    <table className="table sd-table">
+                      <tbody>
+                        <tr>
+                          <th style={{ width: "200px" }}>
+                            {t?.studentDetails?.name || "Name"}:
+                          </th>
+                          <td>{renderValue(student.emergencyContactName)}</td>
+                        </tr>
+                        <tr>
+                          <th>{t?.common?.phone || "Phone"}:</th>
+                          <td>{renderValue(student.emergencyContactPhone)}</td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.relationship || "Relationship"}:
+                          </th>
+                          <td>
+                            {renderValue(student.emergencyContactRelationship)}
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>
+                            {t?.studentDetails?.promotionHold ||
+                              "Promotion Hold"}
+                            :
+                          </th>
+                          <td>
+                            {student.excludeFromPromotion
+                              ? student.promotionHoldReason || "Yes"
+                              : "No"}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -643,14 +949,14 @@ function StudentDetails() {
         )}
 
         {activeTab === "results" && (
-          <div className="card">
+          <div className="card sd-card">
             <div className="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
               <h5 className="mb-0">
                 {t?.studentDetails?.termResults || "Term Results"}
               </h5>
-              <div>
+              <div className="d-flex flex-wrap gap-2 align-items-center">
                 <select
-                  className="form-select form-select-sm d-inline-block me-2 bg-dark text-white"
+                  className="form-select form-select-sm d-inline-block sd-select"
                   style={{ width: "150px" }}
                   value={session}
                   onChange={(e) => setSession(e.target.value)}
@@ -669,14 +975,14 @@ function StudentDetails() {
                 </select>
 
                 <select
-                  className="form-select form-select-sm d-inline-block me-2 bg-dark text-white"
+                  className="form-select form-select-sm d-inline-block sd-select"
                   style={{ width: "120px" }}
                   value={term}
                   onChange={(e) => setTerm(e.target.value)}
                 >
-                  {terms.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  {terms.map((termName) => (
+                    <option key={termName} value={termName}>
+                      {termName}
                     </option>
                   ))}
                 </select>
@@ -696,8 +1002,8 @@ function StudentDetails() {
               {termResults ? (
                 <>
                   <div className="table-responsive">
-                    <table className="table table-bordered table-hover">
-                      <thead className="bg-light">
+                    <table className="table table-bordered table-hover sd-table sd-table-bordered">
+                      <thead>
                         <tr>
                           <th>{t?.studentDashboard?.subject || "Subject"}</th>
                           <th>RT (5)</th>
@@ -741,8 +1047,8 @@ function StudentDetails() {
                   </div>
 
                   <div className="row mt-4">
-                    <div className="col-md-4">
-                      <div className="border p-3 rounded bg-light">
+                    <div className="col-md-4 mb-3">
+                      <div className="sd-summary-box">
                         <h6>
                           {t?.studentDetails?.totalScore || "Total Score"}
                         </h6>
@@ -751,16 +1057,16 @@ function StudentDetails() {
                         </h3>
                       </div>
                     </div>
-                    <div className="col-md-4">
-                      <div className="border p-3 rounded bg-light">
+                    <div className="col-md-4 mb-3">
+                      <div className="sd-summary-box">
                         <h6>{t?.studentDetails?.average || "Average"}</h6>
                         <h3 className="text-success">
                           {safeFixed(termResults.summary?.average, 2)}%
                         </h3>
                       </div>
                     </div>
-                    <div className="col-md-4">
-                      <div className="border p-3 rounded bg-light">
+                    <div className="col-md-4 mb-3">
+                      <div className="sd-summary-box">
                         <h6>
                           {t?.studentDetails?.classPosition || "Class Position"}
                         </h6>
@@ -772,7 +1078,7 @@ function StudentDetails() {
                   </div>
                 </>
               ) : (
-                <div className="text-center py-5">
+                <div className="text-center py-5 sd-empty-state">
                   <p className="text-muted">
                     {t?.studentDetails?.noResultsFound ||
                       "No results found for this term"}
@@ -784,13 +1090,13 @@ function StudentDetails() {
         )}
 
         {activeTab === "annual" && (
-          <div className="card">
-            <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <div className="card sd-card">
+            <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
               <h5 className="mb-0">
                 {t?.studentDetails?.annualResult || "Annual Result"}
               </h5>
               <select
-                className="form-select form-select-sm bg-dark text-white"
+                className="form-select form-select-sm sd-select"
                 style={{ width: "150px" }}
                 value={session}
                 onChange={(e) => setSession(e.target.value)}
@@ -809,75 +1115,194 @@ function StudentDetails() {
               </select>
             </div>
             <div className="card-body">
-              {annualResult ? (
-                <div className="row">
-                  <div className="col-md-6">
-                    <div className="border p-4 rounded bg-light">
-                      <h5>
-                        {t?.studentDetails?.annualSummary || "Annual Summary"}
-                      </h5>
-                      <table className="table">
-                        <tbody>
-                          <tr>
-                            <th>
+              {annualResult && annualSummaryResolved ? (
+                <>
+                  <div className="row">
+                    <div className="col-lg-6 mb-4">
+                      <div className="sd-summary-box">
+                        <h5>
+                          {t?.studentDetails?.annualSummary || "Annual Summary"}
+                        </h5>
+                        <div className="table-responsive">
+                          <table className="table sd-table">
+                            <tbody>
+                              <tr>
+                                <th>
+                                  {t?.studentDetails?.firstTermTotal ||
+                                    "First Term Total"}
+                                  :
+                                </th>
+                                <td>{annualSummaryResolved.firstTermTotal}</td>
+                              </tr>
+                              <tr>
+                                <th>
+                                  {t?.studentDetails?.secondTermTotal ||
+                                    "Second Term Total"}
+                                  :
+                                </th>
+                                <td>{annualSummaryResolved.secondTermTotal}</td>
+                              </tr>
+                              <tr>
+                                <th>
+                                  {t?.studentDetails?.thirdTermTotal ||
+                                    "Third Term Total"}
+                                  :
+                                </th>
+                                <td>{annualSummaryResolved.thirdTermTotal}</td>
+                              </tr>
+                              <tr>
+                                <th>
+                                  {t?.studentDetails?.annualTotal ||
+                                    "Annual Total"}
+                                  :
+                                </th>
+                                <td className="fw-bold">
+                                  {annualSummaryResolved.annualTotal}
+                                </td>
+                              </tr>
+                              <tr>
+                                <th>
+                                  {t?.studentDetails?.annualAverage ||
+                                    "Annual Average"}
+                                  :
+                                </th>
+                                <td className="fw-bold text-success">
+                                  {safeFixed(
+                                    annualSummaryResolved.annualAverage,
+                                    2,
+                                  )}
+                                  %
+                                </td>
+                              </tr>
+                              <tr>
+                                <th>
+                                  {t?.studentDetails?.classPosition ||
+                                    "Class Position"}
+                                  :
+                                </th>
+                                <td>{annualSummaryResolved.position}</td>
+                              </tr>
+                              <tr>
+                                <th>{t?.studentDetails?.grade || "Grade"}:</th>
+                                <td>{annualSummaryResolved.grade}</td>
+                              </tr>
+                              <tr>
+                                <th>
+                                  {t?.studentDetails?.remark || "Remark"}:
+                                </th>
+                                <td>{annualSummaryResolved.remark}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-lg-6 mb-4">
+                      <div className="row g-3">
+                        <div className="col-md-6">
+                          <div className="sd-summary-box">
+                            <h6>
                               {t?.studentDetails?.firstTermTotal ||
                                 "First Term Total"}
-                              :
-                            </th>
-                            <td>
-                              {annualResult.annualSummary?.firstTermTotal ?? 0}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>
+                            </h6>
+                            <h3 className="text-primary">
+                              {annualSummaryResolved.firstTermTotal}
+                            </h3>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="sd-summary-box">
+                            <h6>
                               {t?.studentDetails?.secondTermTotal ||
                                 "Second Term Total"}
-                              :
-                            </th>
-                            <td>
-                              {annualResult.annualSummary?.secondTermTotal ?? 0}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>
+                            </h6>
+                            <h3 className="text-info">
+                              {annualSummaryResolved.secondTermTotal}
+                            </h3>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="sd-summary-box">
+                            <h6>
                               {t?.studentDetails?.thirdTermTotal ||
                                 "Third Term Total"}
-                              :
-                            </th>
-                            <td>
-                              {annualResult.annualSummary?.thirdTermTotal ?? 0}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>
-                              {t?.studentDetails?.annualTotal || "Annual Total"}
-                              :
-                            </th>
-                            <td className="fw-bold">
-                              {annualResult.annualSummary?.annualTotal ?? 0}
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>
+                            </h6>
+                            <h3 className="text-warning">
+                              {annualSummaryResolved.thirdTermTotal}
+                            </h3>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="sd-summary-box">
+                            <h6>
                               {t?.studentDetails?.annualAverage ||
                                 "Annual Average"}
-                              :
-                            </th>
-                            <td className="fw-bold text-success">
+                            </h6>
+                            <h3 className="text-success">
                               {safeFixed(
-                                annualResult.annualSummary?.annualAverage,
+                                annualSummaryResolved.annualAverage,
                                 2,
                               )}
                               %
-                            </td>
+                            </h3>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {annualSubjects.length > 0 && (
+                    <div className="table-responsive">
+                      <table className="table table-bordered table-hover sd-table sd-table-bordered">
+                        <thead>
+                          <tr>
+                            <th>{t?.studentDashboard?.subject || "Subject"}</th>
+                            <th>
+                              {t?.studentDetails?.firstTerm || "First Term"}
+                            </th>
+                            <th>
+                              {t?.studentDetails?.secondTerm || "Second Term"}
+                            </th>
+                            <th>
+                              {t?.studentDetails?.thirdTerm || "Third Term"}
+                            </th>
+                            <th>{t?.studentDetails?.annualTotal || "Total"}</th>
+                            <th>
+                              {t?.studentDetails?.annualAverage || "Average"}
+                            </th>
+                            <th>{t?.studentDetails?.grade || "Grade"}</th>
+                            <th>{t?.studentDetails?.remark || "Remark"}</th>
                           </tr>
+                        </thead>
+                        <tbody>
+                          {annualSubjects.map((subject, index) => (
+                            <tr key={`${subject.subject}-${index}`}>
+                              <td className="fw-bold">{subject.subject}</td>
+                              <td>{subject.firstTerm}</td>
+                              <td>{subject.secondTerm}</td>
+                              <td>{subject.thirdTerm}</td>
+                              <td className="fw-bold">{subject.total}</td>
+                              <td>{safeFixed(subject.average, 2)}</td>
+                              <td>
+                                <span
+                                  className={`badge ${getGradeBadge(
+                                    subject.grade,
+                                  )}`}
+                                >
+                                  {subject.grade}
+                                </span>
+                              </td>
+                              <td>{subject.remark}</td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                </div>
+                  )}
+                </>
               ) : (
-                <div className="text-center py-5">
+                <div className="text-center py-5 sd-empty-state">
                   <p className="text-muted">
                     {t?.studentDetails?.noAnnualResult ||
                       "No annual result found for this session"}
@@ -889,7 +1314,7 @@ function StudentDetails() {
         )}
 
         {activeTab === "history" && (
-          <div className="card">
+          <div className="card sd-card">
             <div className="card-header bg-info text-white">
               <h5 className="mb-0">
                 {t?.studentDetails?.resultHistory || "Result History"}
@@ -897,8 +1322,8 @@ function StudentDetails() {
             </div>
             <div className="card-body">
               <div className="table-responsive">
-                <table className="table table-bordered">
-                  <thead className="bg-light">
+                <table className="table table-bordered sd-table sd-table-bordered">
+                  <thead>
                     <tr>
                       <th>{t?.studentDetails?.session || "Session"}</th>
                       <th>{t?.studentDetails?.firstTerm || "First Term"}</th>
