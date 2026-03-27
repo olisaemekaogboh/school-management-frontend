@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
@@ -30,6 +30,10 @@ import {
   parentPortalAPI,
 } from "../services/api";
 
+const API_BASE =
+  process.env.REACT_APP_API_BASE_URL?.replace(/\/api\/?$/, "") ||
+  "https://localhost:8443";
+
 const buildImageUrl = (value) => {
   if (!value) return "";
 
@@ -44,11 +48,16 @@ const buildImageUrl = (value) => {
     return cleaned;
   }
 
-  const base =
-    process.env.REACT_APP_API_URL?.replace(/\/api\/?$/, "") ||
-    "http://localhost:8080";
+  if (cleaned.startsWith("/uploads/")) {
+    return `${API_BASE}${cleaned}`;
+  }
 
-  return cleaned.startsWith("/") ? `${base}${cleaned}` : `${base}/${cleaned}`;
+  if (cleaned.startsWith("uploads/")) {
+    return `${API_BASE}/${cleaned}`;
+  }
+
+  const filename = cleaned.split("/").pop();
+  return `${API_BASE}/uploads/${filename}`;
 };
 
 function Profile() {
@@ -59,6 +68,7 @@ function Profile() {
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState(null);
   const [imageError, setImageError] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const labels = t?.profilePage || {};
   const common = t?.common || {};
@@ -93,43 +103,53 @@ function Profile() {
     }
   }, [user?.role]);
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      setLoading(true);
-      setImageError(false);
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setImageError(false);
 
-      try {
-        let response;
+    try {
+      let response;
 
-        if (user?.role === "STUDENT") {
-          response = await studentAPI.getMyProfile();
-        } else if (user?.role === "TEACHER") {
-          response = await teacherAPI.getMyTeacherProfile();
-        } else if (user?.role === "PARENT") {
-          response = await parentPortalAPI.getMyProfile();
-        } else {
-          response = await userAPI.getCurrentUser();
-        }
-
-        setProfileData(response?.data || null);
-      } catch (error) {
-        console.error("Failed to load profile:", error);
-        setProfileData(null);
-        toast.error(
-          error?.response?.data?.message ||
-            labels.loadFailed ||
-            "Failed to load profile details",
-        );
-      } finally {
-        setLoading(false);
+      if (user?.role === "STUDENT") {
+        response = await studentAPI.getMyProfile();
+      } else if (user?.role === "TEACHER") {
+        response = await teacherAPI.getMyTeacherProfile();
+      } else if (user?.role === "PARENT") {
+        response = await parentPortalAPI.getMyProfile();
+      } else {
+        response = await userAPI.getCurrentUser();
       }
-    };
 
-    loadProfile();
+      setProfileData(response?.data || null);
+    } catch (error) {
+      console.error("Failed to load profile:", error);
+      setProfileData(null);
+      toast.error(
+        error?.response?.data?.message ||
+          labels.loadFailed ||
+          "Failed to load profile details",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [user?.role, labels.loadFailed]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile, refreshKey]);
 
   const mergedProfile = useMemo(() => {
     const raw = profileData || {};
+
+    const profilePictureCandidate =
+      raw.profilePictureUrl ||
+      raw.profileImageUrl ||
+      raw.photoUrl ||
+      raw.imageUrl ||
+      raw.passport ||
+      raw.user?.profilePictureUrl ||
+      user?.profilePictureUrl ||
+      "";
 
     return {
       firstName: raw.firstName || user?.firstName || "",
@@ -144,10 +164,18 @@ function Profile() {
           raw.lastName || user?.lastName,
         ]
           .filter(Boolean)
-          .join(" "),
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim(),
       email: raw.email || user?.email || "",
-      phone: raw.phone || raw.phoneNumber || user?.phone || "",
-      address: raw.address || user?.address || "",
+      phone:
+        raw.phone ||
+        raw.phoneNumber ||
+        raw.user?.phoneNumber ||
+        user?.phone ||
+        user?.phoneNumber ||
+        "",
+      address: raw.address || raw.user?.address || user?.address || "",
       dateOfBirth: raw.dateOfBirth || user?.dateOfBirth || "",
       gender: raw.gender || user?.gender || "",
       status: raw.status || user?.status || "",
@@ -157,11 +185,19 @@ function Profile() {
       className:
         raw.studentClass ||
         raw.className ||
+        raw.schoolClass?.className ||
         raw.classCode ||
         user?.studentClass ||
         "",
-      classArm: raw.classArm || raw.arm || user?.classArm || "",
-      classCode: raw.classCode || user?.classCode || "",
+      classArm:
+        raw.classArm || raw.arm || raw.schoolClass?.arm || user?.classArm || "",
+      classCode:
+        raw.classCode ||
+        (raw.schoolClass?.className && raw.schoolClass?.arm
+          ? `${raw.schoolClass.className} ${raw.schoolClass.arm}`
+          : "") ||
+        user?.classCode ||
+        "",
       department: raw.department || "",
       qualification:
         raw.qualification ||
@@ -169,15 +205,7 @@ function Profile() {
           ? raw.qualifications.join(", ")
           : ""),
       occupation: raw.occupation || "",
-      profilePictureUrl: buildImageUrl(
-        raw.profilePictureUrl ||
-          raw.profileImageUrl ||
-          raw.photoUrl ||
-          raw.imageUrl ||
-          raw.passport ||
-          user?.profilePictureUrl ||
-          "",
-      ),
+      profilePictureUrl: buildImageUrl(profilePictureCandidate),
       username: raw.username || user?.username || "",
       role: user?.role || raw.role || "",
     };
@@ -200,7 +228,11 @@ function Profile() {
 
   const DetailCard = ({ icon, title, value }) => (
     <div className="col-md-6 col-xl-4">
-      <div className="card h-100 shadow-sm border-0">
+      <div
+        className={`card h-100 shadow-sm border-0 ${
+          darkMode ? "bg-dark text-light" : ""
+        }`}
+      >
         <div className="card-body">
           <div className="d-flex align-items-start gap-3">
             <div
@@ -214,7 +246,11 @@ function Profile() {
               {icon}
             </div>
             <div>
-              <div className="text-muted small">{title}</div>
+              <div
+                className={`${darkMode ? "text-light-emphasis" : "text-muted"} small`}
+              >
+                {title}
+              </div>
               <div className="fw-semibold">
                 {value || labels.notAvailable || "Not available"}
               </div>
@@ -226,7 +262,7 @@ function Profile() {
   );
 
   return (
-    <div className="container py-4">
+    <div className={`container py-4 ${darkMode ? "text-light" : ""}`}>
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
           <div className="d-flex align-items-center gap-2 mb-2">
@@ -236,7 +272,11 @@ function Profile() {
             </Link>
           </div>
           <h2 className="mb-1">{labels.title || "My Profile"}</h2>
-          <p className="text-muted mb-0">
+          <p
+            className={
+              darkMode ? "text-light-emphasis mb-0" : "text-muted mb-0"
+            }
+          >
             {labels.subtitle ||
               "View your account details, language preference, and appearance settings"}
           </p>
@@ -246,7 +286,7 @@ function Profile() {
           <button
             type="button"
             className="btn btn-outline-primary"
-            onClick={() => window.location.reload()}
+            onClick={() => setRefreshKey((prev) => prev + 1)}
           >
             <FaSyncAlt className="me-2" />
             {common.refresh || "Refresh"}
@@ -316,6 +356,12 @@ function Profile() {
                     {mergedProfile.admissionNumber}
                   </span>
                 )}
+                {mergedProfile.employeeId && (
+                  <span className="badge text-bg-secondary">
+                    {labels.employeeId || "Employee ID"}:{" "}
+                    {mergedProfile.employeeId}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -324,14 +370,18 @@ function Profile() {
 
       <div className="row g-4 mb-4">
         <div className="col-lg-8">
-          <div className="card border-0 shadow-sm h-100">
+          <div
+            className={`card border-0 shadow-sm h-100 ${darkMode ? "bg-dark text-light" : ""}`}
+          >
             <div className="card-body p-4">
               <h4 className="mb-3">
                 {labels.personalInformation || "Personal Information"}
               </h4>
 
               {loading ? (
-                <div className="text-muted">
+                <div
+                  className={darkMode ? "text-light-emphasis" : "text-muted"}
+                >
                   {common.loading || "Loading..."}
                 </div>
               ) : (
@@ -411,7 +461,9 @@ function Profile() {
         </div>
 
         <div className="col-lg-4">
-          <div className="card border-0 shadow-sm mb-4">
+          <div
+            className={`card border-0 shadow-sm mb-4 ${darkMode ? "bg-dark text-light" : ""}`}
+          >
             <div className="card-body p-4">
               <h4 className="mb-3">{labels.preferences || "Preferences"}</h4>
 
@@ -421,7 +473,7 @@ function Profile() {
                   {common.language || "Language"}
                 </label>
                 <select
-                  className="form-select"
+                  className={`form-select ${darkMode ? "bg-dark text-light border-secondary" : ""}`}
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
                 >
@@ -431,10 +483,18 @@ function Profile() {
                 </select>
               </div>
 
-              <div className="d-flex align-items-center justify-content-between border rounded p-3">
+              <div
+                className={`d-flex align-items-center justify-content-between border rounded p-3 ${darkMode ? "border-secondary" : ""}`}
+              >
                 <div>
                   <div className="fw-semibold">{labels.theme || "Theme"}</div>
-                  <div className="text-muted small">
+                  <div
+                    className={
+                      darkMode
+                        ? "text-light-emphasis small"
+                        : "text-muted small"
+                    }
+                  >
                     {darkMode
                       ? labels.darkModeEnabled || "Dark mode is enabled"
                       : labels.lightModeEnabled || "Light mode is enabled"}
@@ -461,25 +521,45 @@ function Profile() {
             </div>
           </div>
 
-          <div className="card border-0 shadow-sm">
+          <div
+            className={`card border-0 shadow-sm ${darkMode ? "bg-dark text-light" : ""}`}
+          >
             <div className="card-body p-4">
               <h4 className="mb-3">
                 {labels.accountSummary || "Account Summary"}
               </h4>
 
-              <div className="small text-muted mb-2">
+              <div
+                className={
+                  darkMode
+                    ? "small text-light-emphasis mb-2"
+                    : "small text-muted mb-2"
+                }
+              >
                 {labels.role || "Role"}
               </div>
               <div className="fw-semibold mb-3">{roleLabel}</div>
 
-              <div className="small text-muted mb-2">
+              <div
+                className={
+                  darkMode
+                    ? "small text-light-emphasis mb-2"
+                    : "small text-muted mb-2"
+                }
+              >
                 {labels.status || "Status"}
               </div>
               <div className="fw-semibold mb-3">
                 {mergedProfile.status || labels.notAvailable || "Not available"}
               </div>
 
-              <div className="small text-muted mb-2">
+              <div
+                className={
+                  darkMode
+                    ? "small text-light-emphasis mb-2"
+                    : "small text-muted mb-2"
+                }
+              >
                 {labels.fullName || "Full Name"}
               </div>
               <div className="fw-semibold">

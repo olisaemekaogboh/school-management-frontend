@@ -31,7 +31,7 @@ import {
   FaUserGraduate,
   FaBullhorn,
   FaEnvelope,
-  FaComments, // Added for Support Center
+  FaComments,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -95,10 +95,21 @@ function Navbar() {
     setOpenDropdown(openDropdown === dropdownName ? null : dropdownName);
   };
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => {
+    if (!path) return false;
+    return location.pathname === path;
+  };
+
+  const isPathActive = (path) => {
+    if (!path) return false;
+    return location.pathname.startsWith(path);
+  };
 
   const isDropdownActive = (items) =>
-    items.some((item) => location.pathname.startsWith(item.path));
+    items.some((item) => {
+      if (item.activePath) return isPathActive(item.activePath);
+      return isPathActive(item.path);
+    });
 
   const handleLogout = () => {
     logout();
@@ -234,7 +245,6 @@ function Navbar() {
       icon: <FaUserShield />,
       label: t.navbar.users,
     },
-    // Support Center link for admin
     {
       type: "link",
       path: "/support",
@@ -251,40 +261,43 @@ function Navbar() {
       label: t.common.dashboard,
     },
     {
-      type: "link",
-      path: getTeacherScopedPath("/students"),
-      activePath: "/students",
-      icon: <FaUsers />,
-      label: t.navbar.myStudents,
+      type: "dropdown",
+      label: t.navbar.academics || "Academics",
+      icon: <FaBookOpen />,
+      name: "teacher-academics",
+      items: [
+        {
+          path: getTeacherScopedPath("/students"),
+          activePath: "/students",
+          icon: <FaUsers />,
+          label: t.navbar.myStudents,
+        },
+        {
+          path: getTeacherScopedPath("/results"),
+          activePath: "/results",
+          icon: <FaChartBar />,
+          label: t.navbar.results,
+        },
+        {
+          path: getTeacherScopedPath("/attendance"),
+          activePath: "/attendance",
+          icon: <FaClipboardCheck />,
+          label: t.navbar.attendance,
+        },
+        {
+          path: getTeacherScopedPath("/session-results"),
+          activePath: "/session-results",
+          icon: <FaGraduationCap />,
+          label: t.navbar.sessionResults,
+        },
+        {
+          path: "/timetable",
+          activePath: "/timetable",
+          icon: <FaCalendarAlt />,
+          label: t.navbar.myTimetable,
+        },
+      ],
     },
-    {
-      type: "link",
-      path: getTeacherScopedPath("/results"),
-      activePath: "/results",
-      icon: <FaChartBar />,
-      label: t.navbar.results,
-    },
-    {
-      type: "link",
-      path: getTeacherScopedPath("/attendance"),
-      activePath: "/attendance",
-      icon: <FaClipboardCheck />,
-      label: t.navbar.attendance,
-    },
-    {
-      type: "link",
-      path: getTeacherScopedPath("/session-results"),
-      activePath: "/session-results",
-      icon: <FaGraduationCap />,
-      label: t.navbar.sessionResults,
-    },
-    {
-      type: "link",
-      path: "/timetable",
-      icon: <FaCalendarAlt />,
-      label: t.navbar.myTimetable,
-    },
-    // Support Center link for teacher
     {
       type: "link",
       path: "/support",
@@ -301,47 +314,55 @@ function Navbar() {
       label: t.common.dashboard,
     },
     {
-      type: "link",
-      path: "/fees",
-      icon: <FaMoneyBill />,
-      label: t.navbar.wardFees,
+      type: "dropdown",
+      label: t.navbar.wards || "Wards",
+      icon: <FaUsers />,
+      name: "parent-wards",
+      items: [
+        {
+          path: "/results",
+          icon: <FaChartBar />,
+          label: t.navbar.wardResults,
+        },
+        {
+          path: "/attendance",
+          icon: <FaClipboardCheck />,
+          label: t.navbar.wardAttendance,
+        },
+        {
+          path: "/session-results",
+          icon: <FaGraduationCap />,
+          label: t.navbar.sessionResults,
+        },
+        {
+          path: "/timetable",
+          icon: <FaCalendarAlt />,
+          label: t.navbar.wardTimetable,
+        },
+        {
+          path: "/fees",
+          icon: <FaMoneyBill />,
+          label: t.navbar.wardFees,
+        },
+      ],
     },
     {
-      type: "link",
-      path: "/results",
-      icon: <FaChartBar />,
-      label: t.navbar.wardResults,
-    },
-    {
-      type: "link",
-      path: "/attendance",
-      icon: <FaClipboardCheck />,
-      label: t.navbar.wardAttendance,
-    },
-    {
-      type: "link",
-      path: "/session-results",
-      icon: <FaGraduationCap />,
-      label: t.navbar.sessionResults,
-    },
-    {
-      type: "link",
-      path: "/timetable",
-      icon: <FaCalendarAlt />,
-      label: t.navbar.wardTimetable,
-    },
-    {
-      type: "link",
-      path: "/transport/tracking",
+      type: "dropdown",
+      label: t.navbar.services || "Services",
       icon: <FaBus />,
-      label: t.navbar.busTracking,
-    },
-    // Support Center link for parent
-    {
-      type: "link",
-      path: "/support",
-      icon: <FaComments />,
-      label: t.navbar.support || "Support",
+      name: "parent-services",
+      items: [
+        {
+          path: "/transport/tracking",
+          icon: <FaBus />,
+          label: t.navbar.busTracking,
+        },
+        {
+          path: "/support",
+          icon: <FaComments />,
+          label: t.navbar.support || "Support",
+        },
+      ],
     },
   ];
 
@@ -353,47 +374,55 @@ function Navbar() {
       label: t.common.dashboard,
     },
     {
-      type: "link",
-      path: "/results",
-      icon: <FaChartBar />,
-      label: t.navbar.myResults,
+      type: "dropdown",
+      label: t.navbar.academics || "Academics",
+      icon: <FaBookOpen />,
+      name: "student-academics",
+      items: [
+        {
+          path: "/results",
+          icon: <FaChartBar />,
+          label: t.navbar.myResults,
+        },
+        {
+          path: "/attendance",
+          icon: <FaClipboardCheck />,
+          label: t.navbar.myAttendance,
+        },
+        {
+          path: "/session-results",
+          icon: <FaGraduationCap />,
+          label: t.navbar.sessionResults,
+        },
+        {
+          path: "/timetable",
+          icon: <FaCalendarAlt />,
+          label: t.navbar.myTimetable,
+        },
+      ],
     },
     {
-      type: "link",
-      path: "/attendance",
-      icon: <FaClipboardCheck />,
-      label: t.navbar.myAttendance,
-    },
-    {
-      type: "link",
-      path: "/session-results",
-      icon: <FaGraduationCap />,
-      label: t.navbar.sessionResults,
-    },
-    {
-      type: "link",
-      path: "/fees",
-      icon: <FaMoneyBill />,
-      label: t.navbar.myFees,
-    },
-    {
-      type: "link",
-      path: "/timetable",
-      icon: <FaCalendarAlt />,
-      label: t.navbar.myTimetable,
-    },
-    {
-      type: "link",
-      path: "/transport/tracking",
+      type: "dropdown",
+      label: t.navbar.services || "Services",
       icon: <FaBus />,
-      label: t.navbar.busTracking,
-    },
-    // Support Center link for student
-    {
-      type: "link",
-      path: "/support",
-      icon: <FaComments />,
-      label: t.navbar.support || "Support",
+      name: "student-services",
+      items: [
+        {
+          path: "/fees",
+          icon: <FaMoneyBill />,
+          label: t.navbar.myFees,
+        },
+        {
+          path: "/transport/tracking",
+          icon: <FaBus />,
+          label: t.navbar.busTracking,
+        },
+        {
+          path: "/support",
+          icon: <FaComments />,
+          label: t.navbar.support || "Support",
+        },
+      ],
     },
   ];
 
@@ -490,7 +519,9 @@ function Navbar() {
                         <Link
                           key={subIndex}
                           className={`dropdown-item-custom ${
-                            isActive(subItem.path) ? "active" : ""
+                            isPathActive(subItem.activePath || subItem.path)
+                              ? "active"
+                              : ""
                           }`}
                           to={subItem.path}
                           onClick={closeMenu}
@@ -503,7 +534,9 @@ function Navbar() {
                   </div>
                 ) : (
                   <Link
-                    className={`nav-link ${isActive(item.activePath || item.path) ? "active" : ""}`}
+                    className={`nav-link ${
+                      isPathActive(item.activePath || item.path) ? "active" : ""
+                    }`}
                     to={item.path}
                     onClick={closeMenu}
                   >
