@@ -1,5 +1,4 @@
-// src/components/SessionResultSheet.js
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, sessionResultAPI } from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -10,12 +9,9 @@ import {
   FaDownload,
   FaArrowLeft,
   FaUserCircle,
-  FaSpinner,
   FaCheckCircle,
   FaTimesCircle,
-  FaClock,
   FaGraduationCap,
-  FaCalendarAlt,
 } from "react-icons/fa";
 import moment from "moment";
 import { useReactToPrint } from "react-to-print";
@@ -33,7 +29,7 @@ function SessionResultSheet() {
   const query = new URLSearchParams(location.search);
   const session = query.get("session") || "";
 
-  const [resultData, setResultData] = useState(null);
+  const [sessionResult, setSessionResult] = useState(null);
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -42,98 +38,195 @@ function SessionResultSheet() {
   const componentRef = useRef(null);
 
   const safeNumber = (value, fallback = 0) => {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
   };
 
-  const safeFixed = (value, digits = 2) => {
-    return safeNumber(value, 0).toFixed(digits);
+  const safeFixed = (value, digits = 2) => safeNumber(value, 0).toFixed(digits);
+
+  const safeText = (value, fallback = "N/A") => {
+    if (value === null || value === undefined) return fallback;
+    const text = String(value).trim();
+    return text ? text : fallback;
   };
 
-  const getStudentName = () => {
-    return (
-      resultData?.studentInfo?.name ||
-      student?.fullName ||
-      `${student?.firstName || ""} ${student?.lastName || ""}`.trim() ||
-      t?.sessionResultSheet?.student ||
-      "Student"
-    );
-  };
+  const studentInfo = useMemo(() => {
+    const fallback = student || {};
+
+    return {
+      id: fallback.id || studentId,
+      fullName:
+        fallback.fullName ||
+        [fallback.firstName, fallback.middleName, fallback.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        "Student",
+      admissionNumber: fallback.admissionNumber || "N/A",
+      studentClass:
+        fallback.studentClass || fallback?.schoolClass?.className || "N/A",
+      arm: fallback.classArm || fallback?.schoolClass?.arm || "",
+      dateOfBirth: fallback.dateOfBirth || null,
+      parentName:
+        fallback.parentName ||
+        fallback?.parent?.fullName ||
+        fallback?.parent?.name ||
+        [fallback?.parent?.firstName, fallback?.parent?.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        "N/A",
+      parentPhone:
+        fallback.parentPhone ||
+        fallback?.parent?.phone ||
+        fallback?.parent?.phoneNumber ||
+        "N/A",
+      address:
+        fallback.address ||
+        fallback.homeAddress ||
+        fallback?.parent?.address ||
+        "N/A",
+      profilePictureUrl: fallback.profilePictureUrl || null,
+    };
+  }, [student, studentId]);
+
+  const annualSummary = useMemo(() => {
+    return {
+      annualTotal: safeNumber(sessionResult?.annualTotal),
+      annualAverage: safeNumber(sessionResult?.annualAverage),
+      positionInClass: sessionResult?.annualPositionInClass ?? "N/A",
+      positionInArm: sessionResult?.annualPositionInArm ?? "N/A",
+      positionInSchool: sessionResult?.annualPositionInSchool ?? "N/A",
+    };
+  }, [sessionResult]);
+
+  const termSummaryRows = useMemo(() => {
+    return [
+      {
+        label: "FIRST",
+        total: safeNumber(sessionResult?.firstTermTotal),
+        average: safeNumber(sessionResult?.firstTermAverage),
+        position: sessionResult?.firstTermPosition ?? "N/A",
+      },
+      {
+        label: "SECOND",
+        total: safeNumber(sessionResult?.secondTermTotal),
+        average: safeNumber(sessionResult?.secondTermAverage),
+        position: sessionResult?.secondTermPosition ?? "N/A",
+      },
+      {
+        label: "THIRD",
+        total: safeNumber(sessionResult?.thirdTermTotal),
+        average: safeNumber(sessionResult?.thirdTermAverage),
+        position: sessionResult?.thirdTermPosition ?? "N/A",
+      },
+    ];
+  }, [sessionResult]);
+
+  const attendance = useMemo(() => {
+    return {
+      totalSchoolDays: safeNumber(sessionResult?.totalSchoolDays),
+      daysPresent: safeNumber(sessionResult?.totalDaysPresent),
+      daysAbsent: safeNumber(sessionResult?.totalDaysAbsent),
+      attendancePercentage: safeNumber(sessionResult?.attendancePercentage),
+    };
+  }, [sessionResult]);
+
+  const promotion = useMemo(() => {
+    return {
+      promoted: Boolean(sessionResult?.promoted),
+      remark: safeText(
+        sessionResult?.promotionRemark,
+        sessionResult?.promoted ? "Promoted" : "Not promoted",
+      ),
+    };
+  }, [sessionResult]);
+
+  const subjectPerformance = useMemo(() => {
+    const annual = sessionResult?.subjectAverages || {};
+    const first = sessionResult?.firstTermSubjectScores || {};
+    const second = sessionResult?.secondTermSubjectScores || {};
+    const third = sessionResult?.thirdTermSubjectScores || {};
+
+    const subjects = Array.from(
+      new Set([
+        ...Object.keys(annual),
+        ...Object.keys(first),
+        ...Object.keys(second),
+        ...Object.keys(third),
+      ]),
+    ).sort((a, b) => a.localeCompare(b));
+
+    return subjects.map((subject) => ({
+      subject,
+      firstTerm: safeNumber(first[subject]),
+      secondTerm: safeNumber(second[subject]),
+      thirdTerm: safeNumber(third[subject]),
+      annualAverage: safeNumber(annual[subject]),
+    }));
+  }, [sessionResult]);
 
   useEffect(() => {
-    if (studentId && session) {
-      fetchResultData();
-    } else {
+    if (!studentId || !session) {
       setError(
         t?.sessionResultSheet?.missingParams || "Missing required parameters",
       );
       setLoading(false);
+      return;
     }
-  }, [studentId, session]);
 
-  const fetchResultData = async () => {
-    setLoading(true);
-    setError(null);
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const [studentResponse, resultResponse] = await Promise.all([
-        studentAPI.getStudentById(studentId),
-        sessionResultAPI.getSessionResult(studentId, session),
-      ]);
+      try {
+        const [resultResponse, studentResponse] = await Promise.all([
+          sessionResultAPI.getSessionResult(studentId, session),
+          studentAPI.getStudentById(studentId).catch(() => ({ data: null })),
+        ]);
 
-      setStudent(studentResponse.data || null);
-      setResultData(resultResponse.data || null);
-    } catch (error) {
-      console.error("Error fetching session result sheet:", error);
-      if (error.response?.status === 404) {
-        setError(
-          t?.sessionResultSheet?.noResult ||
-            "No session result found for this student",
-        );
-      } else if (error.response?.status === 403) {
-        setError(
-          t?.sessionResultSheet?.accessDenied ||
-            "You are not allowed to view this result",
-        );
-      } else {
-        setError(
-          error.response?.data?.message ||
-            t?.sessionResultSheet?.loadFailed ||
-            "Failed to load session result sheet",
-        );
+        setSessionResult(resultResponse?.data || null);
+        setStudent(studentResponse?.data || null);
+      } catch (fetchError) {
+        console.error("Error fetching session result sheet:", fetchError);
+
+        if (fetchError.response?.status === 404) {
+          setError(
+            t?.sessionResultSheet?.noResult ||
+              "No session result found for this student",
+          );
+        } else if (fetchError.response?.status === 403) {
+          setError(
+            t?.sessionResultSheet?.accessDenied ||
+              "You are not allowed to view this result",
+          );
+        } else {
+          setError(
+            fetchError.response?.data?.message ||
+              t?.sessionResultSheet?.loadFailed ||
+              "Failed to load session result sheet",
+          );
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatDate = (date) =>
-    date ? moment(date).format("DD/MM/YYYY") : "N/A";
-
-  const getGradeBadgeClass = (grade) => {
-    const gradeMap = {
-      A: "bg-success",
-      B: "bg-primary",
-      C: "bg-info",
-      D: "bg-warning",
-      E: "bg-secondary",
-      F: "bg-danger",
     };
-    return gradeMap[grade] || "bg-secondary";
-  };
+
+    fetchData();
+  }, [studentId, session, t]);
 
   const getGradeFromAverage = (avg) => {
     const value = Number(avg) || 0;
-    if (value >= 70) return { grade: "A", class: "success" };
-    if (value >= 60) return { grade: "B", class: "primary" };
-    if (value >= 50) return { grade: "C", class: "info" };
-    if (value >= 45) return { grade: "D", class: "warning" };
-    if (value >= 40) return { grade: "E", class: "secondary" };
-    return { grade: "F", class: "danger" };
+    if (value >= 70) return { grade: "A", remark: "Excellent" };
+    if (value >= 60) return { grade: "B", remark: "Very Good" };
+    if (value >= 50) return { grade: "C", remark: "Good" };
+    if (value >= 45) return { grade: "D", remark: "Fair" };
+    if (value >= 40) return { grade: "E", remark: "Pass" };
+    return { grade: "F", remark: "Fail" };
   };
 
   const buildFileName = () =>
-    `${getStudentName().replace(/\s+/g, "_")}_SESSION_${session.replace(/[\/\\]/g, "_")}`;
+    `${studentInfo.fullName.replace(/\s+/g, "_")}_SESSION_${session.replace(/[\/\\]/g, "_")}`;
 
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
@@ -150,22 +243,24 @@ function SessionResultSheet() {
       toast.error(t?.sessionResultSheet?.notReady || "Result sheet not ready");
       return;
     }
+
     setDownloading(true);
     try {
-      const element = componentRef.current;
-      const canvas = await html2canvas(element, {
+      const canvas = await html2canvas(componentRef.current, {
         scale: 2,
         backgroundColor: "#ffffff",
         logging: false,
         allowTaint: true,
         useCORS: true,
       });
+
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "px",
         format: [canvas.width * 0.75, canvas.height * 0.75],
       });
+
       pdf.addImage(
         imgData,
         "PNG",
@@ -175,11 +270,12 @@ function SessionResultSheet() {
         canvas.height * 0.75,
       );
       pdf.save(`${buildFileName()}.pdf`);
+
       toast.success(
         t?.sessionResultSheet?.downloadSuccess || "PDF downloaded successfully",
       );
-    } catch (error) {
-      console.error("Error generating PDF:", error);
+    } catch (downloadError) {
+      console.error("Error generating PDF:", downloadError);
       toast.error(
         t?.sessionResultSheet?.downloadFailed || "Failed to download PDF",
       );
@@ -188,20 +284,14 @@ function SessionResultSheet() {
     }
   };
 
-  const studentPhotoUrl = resultData?.studentInfo?.profilePictureUrl
-    ? `https://localhost:8443${resultData.studentInfo.profilePictureUrl}`
-    : student?.profilePictureUrl
-      ? `https://localhost:8443${student.profilePictureUrl}`
-      : null;
+  const studentPhotoUrl = studentInfo.profilePictureUrl
+    ? `https://localhost:8443${studentInfo.profilePictureUrl}`
+    : null;
 
   if (loading) {
     return (
-      <div
-        className="d-flex justify-content-center align-items-center"
-        style={{ minHeight: "400px" }}
-      >
-        <div className="text-center">
-          <FaSpinner className="spinner mb-3" size={40} />
+      <div className={`session-result-page ${darkMode ? "dark-mode" : ""}`}>
+        <div className="container py-5 text-center">
           <h5>
             {t?.sessionResultSheet?.loading ||
               "Loading session result sheet..."}
@@ -213,15 +303,15 @@ function SessionResultSheet() {
 
   if (error) {
     return (
-      <div className="container mt-5">
-        <div className="alert alert-danger">
+      <div className={`session-result-page ${darkMode ? "dark-mode" : ""}`}>
+        <div className="container py-5 text-center">
           <h4>{t?.sessionResultSheet?.errorTitle || "Error Loading Result"}</h4>
           <p>{error}</p>
           <button
-            className="btn btn-primary mt-3"
+            className="btn btn-secondary"
             onClick={() => navigate("/session-results")}
           >
-            <FaArrowLeft className="me-2" />{" "}
+            <FaArrowLeft className="me-2" />
             {t?.sessionResultSheet?.back || "Back to Session Results"}
           </button>
         </div>
@@ -229,358 +319,329 @@ function SessionResultSheet() {
     );
   }
 
-  if (!resultData || !student) {
+  if (!sessionResult) {
     return (
-      <div className="container mt-5">
-        <div className="alert alert-warning">
-          <h4>
-            {t?.sessionResultSheet?.noResultTitle || "No Session Result Found"}
-          </h4>
+      <div className={`session-result-page ${darkMode ? "dark-mode" : ""}`}>
+        <div className="container py-5 text-center">
+          <h4>{t?.sessionResultSheet?.noDataTitle || "No Data Available"}</h4>
           <p>
-            {t?.sessionResultSheet?.noResultMessage ||
-              "No session result found for this student in"}{" "}
-            {session} {t?.sessionResultSheet?.session || "session"}.
+            {t?.sessionResultSheet?.noData ||
+              "No session result data was returned."}
           </p>
-          <button
-            className="btn btn-primary mt-3"
-            onClick={() => navigate("/session-results")}
-          >
-            <FaArrowLeft className="me-2" />{" "}
-            {t?.sessionResultSheet?.back || "Back to Session Results"}
-          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="result-sheet-wrapper">
-      <div className="d-flex justify-content-between align-items-center mb-4 no-print">
-        <button
-          className="btn btn-outline-secondary"
-          onClick={() => navigate(-1)}
-        >
-          <FaArrowLeft className="me-2" /> {t?.common?.back || "Back"}
-        </button>
-        <div>
+    <div
+      className={`session-result-page result-sheet-page ${darkMode ? "dark-mode" : ""}`}
+    >
+      <div className="container py-4">
+        <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
           <button
-            className="btn btn-outline-success me-2"
-            onClick={handlePrint}
-            disabled={downloading}
+            className="btn btn-outline-secondary"
+            onClick={() => navigate(-1)}
           >
-            <FaPrint className="me-2" /> {t?.common?.print || "Print"}
+            <FaArrowLeft className="me-2" />
+            {t?.sessionResultSheet?.back || "Back"}
           </button>
-          <button
-            className="btn btn-outline-primary"
-            onClick={handleDownloadPDF}
-            disabled={downloading}
-          >
-            {downloading ? (
-              <>
-                <FaSpinner className="spinner me-2" />{" "}
-                {t?.common?.generating || "Generating..."}
-              </>
-            ) : (
-              <>
-                <FaDownload className="me-2" />{" "}
-                {t?.common?.downloadPDF || "Download PDF"}
-              </>
-            )}
-          </button>
-        </div>
-      </div>
 
-      <div className="result-sheet-container" ref={componentRef}>
-        <div className="result-sheet-content">
-          <div className="school-header">
-            <div className="school-name">
-              FAITH FOUNDATION INTERNATIONAL SCHOOL
-            </div>
-            <div className="school-address">
-              12 Bishop Shanahan, Fegge Onitsha, Anambra
-            </div>
-            <div className="school-contact">
-              Tel: +234 903 017 5230 | Email: info@faithfoundation.edu.ng
-            </div>
-          </div>
+          <div className="d-flex flex-wrap gap-2">
+            <button className="btn btn-primary" onClick={handlePrint}>
+              <FaPrint className="me-2" />
+              {t?.sessionResultSheet?.print || "Print"}
+            </button>
 
-          <div
-            className="result-title"
-            style={{ background: "#9C27B0", color: "white" }}
-          >
-            <FaGraduationCap className="me-2" />{" "}
-            {t?.sessionResultSheet?.annualResult ||
-              "ANNUAL SESSION RESULT SHEET"}{" "}
-            - {session} {t?.sessionResultSheet?.session || "SESSION"}
-          </div>
-
-          <div className="student-info-section">
-            <table className="student-info-table">
-              <tbody>
-                <tr>
-                  <td className="label">
-                    {t?.studentDetails?.fullName || "Student Name"}:
-                  </td>
-                  <td className="value">{getStudentName()}</td>
-                  <td className="label">
-                    {t?.studentDetails?.admissionNumber || "Admission No"}:
-                  </td>
-                  <td className="value">
-                    {resultData?.studentInfo?.admissionNumber ||
-                      student?.admissionNumber ||
-                      "N/A"}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="label">
-                    {t?.studentDetails?.class || "Class"}:
-                  </td>
-                  <td className="value">
-                    {resultData?.studentInfo?.class ||
-                      student?.studentClass ||
-                      "N/A"}{" "}
-                    {resultData?.studentInfo?.arm || student?.classArm || ""}
-                  </td>
-                  <td className="label">
-                    {t?.studentDetails?.dob || "Date of Birth"}:
-                  </td>
-                  <td className="value">{formatDate(student?.dateOfBirth)}</td>
-                </tr>
-                <tr>
-                  <td className="label">
-                    {t?.studentDetails?.parentGuardian || "Parent/Guardian"}:
-                  </td>
-                  <td className="value">{student?.parentName || "N/A"}</td>
-                  <td className="label">
-                    {t?.studentDetails?.parentPhone || "Parent Phone"}:
-                  </td>
-                  <td className="value">{student?.parentPhone || "N/A"}</td>
-                </tr>
-                <tr>
-                  <td className="label">
-                    {t?.studentDetails?.address || "Address"}:
-                  </td>
-                  <td className="value" colSpan="3">
-                    {student?.address || "N/A"}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="student-photo">
-              {studentPhotoUrl ? (
-                <img
-                  src={studentPhotoUrl}
-                  alt={getStudentName()}
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                    e.currentTarget.parentNode.innerHTML =
-                      '<div class="photo-placeholder"><FaUserCircle /></div>';
-                  }}
-                />
-              ) : (
-                <div className="photo-placeholder">
-                  <FaUserCircle />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="promotion-status mb-4">
-            <div
-              className={`alert ${resultData.promoted ? "alert-success" : "alert-danger"}`}
+            <button
+              className="btn btn-success"
+              onClick={handleDownloadPDF}
+              disabled={downloading}
             >
-              <div className="d-flex align-items-center">
-                {resultData.promoted ? (
-                  <FaCheckCircle size={24} className="me-3" />
+              <FaDownload className="me-2" />
+              {downloading
+                ? t?.sessionResultSheet?.downloading || "Downloading..."
+                : t?.sessionResultSheet?.download || "Download PDF"}
+            </button>
+          </div>
+        </div>
+
+        <div className="card shadow-sm result-sheet-card" ref={componentRef}>
+          <div className="card-body p-4">
+            <div className="text-center mb-4">
+              <h2 className="mb-1">
+                {t?.sessionResultSheet?.title || "Session Result Sheet"}
+              </h2>
+              <p className="mb-0">
+                {t?.sessionResultSheet?.sessionLabel || "Academic Session"}:{" "}
+                <strong>{session}</strong>
+              </p>
+            </div>
+
+            <div className="row g-4 align-items-center mb-4">
+              <div className="col-md-3 text-center">
+                {studentPhotoUrl ? (
+                  <img
+                    src={studentPhotoUrl}
+                    alt={studentInfo.fullName}
+                    className="img-fluid rounded-circle border session-student-photo"
+                  />
                 ) : (
-                  <FaTimesCircle size={24} className="me-3" />
+                  <div className="session-avatar-fallback">
+                    <FaUserCircle size={90} />
+                  </div>
                 )}
-                <div>
-                  <h5 className="mb-1">
-                    {t?.sessionResultSheet?.promotionStatus ||
-                      "Promotion Status"}
-                    :{" "}
-                    {resultData.promoted
-                      ? t?.sessionResultSheet?.promoted || "PROMOTED"
-                      : t?.sessionResultSheet?.retained || "RETAINED"}
-                  </h5>
-                  <p className="mb-0">{resultData.promotionRemark || "N/A"}</p>
+              </div>
+
+              <div className="col-md-9">
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <strong>
+                      {t?.sessionResultSheet?.studentName || "Student Name"}:
+                    </strong>
+                    <div>{studentInfo.fullName}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <strong>
+                      {t?.sessionResultSheet?.admissionNumber ||
+                        "Admission Number"}
+                      :
+                    </strong>
+                    <div>{studentInfo.admissionNumber}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <strong>{t?.sessionResultSheet?.class || "Class"}:</strong>
+                    <div>
+                      {studentInfo.studentClass} {studentInfo.arm}
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <strong>
+                      {t?.sessionResultSheet?.dateOfBirth || "Date of Birth"}:
+                    </strong>
+                    <div>
+                      {studentInfo.dateOfBirth
+                        ? moment(studentInfo.dateOfBirth).format("DD/MM/YYYY")
+                        : "N/A"}
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <strong>
+                      {t?.sessionResultSheet?.parentName || "Parent/Guardian"}:
+                    </strong>
+                    <div>{safeText(studentInfo.parentName)}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <strong>
+                      {t?.sessionResultSheet?.parentPhone || "Parent Phone"}:
+                    </strong>
+                    <div>{safeText(studentInfo.parentPhone)}</div>
+                  </div>
+                  <div className="col-12">
+                    <strong>
+                      {t?.sessionResultSheet?.address || "Address"}:
+                    </strong>
+                    <div>{safeText(studentInfo.address)}</div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="term-averages mb-4">
-            <h5 className="section-subtitle">
-              {t?.sessionResultSheet?.termPerformance || "Term Performance"}
-            </h5>
-            <div className="row">
-              <div className="col-md-4 mb-3">
-                <div className="term-card first-term">
-                  <h6>{t?.sessionResultSheet?.firstTerm || "First Term"}</h6>
-                  <h3>{safeFixed(resultData.firstTermAverage)}%</h3>
-                  <p>
-                    {t?.sessionResultSheet?.position || "Position"}:{" "}
-                    {resultData.firstTermPosition || "N/A"}
-                  </p>
+            <div className="table-responsive mb-4">
+              <table className="table table-bordered align-middle session-table">
+                <thead>
+                  <tr>
+                    <th>{t?.sessionResultSheet?.subject || "Subject"}</th>
+                    <th>{t?.sessionResultSheet?.firstTerm || "1st Term"}</th>
+                    <th>{t?.sessionResultSheet?.secondTerm || "2nd Term"}</th>
+                    <th>{t?.sessionResultSheet?.thirdTerm || "3rd Term"}</th>
+                    <th>
+                      {t?.sessionResultSheet?.annualAverage || "Annual Avg"}
+                    </th>
+                    <th>{t?.sessionResultSheet?.grade || "Grade"}</th>
+                    <th>{t?.sessionResultSheet?.remark || "Remark"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subjectPerformance.length > 0 ? (
+                    subjectPerformance.map((item, index) => {
+                      const avg = safeNumber(item.annualAverage);
+                      const gradeInfo = getGradeFromAverage(avg);
+
+                      return (
+                        <tr key={`${item.subject}-${index}`}>
+                          <td>{item.subject}</td>
+                          <td>{safeFixed(item.firstTerm)}</td>
+                          <td>{safeFixed(item.secondTerm)}</td>
+                          <td>{safeFixed(item.thirdTerm)}</td>
+                          <td>{safeFixed(item.annualAverage)}</td>
+                          <td>{gradeInfo.grade}</td>
+                          <td>{gradeInfo.remark}</td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="text-center">
+                        {t?.sessionResultSheet?.noSubjects ||
+                          "No subject performance available"}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="row g-4 mb-4">
+              <div className="col-md-6">
+                <div className="card h-100 session-info-card">
+                  <div className="card-body">
+                    <h5 className="mb-3">
+                      <FaGraduationCap className="me-2" />
+                      {t?.sessionResultSheet?.annualSummary || "Annual Summary"}
+                    </h5>
+                    <p className="mb-2">
+                      <strong>
+                        {t?.sessionResultSheet?.annualTotal || "Annual Total"}:
+                      </strong>{" "}
+                      {safeFixed(annualSummary.annualTotal)}
+                    </p>
+                    <p className="mb-2">
+                      <strong>
+                        {t?.sessionResultSheet?.annualAverage ||
+                          "Annual Average"}
+                        :
+                      </strong>{" "}
+                      {safeFixed(annualSummary.annualAverage)}
+                    </p>
+                    <p className="mb-2">
+                      <strong>
+                        {t?.sessionResultSheet?.positionInClass ||
+                          "Position in Class"}
+                        :
+                      </strong>{" "}
+                      {annualSummary.positionInClass}
+                    </p>
+                    <p className="mb-2">
+                      <strong>
+                        {t?.sessionResultSheet?.positionInArm ||
+                          "Position in Arm"}
+                        :
+                      </strong>{" "}
+                      {annualSummary.positionInArm}
+                    </p>
+                    <p className="mb-0">
+                      <strong>
+                        {t?.sessionResultSheet?.positionInSchool ||
+                          "Position in School"}
+                        :
+                      </strong>{" "}
+                      {annualSummary.positionInSchool}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="col-md-4 mb-3">
-                <div className="term-card second-term">
-                  <h6>{t?.sessionResultSheet?.secondTerm || "Second Term"}</h6>
-                  <h3>{safeFixed(resultData.secondTermAverage)}%</h3>
-                  <p>
-                    {t?.sessionResultSheet?.position || "Position"}:{" "}
-                    {resultData.secondTermPosition || "N/A"}
-                  </p>
-                </div>
-              </div>
-              <div className="col-md-4 mb-3">
-                <div className="term-card third-term">
-                  <h6>{t?.sessionResultSheet?.thirdTerm || "Third Term"}</h6>
-                  <h3>{safeFixed(resultData.thirdTermAverage)}%</h3>
-                  <p>
-                    {t?.sessionResultSheet?.position || "Position"}:{" "}
-                    {resultData.thirdTermPosition || "N/A"}
-                  </p>
+
+              <div className="col-md-6">
+                <div className="card h-100 session-info-card">
+                  <div className="card-body">
+                    <h5 className="mb-3">
+                      {t?.sessionResultSheet?.attendance || "Attendance"}
+                    </h5>
+                    <p className="mb-2">
+                      <strong>
+                        {t?.sessionResultSheet?.totalSchoolDays ||
+                          "Total School Days"}
+                        :
+                      </strong>{" "}
+                      {attendance.totalSchoolDays}
+                    </p>
+                    <p className="mb-2">
+                      <strong>
+                        {t?.sessionResultSheet?.daysPresent || "Days Present"}:
+                      </strong>{" "}
+                      {attendance.daysPresent}
+                    </p>
+                    <p className="mb-2">
+                      <strong>
+                        {t?.sessionResultSheet?.daysAbsent || "Days Absent"}:
+                      </strong>{" "}
+                      {attendance.daysAbsent}
+                    </p>
+                    <p className="mb-0">
+                      <strong>
+                        {t?.sessionResultSheet?.attendancePercentage ||
+                          "Attendance Percentage"}
+                        :
+                      </strong>{" "}
+                      {safeFixed(attendance.attendancePercentage)}%
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="annual-summary mb-4">
-            <h5 className="section-subtitle">
-              {t?.sessionResultSheet?.annualSummary || "Annual Summary"}
-            </h5>
-            <div className="summary-row">
-              <div className="summary-item">
-                <span className="summary-label">
-                  {t?.sessionResultSheet?.annualTotal || "Annual Total"}:
-                </span>
-                <span className="summary-value">
-                  {safeNumber(resultData.annualTotal)}
-                </span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">
-                  {t?.sessionResultSheet?.annualAverage || "Annual Average"}:
-                </span>
-                <span className="summary-value text-success">
-                  {safeFixed(resultData.annualAverage)}%
-                </span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">
-                  {t?.sessionResultSheet?.classPosition || "Class Position"}:
-                </span>
-                <span className="summary-value text-warning">
-                  {resultData.annualPositionInClass || "N/A"}
-                </span>
-              </div>
-              <div className="summary-item">
-                <span className="summary-label">
-                  {t?.studentDashboard?.attendance || "Attendance"}:
-                </span>
-                <span className="summary-value text-info">
-                  {safeFixed(resultData.attendancePercentage)}%
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {resultData.subjectAverages &&
-            Object.keys(resultData.subjectAverages).length > 0 && (
-              <div className="subject-averages mb-4">
-                <h5 className="section-subtitle">
-                  {t?.sessionResultSheet?.subjectPerformance ||
-                    "Subject Performance (Annual Averages)"}
-                </h5>
-                <div className="table-responsive">
-                  <table className="results-table">
-                    <thead>
-                      <tr>
-                        <th>S/N</th>
-                        <th>{t?.studentDashboard?.subject || "SUBJECT"}</th>
-                        <th>
-                          {t?.sessionResultSheet?.annualAverage ||
-                            "ANNUAL AVERAGE"}
-                        </th>
-                        <th>{t?.studentDashboard?.grade || "GRADE"}</th>
-                        <th>REMARK</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(resultData.subjectAverages).map(
-                        ([subject, average], index) => {
-                          const grade = getGradeFromAverage(average);
-                          return (
-                            <tr key={index}>
-                              <td className="text-center">{index + 1}</td>
-                              <td>{subject}</td>
-                              <td className="text-center fw-bold">
-                                {safeFixed(average)}%
-                              </td>
-                              <td className="text-center">
-                                <span
-                                  className={`grade-badge bg-${grade.class}`}
-                                >
-                                  {grade.grade}
-                                </span>
-                              </td>
-                              <td className="text-center">
-                                {grade.grade === "A"
-                                  ? "Excellent"
-                                  : grade.grade === "B"
-                                    ? "Very Good"
-                                    : grade.grade === "C"
-                                      ? "Good"
-                                      : grade.grade === "D"
-                                        ? "Fair"
-                                        : grade.grade === "E"
-                                          ? "Pass"
-                                          : "Fail"}
-                              </td>
+            <div className="row g-4 mb-4">
+              <div className="col-md-12">
+                <div className="card session-info-card">
+                  <div className="card-body">
+                    <h5 className="mb-3">
+                      {t?.sessionResultSheet?.termBreakdown || "Term Breakdown"}
+                    </h5>
+                    <div className="table-responsive">
+                      <table className="table table-bordered mb-0 session-table">
+                        <thead>
+                          <tr>
+                            <th>{t?.sessionResultSheet?.term || "Term"}</th>
+                            <th>{t?.sessionResultSheet?.total || "Total"}</th>
+                            <th>
+                              {t?.sessionResultSheet?.average || "Average"}
+                            </th>
+                            <th>
+                              {t?.sessionResultSheet?.position || "Position"}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {termSummaryRows.map((row) => (
+                            <tr key={row.label}>
+                              <td>{row.label}</td>
+                              <td>{safeFixed(row.total)}</td>
+                              <td>{safeFixed(row.average)}</td>
+                              <td>{row.position}</td>
                             </tr>
-                          );
-                        },
-                      )}
-                    </tbody>
-                  </table>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
 
-          <div className="signatures-section">
-            <div className="signature-item">
-              <div className="signature-line"></div>
-              <div className="signature-label">
-                {t?.sessionResultSheet?.classTeacherSignature ||
-                  "Class Teacher's Signature"}
+            <div className="card border-0 session-promotion-card">
+              <div className="card-body">
+                <h5 className="mb-3">
+                  {t?.sessionResultSheet?.promotionDecision ||
+                    "Promotion Decision"}
+                </h5>
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  {promotion.promoted ? (
+                    <FaCheckCircle className="text-success" />
+                  ) : (
+                    <FaTimesCircle className="text-danger" />
+                  )}
+                  <strong>
+                    {promotion.promoted
+                      ? t?.sessionResultSheet?.promoted || "Promoted"
+                      : t?.sessionResultSheet?.notPromoted || "Not Promoted"}
+                  </strong>
+                </div>
+                <p className="mb-0">
+                  <strong>{t?.sessionResultSheet?.remark || "Remark"}:</strong>{" "}
+                  {promotion.remark}
+                </p>
               </div>
-            </div>
-            <div className="signature-item">
-              <div className="signature-line"></div>
-              <div className="signature-label">
-                {t?.sessionResultSheet?.principalSignature ||
-                  "Principal's Signature"}
-              </div>
-            </div>
-            <div className="signature-item">
-              <div className="signature-line"></div>
-              <div className="signature-label">
-                {t?.sessionResultSheet?.parentSignature || "Parent's Signature"}
-              </div>
-            </div>
-          </div>
-
-          <div className="result-footer">
-            <div className="footer-note">
-              {t?.sessionResultSheet?.footerNote ||
-                "This is a computer-generated annual session result. Valid without signature."}
-            </div>
-            <div className="footer-date">
-              {t?.sessionResultSheet?.generatedOn || "Generated on"}:{" "}
-              {moment().format("DD/MM/YYYY h:mm A")}
             </div>
           </div>
         </div>
