@@ -168,67 +168,66 @@ export const studentAPI = {
     api.get(`/students/admission/${encodeURIComponent(admissionNumber)}`),
 
   createStudent: (data) => sendData("post", "/students", data),
-
   updateStudent: (id, data) => sendData("put", `/students/${id}`, data),
-
   deleteStudent: (id) => api.delete(`/students/${id}`),
-
-  deleteStudentByAdmissionNumber: (admissionNumber) =>
-    api.delete(`/students/admission/${encodeURIComponent(admissionNumber)}`),
 
   searchStudents: (term) => api.get("/students/search", { params: { term } }),
 
-  getStudentsByClass: (className) =>
-    api.get(`/students/class/${encodeURIComponent(className)}`),
-
-  getStudentsByClassAndArm: (className, arm) =>
-    api.get(
-      `/students/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
-    ),
-
-  getStudentsByState: (state) =>
-    api.get(`/students/state/${encodeURIComponent(state)}`),
-
-  getStudentsByLGA: (lga) =>
-    api.get(`/students/lga/${encodeURIComponent(lga)}`),
-
-  getActiveStudents: () => api.get("/students/active"),
-
-  getStudentsByStatus: (status) =>
-    api.get(`/students/status/${encodeURIComponent(status)}`),
+  getStudentsByClassId: (classId) => api.get(`/students/class/id/${classId}`),
 
   getStatistics: () => api.get("/students/statistics"),
+};
 
-  bulkRegisterStudents: (students) => api.post("/students/bulk", students),
-
-  bulkUpdateClass: (studentIds, newClass) =>
-    api.patch("/students/bulk/class", studentIds, {
-      params: { newClass },
+export const attendanceAPI = {
+  markAttendance: (studentId, date, session, term, status, remarks = "") =>
+    api.post(`/attendance/student/${studentId}`, null, {
+      params: { date, session, term, status, remarks },
     }),
 
-  generateAdmissionNumber: () => api.get("/students/generate-admission"),
-
-  checkAdmissionNumber: (admissionNumber) =>
-    api.get(`/students/check-admission/${encodeURIComponent(admissionNumber)}`),
-
-  getPromotionPreview: () => api.get("/students/promote/preview"),
-
-  promoteAllStudents: () => api.post("/students/promote/all"),
-
-  promoteClass: (className, arm = null) =>
-    api.post(`/students/promote/class/${encodeURIComponent(className)}`, null, {
-      params: arm ? { arm } : {},
+  markBulkAttendance: (studentIds, date, session, term, status) =>
+    api.post(`/attendance/bulk`, studentIds, {
+      params: { date, session, term, status },
     }),
 
-  togglePromotionExclusion: (id, exclude, reason) =>
-    api.post(`/students/${id}/toggle-exclusion`, null, {
-      params: { exclude, reason },
+  getStudentAttendance: (studentId, date, session, term) =>
+    api.get(`/attendance/student/${studentId}`, {
+      params: { date, session, term },
     }),
 
-  getExcludedStudents: () => api.get("/students/excluded"),
+  getStudentTermAttendance: (studentId, session, term) =>
+    api.get(`/attendance/student/${studentId}/term`, {
+      params: { session, term },
+    }),
 
-  promoteSelectedStudents: (studentIds) =>
-    api.post("/students/promote/selected", studentIds),
+  getStudentTermSummary: (studentId, session, term) =>
+    api.get(`/attendance/student/${studentId}/summary`, {
+      params: { session, term },
+    }),
+
+  getMyAttendance: (session, term) =>
+    api.get(`/attendance/me/term`, {
+      params: { session, term },
+    }),
+
+  getMyAttendanceSummary: (session, term) =>
+    api.get(`/attendance/me/summary`, {
+      params: { session, term },
+    }),
+
+  getClassAttendanceByClassId: (classId, date, session, term) =>
+    api.get(`/attendance/class/${classId}`, {
+      params: { date, session, term },
+    }),
+
+  getClassTermStatisticsByClassId: (classId, session, term) =>
+    api.get(`/attendance/statistics/class/${classId}`, {
+      params: { session, term },
+    }),
+
+  getSchoolAttendanceStatistics: (session, term) =>
+    api.get(`/attendance/statistics/school`, {
+      params: { session, term },
+    }),
 };
 
 /* ================================
@@ -499,63 +498,6 @@ export const emailQueueAPI = {
 /* ================================
    ATTENDANCE API
 ================================ */
-export const attendanceAPI = {
-  markAttendance: (studentId, date, session, term, status, remarks = "") =>
-    api.post(`/attendance/student/${studentId}`, null, {
-      params: { date, session, term, status, remarks },
-    }),
-
-  markBulkAttendance: (studentIds, date, session, term, status) =>
-    api.post(`/attendance/bulk`, studentIds, {
-      params: { date, session, term, status },
-    }),
-
-  getStudentAttendance: (studentId, date, session, term) =>
-    api.get(`/attendance/student/${studentId}`, {
-      params: { date, session, term },
-    }),
-
-  getStudentTermAttendance: (studentId, session, term) =>
-    api.get(`/attendance/student/${studentId}/term`, {
-      params: { session, term },
-    }),
-
-  getStudentTermSummary: (studentId, session, term) =>
-    api.get(`/attendance/student/${studentId}/summary`, {
-      params: { session, term },
-    }),
-
-  getMyAttendance: (session, term) =>
-    api.get(`/attendance/me/term`, {
-      params: { session, term },
-    }),
-
-  getMyAttendanceSummary: (session, term) =>
-    api.get(`/attendance/me/summary`, {
-      params: { session, term },
-    }),
-
-  getClassAttendance: (className, arm, date, session, term) =>
-    api.get(
-      `/attendance/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
-      {
-        params: { date, session, term },
-      },
-    ),
-
-  getClassTermStatistics: (className, arm, session, term) =>
-    api.get(
-      `/attendance/statistics/class/${encodeURIComponent(className)}/arm/${encodeURIComponent(arm)}`,
-      {
-        params: { session, term },
-      },
-    ),
-
-  getSchoolAttendanceStatistics: (session, term) =>
-    api.get(`/attendance/statistics/school`, {
-      params: { session, term },
-    }),
-};
 
 /* ================================
    SESSION RESULT API

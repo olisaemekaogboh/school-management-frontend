@@ -212,7 +212,6 @@ function AttendanceManager() {
       setLockedTeacherClassId(null);
       return;
     }
-
     setLockedTeacherClassId(Number(classIdFromQuery));
   }, [mineFromQuery, classIdFromQuery]);
 
@@ -224,12 +223,8 @@ function AttendanceManager() {
   }, [isTeacher, session]);
 
   useEffect(() => {
-    if (isStudent) {
-      loadMyStudentProfile();
-    }
-    if (isParent) {
-      loadParentWards();
-    }
+    if (isStudent) loadMyStudentProfile();
+    if (isParent) loadParentWards();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStudent, isParent]);
 
@@ -240,7 +235,6 @@ function AttendanceManager() {
       const matched = teacherAssignments.find(
         (a) => String(a.id) === String(lockedTeacherClassId),
       );
-
       if (!matched) return;
 
       const shouldUpdate =
@@ -297,7 +291,7 @@ function AttendanceManager() {
 
   useEffect(() => {
     if (isStudent || isParent) return;
-    if (!selectedClass || !selectedArm || !session || !term) return;
+    if (!session || !term) return;
 
     if (viewMode === "mark" || viewMode === "report") {
       fetchStudents();
@@ -305,7 +299,15 @@ function AttendanceManager() {
       fetchClassStatistics();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClass, selectedArm, selectedDate, session, term, viewMode]);
+  }, [
+    selectedClass,
+    selectedArm,
+    selectedDate,
+    session,
+    term,
+    viewMode,
+    classIdFromQuery,
+  ]);
 
   useEffect(() => {
     if (isStudent && myStudentProfile && session && term) {
@@ -337,9 +339,8 @@ function AttendanceManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStudent, session, term, isStudent, isParent]);
 
-  const getSessionName = (sessionItem) => {
-    return sessionItem?.session || sessionItem?.sessionName || "";
-  };
+  const getSessionName = (sessionItem) =>
+    sessionItem?.session || sessionItem?.sessionName || "";
 
   const sortSessions = (sessionList) => {
     return [...sessionList].sort((a, b) => {
@@ -571,6 +572,15 @@ function AttendanceManager() {
     );
   }, [isTeacher, teacherAssignments, selectedClass, selectedArm]);
 
+  const selectedClassId = useMemo(() => {
+    if (isTeacher) return selectedTeacherAssignment?.id || null;
+
+    const fromQuery = classIdFromQuery ? Number(classIdFromQuery) : null;
+    if (fromQuery) return fromQuery;
+
+    return null;
+  }, [isTeacher, selectedTeacherAssignment, classIdFromQuery]);
+
   const isAllowedTeacherClass = (className, arm) => {
     if (isAdmin) return true;
     return teacherAssignments.some(
@@ -581,11 +591,16 @@ function AttendanceManager() {
   };
 
   const fetchStudents = async () => {
-    if (!selectedClass || !selectedArm || !session || !term) return;
+    if (!session || !term) return;
 
-    if (isTeacher && !selectedTeacherAssignment) {
-      toast.error(ui.teacherClassRestriction);
-      return;
+    if (isTeacher) {
+      if (!selectedTeacherAssignment) return;
+    } else {
+      if (!selectedClassId) {
+        setStudents([]);
+        setAttendanceData({});
+        return;
+      }
     }
 
     setLoading(true);
@@ -597,14 +612,16 @@ function AttendanceManager() {
           selectedTeacherAssignment.id,
         );
       } else {
-        response = await studentAPI.getStudentsByClassAndArm(
-          selectedClass,
-          selectedArm,
-        );
+        response = await studentAPI.getStudentsByClassId(selectedClassId);
       }
 
-      const studentList = Array.isArray(response.data) ? response.data : [];
+      const studentList = Array.isArray(response?.data) ? response.data : [];
       setStudents(studentList);
+
+      if (studentList.length > 0 && (!selectedClass || !selectedArm)) {
+        setSelectedClass(studentList[0].studentClass || "");
+        setSelectedArm(studentList[0].classArm || "");
+      }
 
       const attendanceMap = {};
       studentList.forEach((student) => {
@@ -615,7 +632,7 @@ function AttendanceManager() {
       await fetchExistingAttendance(studentList);
     } catch (error) {
       console.error("Error fetching students:", error);
-      toast.error(ui.failedStudents);
+      toast.error(error?.response?.data?.message || ui.failedStudents);
       setStudents([]);
       setAttendanceData({});
     } finally {
@@ -665,22 +682,37 @@ function AttendanceManager() {
   };
 
   const fetchClassStatistics = async () => {
-    if (!selectedClass || !selectedArm || !session || !term) return;
+    if (!session || !term) return;
 
-    if (isTeacher && !isAllowedTeacherClass(selectedClass, selectedArm)) {
+    if (isTeacher && !selectedTeacherAssignment) {
       toast.error(ui.teacherClassRestriction);
+      return;
+    }
+
+    if (!isTeacher && !selectedClassId) {
+      setClassStats(null);
       return;
     }
 
     setLoading(true);
     try {
-      const response = await attendanceAPI.getClassTermStatistics(
-        selectedClass,
-        selectedArm,
+      const classId = isTeacher
+        ? selectedTeacherAssignment?.id
+        : selectedClassId;
+
+      const response = await attendanceAPI.getClassTermStatisticsByClassId(
+        classId,
         session,
         term,
       );
-      setClassStats(response.data);
+      setClassStats(response.data || null);
+
+      if (!selectedClass && response?.data?.className) {
+        setSelectedClass(response.data.className);
+      }
+      if (!selectedArm && response?.data?.arm) {
+        setSelectedArm(response.data.arm);
+      }
     } catch (error) {
       console.error("Error fetching class statistics:", error);
       toast.error(error?.response?.data?.message || ui.failedClassStats);
@@ -691,7 +723,7 @@ function AttendanceManager() {
   };
 
   const handleShowInlineStats = async () => {
-    if (!selectedClass || !selectedArm || !session || !term) {
+    if (!session || !term) {
       toast.warning(ui.selectClassArmSessionTerm);
       return;
     }
@@ -754,7 +786,7 @@ function AttendanceManager() {
     link.href = url;
     link.setAttribute(
       "download",
-      `attendance_statistics_${selectedClass}_${selectedArm}_${term}_${safeSession}.csv`,
+      `attendance_statistics_${selectedClass || "class"}_${selectedArm || "arm"}_${term}_${safeSession}.csv`,
     );
     document.body.appendChild(link);
     link.click();
@@ -803,7 +835,7 @@ function AttendanceManager() {
 
       const safeSession = session.replace(/[\/\\]/g, "_");
       pdf.save(
-        `attendance_statistics_${selectedClass}_${selectedArm}_${term}_${safeSession}.pdf`,
+        `attendance_statistics_${selectedClass || "class"}_${selectedArm || "arm"}_${term}_${safeSession}.pdf`,
       );
 
       toast.success(ui.exportedPdf);
@@ -872,7 +904,7 @@ function AttendanceManager() {
   };
 
   const handleMarkAll = async (status) => {
-    if (!selectedClass || !selectedArm || students.length === 0) {
+    if (students.length === 0) {
       toast.warning(ui.selectClassFirst);
       return;
     }
@@ -1166,7 +1198,11 @@ function AttendanceManager() {
                       setSelectedStudent(null);
                       setShowInlineStats(false);
                     }}
-                    disabled={Boolean(mineFromQuery && lockedTeacherClassId)}
+                    disabled={
+                      isAdmin
+                        ? Boolean(classIdFromQuery)
+                        : Boolean(mineFromQuery && lockedTeacherClassId)
+                    }
                   >
                     <option value="">{ui.selectClass}</option>
                     {allowedClassOptions.map((c) => (
@@ -1189,7 +1225,9 @@ function AttendanceManager() {
                     }}
                     disabled={
                       !selectedClass ||
-                      Boolean(mineFromQuery && lockedTeacherClassId)
+                      (isAdmin
+                        ? Boolean(classIdFromQuery)
+                        : Boolean(mineFromQuery && lockedTeacherClassId))
                     }
                   >
                     <option value="">{ui.selectArm}</option>
@@ -1271,8 +1309,7 @@ function AttendanceManager() {
           {!isStudent &&
             !isParent &&
             viewMode === "mark" &&
-            selectedClass &&
-            selectedArm && (
+            (selectedClassId || (selectedClass && selectedArm)) && (
               <div className="mt-3">
                 <label className="form-label me-3 fw-bold">
                   Quick Actions:
@@ -1376,8 +1413,7 @@ function AttendanceManager() {
           {!isStudent &&
             !isParent &&
             viewMode === "report" &&
-            selectedClass &&
-            selectedArm && (
+            students.length > 0 && (
               <div className="mt-3">
                 <div className="input-group">
                   <span className="input-group-text">
@@ -1418,381 +1454,138 @@ function AttendanceManager() {
               </h5>
             </div>
             <div className="card-body">
-              <div className="row mb-4">
-                <div className="col-md-3 mb-3">
-                  <div className="card bg-primary text-white">
-                    <div className="card-body text-center">
-                      <h3>{classStats.totalStudents}</h3>
-                      <small>Total Students</small>
+              <div ref={statsExportRef}>
+                <div className="row mb-4">
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-primary text-white">
+                      <div className="card-body text-center">
+                        <h3>{classStats.totalStudents}</h3>
+                        <small>Total Students</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-success text-white">
+                      <div className="card-body text-center">
+                        <h3>{classStats.totalPresent}</h3>
+                        <small>Total Present</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-danger text-white">
+                      <div className="card-body text-center">
+                        <h3>{classStats.totalAbsent}</h3>
+                        <small>Total Absent</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-warning text-dark">
+                      <div className="card-body text-center">
+                        <h3>
+                          {Number(classStats.averageAttendance || 0).toFixed(1)}
+                          %
+                        </h3>
+                        <small>Average Attendance</small>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="col-md-3 mb-3">
-                  <div className="card bg-success text-white">
-                    <div className="card-body text-center">
-                      <h3>{classStats.totalPresent}</h3>
-                      <small>Total Present</small>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-md-3 mb-3">
-                  <div className="card bg-danger text-white">
-                    <div className="card-body text-center">
-                      <h3>{classStats.totalAbsent}</h3>
-                      <small>Total Absent</small>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-md-3 mb-3">
-                  <div className="card bg-warning text-white">
-                    <div className="card-body text-center">
-                      <h3>{classStats.averageAttendance?.toFixed(1)}%</h3>
-                      <small>Average Attendance</small>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <h6 className="mb-3">Student Breakdown</h6>
-              <div className="table-responsive">
-                <table className="table table-striped table-hover">
-                  <thead>
-                    <tr>
-                      <th>Student</th>
-                      <th>Admission No.</th>
-                      <th className="text-center">Present</th>
-                      <th className="text-center">Absent</th>
-                      <th className="text-center">Late</th>
-                      <th className="text-center">Excused</th>
-                      <th className="text-center">Percentage</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classStats.studentAttendance?.map((student) => (
-                      <tr key={student.studentId}>
-                        <td>{student.studentName}</td>
-                        <td>{student.admissionNumber}</td>
-                        <td className="text-center text-success">
-                          {student.present}
-                        </td>
-                        <td className="text-center text-danger">
-                          {student.absent}
-                        </td>
-                        <td className="text-center text-warning">
-                          {student.late}
-                        </td>
-                        <td className="text-center text-info">
-                          {student.excused}
-                        </td>
-                        <td className="text-center">
-                          <span
-                            className={`badge ${
-                              student.percentage >= 75
-                                ? "bg-success"
-                                : student.percentage >= 50
-                                  ? "bg-warning"
-                                  : "bg-danger"
-                            }`}
-                          >
-                            {student.percentage?.toFixed(1)}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-
-                    {!classStats.studentAttendance?.length && (
+                <div className="table-responsive">
+                  <table className="table table-bordered table-striped table-hover">
+                    <thead className="table-light">
                       <tr>
-                        <td colSpan="7" className="text-center text-muted">
-                          No statistics found
-                        </td>
+                        <th>#</th>
+                        <th>Student Name</th>
+                        <th>Admission No.</th>
+                        <th className="text-center">Present</th>
+                        <th className="text-center">Absent</th>
+                        <th className="text-center">Late</th>
+                        <th className="text-center">Excused</th>
+                        <th className="text-center">Percentage</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {classStats.studentAttendance?.map((student, index) => (
+                        <tr key={student.studentId}>
+                          <td>{index + 1}</td>
+                          <td>{student.studentName}</td>
+                          <td>{student.admissionNumber}</td>
+                          <td className="text-center text-success fw-bold">
+                            {student.present}
+                          </td>
+                          <td className="text-center text-danger fw-bold">
+                            {student.absent}
+                          </td>
+                          <td className="text-center text-warning fw-bold">
+                            {student.late}
+                          </td>
+                          <td className="text-center text-info fw-bold">
+                            {student.excused}
+                          </td>
+                          <td className="text-center">
+                            <span
+                              className={`badge ${
+                                student.percentage >= 75
+                                  ? "bg-success"
+                                  : student.percentage >= 50
+                                    ? "bg-warning text-dark"
+                                    : "bg-danger"
+                              }`}
+                            >
+                              {student.percentage?.toFixed(1)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {!classStats.studentAttendance?.length && (
+                        <tr>
+                          <td colSpan="8" className="text-center text-muted">
+                            No attendance statistics found
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-      {!loading && viewMode === "report" && (
-        <div className="row">
-          {!isStudent && !isParent && (
-            <div className="col-md-4 mb-4">
-              <div className="card">
-                <div className="card-header bg-primary text-white">
-                  <h5 className="mb-0">
-                    <FaUsers className="me-2" />
-                    Students in {selectedClass || "-"} - Arm{" "}
-                    {selectedArm || "-"}
-                  </h5>
-                </div>
-                <div className="card-body p-0">
-                  <div
-                    className="list-group list-group-flush"
-                    style={{ maxHeight: "500px", overflowY: "auto" }}
-                  >
-                    {filteredStudents.map((student) => (
-                      <button
-                        key={student.id}
-                        className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${
-                          selectedStudent?.id === student.id ? "active" : ""
-                        }`}
-                        onClick={() => setSelectedStudent(student)}
-                      >
-                        <div>
-                          <div className="fw-bold">
-                            {student.firstName} {student.lastName}
-                          </div>
-                          <small className="text-muted">
-                            {student.admissionNumber}
-                          </small>
-                        </div>
-                        <FaEye />
-                      </button>
-                    ))}
-
-                    {filteredStudents.length === 0 && (
-                      <div className="list-group-item text-center text-muted">
-                        No students found
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className={isStudent || isParent ? "col-12" : "col-md-8"}>
-            {selectedStudent ? (
-              <div className="card">
-                <div
-                  className={`card-header text-white ${
-                    isParent ? "bg-success" : "bg-info"
-                  }`}
-                >
-                  <h5 className="mb-0">
-                    {isParent ? (
-                      <>
-                        <FaUserFriends className="me-2" />
-                        Ward Attendance Report: {selectedStudent.firstName}{" "}
-                        {selectedStudent.lastName}
-                      </>
-                    ) : (
-                      <>
-                        Attendance Report: {selectedStudent.firstName}{" "}
-                        {selectedStudent.lastName}
-                      </>
-                    )}
-                  </h5>
-                </div>
-                <div className="card-body">
-                  {studentSummary && (
-                    <>
-                      <div className="row mb-4">
-                        <div className="col-md-3 mb-3">
-                          <div className="card bg-primary text-white">
-                            <div className="card-body text-center">
-                              <h5>{studentSummary.totalSchoolDays}</h5>
-                              <small>School Days</small>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="col-md-3 mb-3">
-                          <div className="card bg-success text-white">
-                            <div className="card-body text-center">
-                              <h5>{studentSummary.daysPresent}</h5>
-                              <small>Present</small>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="col-md-3 mb-3">
-                          <div className="card bg-danger text-white">
-                            <div className="card-body text-center">
-                              <h5>{studentSummary.daysAbsent}</h5>
-                              <small>Absent</small>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="col-md-3 mb-3">
-                          <div className="card bg-warning text-white">
-                            <div className="card-body text-center">
-                              <h5>
-                                {studentSummary.attendancePercentage?.toFixed(
-                                  1,
-                                )}
-                                %
-                              </h5>
-                              <small>Percentage</small>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="row mb-4">
-                        <div className="col-md-3 mb-3">
-                          <div className="card border-success">
-                            <div className="card-body text-center">
-                              <h6 className="text-success">
-                                {reportStats.present}
-                              </h6>
-                              <small>Present Records</small>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="col-md-3 mb-3">
-                          <div className="card border-danger">
-                            <div className="card-body text-center">
-                              <h6 className="text-danger">
-                                {reportStats.absent}
-                              </h6>
-                              <small>Absent Records</small>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="col-md-3 mb-3">
-                          <div className="card border-warning">
-                            <div className="card-body text-center">
-                              <h6 className="text-warning">
-                                {reportStats.late}
-                              </h6>
-                              <small>Late Records</small>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="col-md-3 mb-3">
-                          <div className="card border-info">
-                            <div className="card-body text-center">
-                              <h6 className="text-info">
-                                {reportStats.excused}
-                              </h6>
-                              <small>Excused Records</small>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {isParent && (
-                    <div className="alert alert-light border mb-4">
-                      <div className="row">
-                        <div className="col-md-4">
-                          <strong>Ward:</strong>{" "}
-                          {selectedStudent.fullName ||
-                            `${selectedStudent.firstName} ${selectedStudent.lastName}`}
-                        </div>
-                        <div className="col-md-4">
-                          <strong>Class:</strong> {selectedStudent.studentClass}{" "}
-                          {selectedStudent.classArm}
-                        </div>
-                        <div className="col-md-4">
-                          <strong>Session / Term:</strong> {session} /{" "}
-                          {terms.find((t) => t.value === term)?.label}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <h6 className="mb-3">
-                    Attendance History for{" "}
-                    {terms.find((t) => t.value === term)?.label}
-                  </h6>
-
-                  <div className="table-responsive">
-                    <table className="table table-striped table-bordered align-middle">
-                      <thead className="table-light">
-                        <tr>
-                          <th>#</th>
-                          <th>Date</th>
-                          <th>Day</th>
-                          <th>Status</th>
-                          <th>Remarks</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {studentAttendance.map((record, index) => (
-                          <tr key={record.id || `${record.date}-${index}`}>
-                            <td>{index + 1}</td>
-                            <td>{moment(record.date).format("DD/MM/YYYY")}</td>
-                            <td>{moment(record.date).format("dddd")}</td>
-                            <td>
-                              <span
-                                className={`badge bg-${getStatusColor(record.status)}`}
-                              >
-                                {record.status}
-                              </span>
-                            </td>
-                            <td>{record.remarks || "-"}</td>
-                          </tr>
-                        ))}
-
-                        {studentAttendance.length === 0 && (
-                          <tr>
-                            <td colSpan="5" className="text-center text-muted">
-                              No attendance records found for this term
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="alert alert-info">
-                <FaInfoCircle className="me-2" />
-                {isStudent
-                  ? "Your attendance record is not available yet."
-                  : isParent
-                    ? "Select a ward to view attendance report."
-                    : "Select a student from the list to view their attendance report"}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {!loading &&
         !isStudent &&
         !isParent &&
         viewMode === "mark" &&
-        students.length > 0 && (
-          <>
-            <div className="card">
-              <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h5 className="mb-0">
-                  <FaUsers className="me-2" />
-                  {selectedClass} - Arm {selectedArm} -{" "}
-                  {moment(selectedDate).format("DD/MM/YYYY")}
-                </h5>
-                <span className="badge bg-light text-dark">
-                  {
-                    Object.values(attendanceData).filter((s) => s === "PRESENT")
-                      .length
-                  }{" "}
-                  Present / {students.length} Total
-                </span>
-              </div>
-
-              <div className="card-body">
+        (selectedClassId || (selectedClass && selectedArm)) && (
+          <div className="card mb-4">
+            <div className="card-header bg-success text-white d-flex justify-content-between align-items-center">
+              <h5 className="mb-0">
+                <FaUsers className="me-2" />
+                Students - {selectedClass || "Selected Class"}{" "}
+                {selectedArm ? `Arm ${selectedArm}` : ""}
+              </h5>
+              <span className="badge bg-light text-dark">
+                {students.length} students
+              </span>
+            </div>
+            <div className="card-body">
+              {students.length > 0 ? (
                 <div className="table-responsive">
-                  <table className="table table-striped table-hover">
-                    <thead>
+                  <table className="table table-hover">
+                    <thead className="table-light">
                       <tr>
-                        <th>#</th>
+                        <th>S/N</th>
                         <th>Student Name</th>
                         <th>Admission No.</th>
-                        <th className="text-center">Current Status</th>
-                        <th className="text-center">Actions</th>
+                        <th>Current Status</th>
+                        <th>Mark Attendance</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1803,67 +1596,39 @@ function AttendanceManager() {
                         return (
                           <tr key={student.id}>
                             <td>{index + 1}</td>
-                            <td>
-                              {student.firstName} {student.lastName}
-                            </td>
+                            <td>{`${student.firstName || ""} ${student.lastName || ""}`}</td>
                             <td>{student.admissionNumber}</td>
-                            <td className="text-center">
-                              {status ? (
-                                <span className={`badge ${badge?.class}`}>
-                                  {badge?.icon} {badge?.text}
+                            <td>
+                              {badge ? (
+                                <span className={`badge ${badge.class}`}>
+                                  {badge.icon}{" "}
+                                  <span className="ms-1">{badge.text}</span>
                                 </span>
                               ) : (
                                 <span className="badge bg-secondary">
-                                  <FaClock className="me-1" />
-                                  Not Marked
+                                  Not marked
                                 </span>
                               )}
                             </td>
-                            <td className="text-center">
-                              <div className="btn-group btn-group-sm">
-                                <button
-                                  className={`btn btn-outline-success ${status === "PRESENT" ? "active" : ""}`}
-                                  onClick={() =>
-                                    handleMarkStudent(student.id, "PRESENT")
-                                  }
-                                  disabled={loading}
-                                  title="Mark Present"
-                                >
-                                  <FaCheckCircle />
-                                </button>
-
-                                <button
-                                  className={`btn btn-outline-danger ${status === "ABSENT" ? "active" : ""}`}
-                                  onClick={() =>
-                                    handleMarkStudent(student.id, "ABSENT")
-                                  }
-                                  disabled={loading}
-                                  title="Mark Absent"
-                                >
-                                  <FaTimesCircle />
-                                </button>
-
-                                <button
-                                  className={`btn btn-outline-warning ${status === "LATE" ? "active" : ""}`}
-                                  onClick={() =>
-                                    handleMarkStudent(student.id, "LATE")
-                                  }
-                                  disabled={loading}
-                                  title="Mark Late"
-                                >
-                                  <FaClock />
-                                </button>
-
-                                <button
-                                  className={`btn btn-outline-info ${status === "EXCUSED" ? "active" : ""}`}
-                                  onClick={() =>
-                                    handleMarkStudent(student.id, "EXCUSED")
-                                  }
-                                  disabled={loading}
-                                  title="Mark Excused"
-                                >
-                                  <FaExclamationTriangle />
-                                </button>
+                            <td>
+                              <div className="btn-group btn-group-sm flex-wrap">
+                                {["PRESENT", "ABSENT", "LATE", "EXCUSED"].map(
+                                  (s) => (
+                                    <button
+                                      key={s}
+                                      className={`btn btn-outline-${getStatusColor(
+                                        s,
+                                      )} ${status === s ? `active btn-${getStatusColor(s)}` : ""}`}
+                                      onClick={() =>
+                                        handleMarkStudent(student.id, s)
+                                      }
+                                      disabled={loading}
+                                      type="button"
+                                    >
+                                      {s}
+                                    </button>
+                                  ),
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1872,132 +1637,181 @@ function AttendanceManager() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              ) : (
+                <div className="alert alert-info mb-0">
+                  <FaInfoCircle className="me-2" />
+                  No students found for the selected class.
+                </div>
+              )}
             </div>
-
-            {showInlineStats && classStats && (
-              <div className="card mt-4" ref={statsExportRef}>
-                <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <h5 className="mb-0">
-                    <FaChartBar className="me-2" />
-                    All Students Attendance Statistics - {
-                      selectedClass
-                    } Arm {selectedArm}
-                  </h5>
-                  <span className="badge bg-light text-dark">
-                    {terms.find((t) => t.value === term)?.label} | {session}
-                  </span>
-                </div>
-
-                <div className="card-body">
-                  <div className="row mb-4">
-                    <div className="col-md-3 mb-3">
-                      <div className="card bg-primary text-white">
-                        <div className="card-body text-center">
-                          <h3>{classStats.totalStudents}</h3>
-                          <small>Total Students</small>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="col-md-3 mb-3">
-                      <div className="card bg-success text-white">
-                        <div className="card-body text-center">
-                          <h3>{classStats.totalPresent}</h3>
-                          <small>Total Present</small>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="col-md-3 mb-3">
-                      <div className="card bg-danger text-white">
-                        <div className="card-body text-center">
-                          <h3>{classStats.totalAbsent}</h3>
-                          <small>Total Absent</small>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="col-md-3 mb-3">
-                      <div className="card bg-warning text-white">
-                        <div className="card-body text-center">
-                          <h3>{classStats.averageAttendance?.toFixed(1)}%</h3>
-                          <small>Average Attendance</small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="table-responsive">
-                    <table className="table table-bordered table-striped table-hover">
-                      <thead className="table-light">
-                        <tr>
-                          <th>#</th>
-                          <th>Student Name</th>
-                          <th>Admission No.</th>
-                          <th className="text-center">Present</th>
-                          <th className="text-center">Absent</th>
-                          <th className="text-center">Late</th>
-                          <th className="text-center">Excused</th>
-                          <th className="text-center">Percentage</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {classStats.studentAttendance?.map((student, index) => (
-                          <tr key={student.studentId}>
-                            <td>{index + 1}</td>
-                            <td>{student.studentName}</td>
-                            <td>{student.admissionNumber}</td>
-                            <td className="text-center text-success fw-bold">
-                              {student.present}
-                            </td>
-                            <td className="text-center text-danger fw-bold">
-                              {student.absent}
-                            </td>
-                            <td className="text-center text-warning fw-bold">
-                              {student.late}
-                            </td>
-                            <td className="text-center text-info fw-bold">
-                              {student.excused}
-                            </td>
-                            <td className="text-center">
-                              <span
-                                className={`badge ${
-                                  student.percentage >= 75
-                                    ? "bg-success"
-                                    : student.percentage >= 50
-                                      ? "bg-warning text-dark"
-                                      : "bg-danger"
-                                }`}
-                              >
-                                {student.percentage?.toFixed(1)}%
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-
-                        {!classStats.studentAttendance?.length && (
-                          <tr>
-                            <td colSpan="8" className="text-center text-muted">
-                              No attendance statistics found
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
+          </div>
         )}
 
-      {!loading && !isStudent && !isParent && !selectedClass && (
-        <div className="alert alert-info">
-          <FaFilter className="me-2" />
-          Please select a class and arm to view attendance.
-        </div>
-      )}
+      {!loading &&
+        (isStudent ||
+          isParent ||
+          (!isStudent && !isParent && viewMode === "report")) &&
+        selectedStudent && (
+          <div className="card mb-4">
+            <div className="card-header bg-warning text-dark">
+              <h5 className="mb-0">
+                <FaEye className="me-2" />
+                Attendance Report -{" "}
+                {selectedStudent.fullName ||
+                  `${selectedStudent.firstName || ""} ${selectedStudent.lastName || ""}`}
+              </h5>
+            </div>
+            <div className="card-body">
+              {studentSummary && (
+                <div className="row mb-4">
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-primary text-white">
+                      <div className="card-body text-center">
+                        <h3>{studentSummary.totalSchoolDays || 0}</h3>
+                        <small>Total School Days</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-success text-white">
+                      <div className="card-body text-center">
+                        <h3>{studentSummary.daysPresent || 0}</h3>
+                        <small>Days Present</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-danger text-white">
+                      <div className="card-body text-center">
+                        <h3>{studentSummary.daysAbsent || 0}</h3>
+                        <small>Days Absent</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3 mb-3">
+                    <div className="card bg-info text-white">
+                      <div className="card-body text-center">
+                        <h3>
+                          {Number(
+                            studentSummary.attendancePercentage || 0,
+                          ).toFixed(1)}
+                          %
+                        </h3>
+                        <small>Attendance Rate</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Date</th>
+                      <th>Status</th>
+                      <th>Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentAttendance.length > 0 ? (
+                      studentAttendance.map((record) => {
+                        const badge = getStatusBadge(record.status);
+                        return (
+                          <tr key={record.id}>
+                            <td>{moment(record.date).format("DD/MM/YYYY")}</td>
+                            <td>
+                              {badge ? (
+                                <span className={`badge ${badge.class}`}>
+                                  {badge.icon}
+                                  <span className="ms-1">{badge.text}</span>
+                                </span>
+                              ) : (
+                                record.status
+                              )}
+                            </td>
+                            <td>{record.remarks || "-"}</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan="3" className="text-center text-muted">
+                          No attendance records found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {!isStudent && !isParent && students.length > 0 && (
+                <div className="mt-4">
+                  <label className="form-label fw-bold">
+                    Select Student for Report View
+                  </label>
+                  <select
+                    className="form-select"
+                    value={selectedStudent?.id || ""}
+                    onChange={(e) => {
+                      const student = students.find(
+                        (s) => String(s.id) === String(e.target.value),
+                      );
+                      setSelectedStudent(student || null);
+                    }}
+                  >
+                    <option value="">Choose student</option>
+                    {filteredStudents.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {`${student.firstName || ""} ${student.lastName || ""}`}{" "}
+                        ({student.admissionNumber})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {studentAttendance.length > 0 && (
+                <div className="row mt-4">
+                  <div className="col-md-3">
+                    <div className="alert alert-success mb-2">
+                      Present: <strong>{reportStats.present}</strong>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="alert alert-danger mb-2">
+                      Absent: <strong>{reportStats.absent}</strong>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="alert alert-warning mb-2">
+                      Late: <strong>{reportStats.late}</strong>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="alert alert-info mb-2">
+                      Excused: <strong>{reportStats.excused}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+      {!loading &&
+        !isStudent &&
+        !isParent &&
+        !selectedClassId &&
+        !selectedClass && (
+          <div className="alert alert-info">
+            <FaFilter className="me-2" />
+            Please select a class and arm to view attendance.
+          </div>
+        )}
 
       {!loading && isParent && !selectedWardId && (
         <div className="alert alert-info">
