@@ -6,6 +6,7 @@ import {
   teacherAPI,
   sessionAPI,
   parentPortalAPI,
+  classAPI,
 } from "../services/api";
 import { toast } from "react-toastify";
 import { useAuth } from "../contexts/AuthContext";
@@ -37,6 +38,7 @@ function AttendanceManager() {
   const { t } = useLanguage();
   const location = useLocation();
   const initializedTeacherDefaults = useRef(false);
+  const statsExportRef = useRef(null);
 
   const ui = {
     loadingActiveSession:
@@ -141,6 +143,7 @@ function AttendanceManager() {
   const [loadingSession, setLoadingSession] = useState(true);
 
   const [students, setStudents] = useState([]);
+  const [backendClasses, setBackendClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
   const [selectedDate, setSelectedDate] = useState(
@@ -162,15 +165,12 @@ function AttendanceManager() {
   const [myStudentProfile, setMyStudentProfile] = useState(null);
   const [parentWards, setParentWards] = useState([]);
   const [selectedWardId, setSelectedWardId] = useState("");
-
   const [availableSessions, setAvailableSessions] = useState([]);
   const [activeSessionObj, setActiveSessionObj] = useState(null);
   const [session, setSession] = useState("");
   const [term, setTerm] = useState("FIRST");
 
-  const statsExportRef = useRef(null);
-
-  const classes = [
+  const fallbackClasses = [
     { name: "Nursery", arms: ["A", "B"] },
     { name: "Primary 1", arms: ["A", "B", "C"] },
     { name: "Primary 2", arms: ["A", "B"] },
@@ -203,153 +203,37 @@ function AttendanceManager() {
       .trim()
       .toLowerCase();
 
-  useEffect(() => {
-    loadSessionData();
-  }, []);
+  const buildClassOptionsFromBackend = (classList = []) => {
+    const grouped = {};
 
-  useEffect(() => {
-    if (!mineFromQuery || !classIdFromQuery) {
-      setLockedTeacherClassId(null);
-      return;
-    }
-    setLockedTeacherClassId(Number(classIdFromQuery));
-  }, [mineFromQuery, classIdFromQuery]);
+    classList
+      .filter((c) => c?.className && c?.arm)
+      .forEach((c) => {
+        const classKey = c.className;
+        if (!grouped[classKey]) grouped[classKey] = [];
 
-  useEffect(() => {
-    if (isTeacher && session) {
-      loadTeacherAssignments();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTeacher, session]);
+        const armExists = grouped[classKey].some(
+          (arm) => normalizeArm(arm) === normalizeArm(c.arm),
+        );
 
-  useEffect(() => {
-    if (isStudent) loadMyStudentProfile();
-    if (isParent) loadParentWards();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStudent, isParent]);
+        if (!armExists) grouped[classKey].push(c.arm);
+      });
 
-  useEffect(() => {
-    if (!isTeacher || !teacherAssignments.length) return;
-
-    if (mineFromQuery && lockedTeacherClassId) {
-      const matched = teacherAssignments.find(
-        (a) => String(a.id) === String(lockedTeacherClassId),
-      );
-      if (!matched) return;
-
-      const shouldUpdate =
-        normalizeClassName(selectedClass) !==
-          normalizeClassName(matched.className) ||
-        normalizeArm(selectedArm) !== normalizeArm(matched.arm);
-
-      if (shouldUpdate) {
-        setSelectedClass(matched.className);
-        setSelectedArm(matched.arm);
-        setSelectedStudent(null);
-        setShowInlineStats(false);
-      }
-      return;
-    }
-
-    if (
-      !initializedTeacherDefaults.current &&
-      teacherAssignments.length === 1
-    ) {
-      setSelectedClass(teacherAssignments[0].className);
-      setSelectedArm(teacherAssignments[0].arm);
-      initializedTeacherDefaults.current = true;
-    }
-  }, [
-    isTeacher,
-    teacherAssignments,
-    mineFromQuery,
-    lockedTeacherClassId,
-    selectedClass,
-    selectedArm,
-  ]);
-
-  useEffect(() => {
-    if (!selectedClass) return;
-
-    const allowedArms =
-      allowedClassOptions.find(
-        (c) => normalizeClassName(c.name) === normalizeClassName(selectedClass),
-      )?.arms || [];
-
-    const armStillExists = allowedArms.some(
-      (arm) => normalizeArm(arm) === normalizeArm(selectedArm),
-    );
-
-    if (!armStillExists) {
-      if (allowedArms.length >= 1) {
-        setSelectedArm(allowedArms[0]);
-      } else if (selectedArm) {
-        setSelectedArm("");
-      }
-    }
-  }, [selectedClass]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (isStudent || isParent) return;
-    if (!session || !term) return;
-
-    if (viewMode === "mark" || viewMode === "report") {
-      fetchStudents();
-    } else if (viewMode === "stats") {
-      fetchClassStatistics();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    selectedClass,
-    selectedArm,
-    selectedDate,
-    session,
-    term,
-    viewMode,
-    classIdFromQuery,
-  ]);
-
-  useEffect(() => {
-    if (isStudent && myStudentProfile && session && term) {
-      setSelectedStudent(myStudentProfile);
-      fetchStudentAttendance(myStudentProfile);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStudent, myStudentProfile, session, term]);
-
-  useEffect(() => {
-    if (isParent && selectedWardId && session && term) {
-      const ward = parentWards.find(
-        (w) => String(w.id) === String(selectedWardId),
-      );
-      if (ward) {
-        setSelectedStudent(ward);
-        setSelectedClass(ward.studentClass || "");
-        setSelectedArm(ward.classArm || "");
-        fetchParentWardAttendance(ward);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isParent, selectedWardId, session, term, parentWards]);
-
-  useEffect(() => {
-    if (!isStudent && !isParent && selectedStudent && session && term) {
-      fetchStudentAttendance(selectedStudent);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStudent, session, term, isStudent, isParent]);
+    return Object.entries(grouped).map(([name, arms]) => ({
+      name,
+      arms,
+    }));
+  };
 
   const getSessionName = (sessionItem) =>
     sessionItem?.session || sessionItem?.sessionName || "";
 
-  const sortSessions = (sessionList) => {
-    return [...sessionList].sort((a, b) => {
+  const sortSessions = (sessionList) =>
+    [...sessionList].sort((a, b) => {
       const aDate = new Date(a.startDate || 0).getTime();
       const bDate = new Date(b.startDate || 0).getTime();
       return bDate - aDate;
     });
-  };
-
   const loadSessionData = async () => {
     setLoadingSession(true);
     try {
@@ -484,162 +368,6 @@ function AttendanceManager() {
     }
   };
 
-  const lockedTeacherAssignment = useMemo(() => {
-    if (!isTeacher || !mineFromQuery || !lockedTeacherClassId) return null;
-
-    return (
-      teacherAssignments.find(
-        (a) => String(a.id) === String(lockedTeacherClassId),
-      ) || null
-    );
-  }, [isTeacher, mineFromQuery, lockedTeacherClassId, teacherAssignments]);
-
-  const allowedClassOptions = useMemo(() => {
-    if (isAdmin) return classes;
-
-    if (isTeacher) {
-      if (mineFromQuery && lockedTeacherClassId && lockedTeacherAssignment) {
-        return [
-          {
-            name: lockedTeacherAssignment.className,
-            arms: [lockedTeacherAssignment.arm],
-          },
-        ];
-      }
-
-      const grouped = {};
-      teacherAssignments.forEach((a) => {
-        const classKey = a.className;
-        if (!grouped[classKey]) grouped[classKey] = [];
-
-        const armExists = grouped[classKey].some(
-          (arm) => normalizeArm(arm) === normalizeArm(a.arm),
-        );
-
-        if (!armExists) {
-          grouped[classKey].push(a.arm);
-        }
-      });
-
-      return Object.entries(grouped).map(([name, arms]) => ({
-        name,
-        arms,
-      }));
-    }
-
-    if (isStudent && myStudentProfile?.studentClass) {
-      return [
-        {
-          name: myStudentProfile.studentClass,
-          arms: [myStudentProfile.classArm].filter(Boolean),
-        },
-      ];
-    }
-
-    if (isParent && selectedStudent?.studentClass) {
-      return [
-        {
-          name: selectedStudent.studentClass,
-          arms: [selectedStudent.classArm].filter(Boolean),
-        },
-      ];
-    }
-
-    return [];
-  }, [
-    isAdmin,
-    isTeacher,
-    isStudent,
-    isParent,
-    teacherAssignments,
-    myStudentProfile,
-    selectedStudent,
-    mineFromQuery,
-    lockedTeacherClassId,
-    lockedTeacherAssignment,
-  ]);
-
-  const selectedTeacherAssignment = useMemo(() => {
-    if (!isTeacher) return null;
-
-    return (
-      teacherAssignments.find(
-        (a) =>
-          normalizeClassName(a.className) ===
-            normalizeClassName(selectedClass) &&
-          normalizeArm(a.arm) === normalizeArm(selectedArm),
-      ) || null
-    );
-  }, [isTeacher, teacherAssignments, selectedClass, selectedArm]);
-
-  const selectedClassId = useMemo(() => {
-    if (isTeacher) return selectedTeacherAssignment?.id || null;
-
-    const fromQuery = classIdFromQuery ? Number(classIdFromQuery) : null;
-    if (fromQuery) return fromQuery;
-
-    return null;
-  }, [isTeacher, selectedTeacherAssignment, classIdFromQuery]);
-
-  const isAllowedTeacherClass = (className, arm) => {
-    if (isAdmin) return true;
-    return teacherAssignments.some(
-      (a) =>
-        normalizeClassName(a.className) === normalizeClassName(className) &&
-        normalizeArm(a.arm) === normalizeArm(arm),
-    );
-  };
-
-  const fetchStudents = async () => {
-    if (!session || !term) return;
-
-    if (isTeacher) {
-      if (!selectedTeacherAssignment) return;
-    } else {
-      if (!selectedClassId) {
-        setStudents([]);
-        setAttendanceData({});
-        return;
-      }
-    }
-
-    setLoading(true);
-    try {
-      let response;
-
-      if (isTeacher) {
-        response = await teacherAPI.getMyClassStudents(
-          selectedTeacherAssignment.id,
-        );
-      } else {
-        response = await studentAPI.getStudentsByClassId(selectedClassId);
-      }
-
-      const studentList = Array.isArray(response?.data) ? response.data : [];
-      setStudents(studentList);
-
-      if (studentList.length > 0 && (!selectedClass || !selectedArm)) {
-        setSelectedClass(studentList[0].studentClass || "");
-        setSelectedArm(studentList[0].classArm || "");
-      }
-
-      const attendanceMap = {};
-      studentList.forEach((student) => {
-        attendanceMap[student.id] = null;
-      });
-      setAttendanceData(attendanceMap);
-
-      await fetchExistingAttendance(studentList);
-    } catch (error) {
-      console.error("Error fetching students:", error);
-      toast.error(error?.response?.data?.message || ui.failedStudents);
-      setStudents([]);
-      setAttendanceData({});
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchExistingAttendance = async (studentList) => {
     try {
       const updates = {};
@@ -681,6 +409,39 @@ function AttendanceManager() {
     }
   };
 
+  const fetchStudents = async () => {
+    if (!session || !term) return;
+
+    const classId = isTeacher ? selectedTeacherAssignment?.id : selectedClassId;
+
+    if (!classId) {
+      setStudents([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await studentAPI.getStudentsByClassId(classId);
+      const studentList = Array.isArray(response?.data) ? response.data : [];
+
+      setStudents(studentList);
+
+      const map = {};
+      studentList.forEach((s) => {
+        map[s.id] = null;
+      });
+      setAttendanceData(map);
+
+      await fetchExistingAttendance(studentList);
+    } catch (error) {
+      console.error("FETCH STUDENTS ERROR:", error);
+      toast.error(ui.failedStudents);
+      setStudents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchClassStatistics = async () => {
     if (!session || !term) return;
 
@@ -705,7 +466,9 @@ function AttendanceManager() {
         session,
         term,
       );
+
       setClassStats(response.data || null);
+      setShowInlineStats(true);
 
       if (!selectedClass && response?.data?.className) {
         setSelectedClass(response.data.className);
@@ -717,23 +480,181 @@ function AttendanceManager() {
       console.error("Error fetching class statistics:", error);
       toast.error(error?.response?.data?.message || ui.failedClassStats);
       setClassStats(null);
+      setShowInlineStats(true);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchStudentAttendance = async (studentArg = selectedStudent) => {
+    if (!studentArg || !session || !term) return;
+
+    setLoading(true);
+    try {
+      const [attendanceRes, summaryRes] = await Promise.all([
+        attendanceAPI.getStudentTermAttendance(studentArg.id, session, term),
+        attendanceAPI.getStudentTermSummary(studentArg.id, session, term),
+      ]);
+
+      const records = Array.isArray(attendanceRes.data)
+        ? attendanceRes.data
+        : [];
+
+      setStudentAttendance(records);
+      setStudentSummary(summaryRes.data || null);
+    } catch (error) {
+      console.error("Error fetching student attendance:", error);
+      toast.error(error?.response?.data?.message || ui.failedStudentAttendance);
+      setStudentAttendance([]);
+      setStudentSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchParentWardAttendance = async (wardArg = selectedStudent) => {
+    if (!wardArg || !session || !term) return;
+
+    setLoading(true);
+    try {
+      const summaryRes = await parentPortalAPI.getWardAttendance(
+        wardArg.id,
+        session,
+        term,
+      );
+
+      const recordsRes = await attendanceAPI.getStudentTermAttendance(
+        wardArg.id,
+        session,
+        term,
+      );
+
+      const records = Array.isArray(recordsRes.data) ? recordsRes.data : [];
+
+      setStudentAttendance(records);
+      setStudentSummary(summaryRes.data || null);
+    } catch (error) {
+      console.error("Error fetching ward attendance:", error);
+      toast.error(error?.response?.data?.message || ui.failedWardAttendance);
+      setStudentAttendance([]);
+      setStudentSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleShowInlineStats = async () => {
     if (!session || !term) {
       toast.warning(ui.selectClassArmSessionTerm);
       return;
     }
-
     await fetchClassStatistics();
-    setShowInlineStats(true);
   };
 
   const handleHideInlineStats = () => {
     setShowInlineStats(false);
+  };
+
+  const handleMarkAll = async (status) => {
+    if (students.length === 0) {
+      toast.warning(ui.selectClassFirst);
+      return;
+    }
+
+    if (!session || !term) {
+      toast.warning(ui.sessionTermRequired);
+      return;
+    }
+
+    if (isTeacher && !selectedTeacherAssignment) {
+      toast.error(ui.teacherClassRestriction);
+      return;
+    }
+
+    const studentIds = students.map((s) => s.id);
+
+    setLoading(true);
+    try {
+      if (isTeacher) {
+        await teacherAPI.markMyClassAttendance(selectedTeacherAssignment.id, {
+          studentIds,
+          date: selectedDate,
+          session,
+          term,
+          status,
+        });
+      } else {
+        await attendanceAPI.markBulkAttendance(
+          studentIds,
+          selectedDate,
+          session,
+          term,
+          status,
+        );
+      }
+
+      toast.success(`All students marked as ${status}`);
+
+      const newAttendanceData = {};
+      studentIds.forEach((id) => {
+        newAttendanceData[id] = status;
+      });
+      setAttendanceData(newAttendanceData);
+
+      if (showInlineStats) fetchClassStatistics();
+    } catch (error) {
+      console.error("Error marking bulk attendance:", error);
+      toast.error(error?.response?.data?.message || ui.failedMarkAttendance);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkStudent = async (studentId, status) => {
+    if (!session || !term) {
+      toast.warning(ui.sessionTermRequired);
+      return;
+    }
+
+    if (isTeacher && !selectedTeacherAssignment) {
+      toast.error(ui.teacherClassRestriction);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (isTeacher) {
+        await teacherAPI.markMyClassAttendance(selectedTeacherAssignment.id, {
+          studentIds: [studentId],
+          date: selectedDate,
+          session,
+          term,
+          status,
+        });
+      } else {
+        await attendanceAPI.markAttendance(
+          studentId,
+          selectedDate,
+          session,
+          term,
+          status,
+        );
+      }
+
+      toast.success(`Student marked as ${status}`);
+
+      setAttendanceData((prev) => ({
+        ...prev,
+        [studentId]: status,
+      }));
+
+      if (selectedStudent?.id === studentId) fetchStudentAttendance();
+      if (showInlineStats) fetchClassStatistics();
+    } catch (error) {
+      console.error("Error marking attendance:", error);
+      toast.error(error?.response?.data?.message || ui.failedMarkAttendance);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const exportStatisticsToCsv = () => {
@@ -816,7 +737,6 @@ function AttendanceManager() {
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-
       const imgWidth = pageWidth - 20;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
@@ -844,172 +764,6 @@ function AttendanceManager() {
       toast.error(ui.failedExportPdf);
     } finally {
       setExportingPdf(false);
-    }
-  };
-
-  const fetchStudentAttendance = async (studentArg = selectedStudent) => {
-    if (!studentArg || !session || !term) return;
-
-    setLoading(true);
-    try {
-      const [attendanceRes, summaryRes] = await Promise.all([
-        attendanceAPI.getStudentTermAttendance(studentArg.id, session, term),
-        attendanceAPI.getStudentTermSummary(studentArg.id, session, term),
-      ]);
-
-      const records = Array.isArray(attendanceRes.data)
-        ? attendanceRes.data
-        : [];
-      setStudentAttendance(records);
-      setStudentSummary(summaryRes.data || null);
-    } catch (error) {
-      console.error("Error fetching student attendance:", error);
-      toast.error(error?.response?.data?.message || ui.failedStudentAttendance);
-      setStudentAttendance([]);
-      setStudentSummary(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchParentWardAttendance = async (wardArg = selectedStudent) => {
-    if (!wardArg || !session || !term) return;
-
-    setLoading(true);
-    try {
-      const summaryRes = await parentPortalAPI.getWardAttendance(
-        wardArg.id,
-        session,
-        term,
-      );
-
-      const recordsRes = await attendanceAPI.getStudentTermAttendance(
-        wardArg.id,
-        session,
-        term,
-      );
-
-      const records = Array.isArray(recordsRes.data) ? recordsRes.data : [];
-
-      setStudentAttendance(records);
-      setStudentSummary(summaryRes.data || null);
-    } catch (error) {
-      console.error("Error fetching ward attendance:", error);
-      toast.error(error?.response?.data?.message || ui.failedWardAttendance);
-      setStudentAttendance([]);
-      setStudentSummary(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMarkAll = async (status) => {
-    if (students.length === 0) {
-      toast.warning(ui.selectClassFirst);
-      return;
-    }
-
-    if (!session || !term) {
-      toast.warning(ui.sessionTermRequired);
-      return;
-    }
-
-    if (isTeacher && !selectedTeacherAssignment) {
-      toast.error(ui.teacherClassRestriction);
-      return;
-    }
-
-    const studentIds = students.map((s) => s.id);
-
-    setLoading(true);
-    try {
-      if (isTeacher) {
-        await teacherAPI.markMyClassAttendance(selectedTeacherAssignment.id, {
-          studentIds,
-          date: selectedDate,
-          session,
-          term,
-          status,
-        });
-      } else {
-        await attendanceAPI.markBulkAttendance(
-          studentIds,
-          selectedDate,
-          session,
-          term,
-          status,
-        );
-      }
-
-      toast.success(`All students marked as ${status}`);
-
-      const newAttendanceData = {};
-      studentIds.forEach((id) => {
-        newAttendanceData[id] = status;
-      });
-      setAttendanceData(newAttendanceData);
-
-      if (showInlineStats) {
-        fetchClassStatistics();
-      }
-    } catch (error) {
-      console.error("Error marking bulk attendance:", error);
-      toast.error(error?.response?.data?.message || ui.failedMarkAttendance);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMarkStudent = async (studentId, status) => {
-    if (!session || !term) {
-      toast.warning(ui.sessionTermRequired);
-      return;
-    }
-
-    if (isTeacher && !selectedTeacherAssignment) {
-      toast.error(ui.teacherClassRestriction);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (isTeacher) {
-        await teacherAPI.markMyClassAttendance(selectedTeacherAssignment.id, {
-          studentIds: [studentId],
-          date: selectedDate,
-          session,
-          term,
-          status,
-        });
-      } else {
-        await attendanceAPI.markAttendance(
-          studentId,
-          selectedDate,
-          session,
-          term,
-          status,
-        );
-      }
-
-      toast.success(`Student marked as ${status}`);
-
-      setAttendanceData((prev) => ({
-        ...prev,
-        [studentId]: status,
-      }));
-
-      if (selectedStudent?.id === studentId) {
-        fetchStudentAttendance();
-      }
-
-      if (showInlineStats) {
-        fetchClassStatistics();
-      }
-    } catch (error) {
-      console.error("Error marking attendance:", error);
-      toast.error(error?.response?.data?.message || ui.failedMarkAttendance);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1066,6 +820,117 @@ function AttendanceManager() {
     return fullName.includes(q) || admission.includes(q);
   });
 
+  const lockedTeacherAssignment = useMemo(() => {
+    if (!isTeacher || !mineFromQuery || !lockedTeacherClassId) return null;
+
+    return (
+      teacherAssignments.find(
+        (a) => String(a.id) === String(lockedTeacherClassId),
+      ) || null
+    );
+  }, [isTeacher, mineFromQuery, lockedTeacherClassId, teacherAssignments]);
+
+  const allowedClassOptions = useMemo(() => {
+    if (isAdmin) {
+      const backendOptions = buildClassOptionsFromBackend(backendClasses);
+      return backendOptions.length ? backendOptions : fallbackClasses;
+    }
+
+    if (isTeacher) {
+      if (mineFromQuery && lockedTeacherClassId && lockedTeacherAssignment) {
+        return [
+          {
+            name: lockedTeacherAssignment.className,
+            arms: [lockedTeacherAssignment.arm],
+          },
+        ];
+      }
+
+      const grouped = {};
+      teacherAssignments.forEach((a) => {
+        const classKey = a.className;
+        if (!grouped[classKey]) grouped[classKey] = [];
+
+        const armExists = grouped[classKey].some(
+          (arm) => normalizeArm(arm) === normalizeArm(a.arm),
+        );
+
+        if (!armExists) grouped[classKey].push(a.arm);
+      });
+
+      return Object.entries(grouped).map(([name, arms]) => ({ name, arms }));
+    }
+
+    if (isStudent && myStudentProfile?.studentClass) {
+      return [
+        {
+          name: myStudentProfile.studentClass,
+          arms: [myStudentProfile.classArm].filter(Boolean),
+        },
+      ];
+    }
+
+    if (isParent && selectedStudent?.studentClass) {
+      return [
+        {
+          name: selectedStudent.studentClass,
+          arms: [selectedStudent.classArm].filter(Boolean),
+        },
+      ];
+    }
+
+    return [];
+  }, [
+    isAdmin,
+    isTeacher,
+    isStudent,
+    isParent,
+    backendClasses,
+    teacherAssignments,
+    myStudentProfile,
+    selectedStudent,
+    mineFromQuery,
+    lockedTeacherClassId,
+    lockedTeacherAssignment,
+  ]);
+
+  const selectedTeacherAssignment = useMemo(() => {
+    if (!isTeacher) return null;
+
+    return (
+      teacherAssignments.find(
+        (a) =>
+          normalizeClassName(a.className) ===
+            normalizeClassName(selectedClass) &&
+          normalizeArm(a.arm) === normalizeArm(selectedArm),
+      ) || null
+    );
+  }, [isTeacher, teacherAssignments, selectedClass, selectedArm]);
+
+  const selectedClassId = useMemo(() => {
+    if (isTeacher) return selectedTeacherAssignment?.id || null;
+
+    const fromQuery = classIdFromQuery ? Number(classIdFromQuery) : null;
+    if (fromQuery) return fromQuery;
+
+    if (!selectedClass || !selectedArm) return null;
+
+    const matchedBackendClass = backendClasses.find(
+      (c) =>
+        normalizeClassName(c.className) === normalizeClassName(selectedClass) &&
+        normalizeArm(c.arm) === normalizeArm(selectedArm),
+    );
+
+    return matchedBackendClass?.id || null;
+  }, [
+    isTeacher,
+    selectedTeacherAssignment,
+    classIdFromQuery,
+    selectedClass,
+    selectedArm,
+    backendClasses,
+  ]);
+
   const reportStats = useMemo(() => {
     const present = studentAttendance.filter(
       (r) => r.status === "PRESENT",
@@ -1080,17 +945,176 @@ function AttendanceManager() {
 
     return { present, absent, late, excused };
   }, [studentAttendance]);
+  useEffect(() => {
+    loadSessionData();
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const loadBackendClasses = async () => {
+      try {
+        const response = await classAPI.getAllClasses();
+        const classList = Array.isArray(response?.data) ? response.data : [];
+        setBackendClasses(classList);
+      } catch (error) {
+        console.error("Error loading backend classes:", error);
+        setBackendClasses([]);
+      }
+    };
+
+    loadBackendClasses();
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!mineFromQuery || !classIdFromQuery) {
+      setLockedTeacherClassId(null);
+      return;
+    }
+    setLockedTeacherClassId(Number(classIdFromQuery));
+  }, [mineFromQuery, classIdFromQuery]);
+
+  useEffect(() => {
+    if (isTeacher || !classIdFromQuery || !backendClasses.length) return;
+
+    const matched = backendClasses.find(
+      (c) => String(c.id) === String(classIdFromQuery),
+    );
+
+    if (!matched) return;
+
+    const shouldUpdate =
+      normalizeClassName(selectedClass) !==
+        normalizeClassName(matched.className) ||
+      normalizeArm(selectedArm) !== normalizeArm(matched.arm);
+
+    if (shouldUpdate) {
+      setSelectedClass(matched.className || "");
+      setSelectedArm(matched.arm || "");
+    }
+  }, [isTeacher, classIdFromQuery, backendClasses, selectedClass, selectedArm]);
+
+  useEffect(() => {
+    if (isTeacher && session) loadTeacherAssignments();
+  }, [isTeacher, session]);
+
+  useEffect(() => {
+    if (isStudent) loadMyStudentProfile();
+    if (isParent) loadParentWards();
+  }, [isStudent, isParent]);
+
+  useEffect(() => {
+    if (!isTeacher || !teacherAssignments.length) return;
+
+    if (mineFromQuery && lockedTeacherClassId) {
+      const matched = teacherAssignments.find(
+        (a) => String(a.id) === String(lockedTeacherClassId),
+      );
+      if (!matched) return;
+
+      const shouldUpdate =
+        normalizeClassName(selectedClass) !==
+          normalizeClassName(matched.className) ||
+        normalizeArm(selectedArm) !== normalizeArm(matched.arm);
+
+      if (shouldUpdate) {
+        setSelectedClass(matched.className);
+        setSelectedArm(matched.arm);
+        setSelectedStudent(null);
+        setShowInlineStats(false);
+      }
+      return;
+    }
+
+    if (
+      !initializedTeacherDefaults.current &&
+      teacherAssignments.length === 1
+    ) {
+      setSelectedClass(teacherAssignments[0].className);
+      setSelectedArm(teacherAssignments[0].arm);
+      initializedTeacherDefaults.current = true;
+    }
+  }, [
+    isTeacher,
+    teacherAssignments,
+    mineFromQuery,
+    lockedTeacherClassId,
+    selectedClass,
+    selectedArm,
+  ]);
+
+  useEffect(() => {
+    if (!selectedClass) return;
+
+    const allowedArms =
+      allowedClassOptions.find(
+        (c) => normalizeClassName(c.name) === normalizeClassName(selectedClass),
+      )?.arms || [];
+
+    const armStillExists = allowedArms.some(
+      (arm) => normalizeArm(arm) === normalizeArm(selectedArm),
+    );
+
+    if (!armStillExists) {
+      if (allowedArms.length >= 1) setSelectedArm(allowedArms[0]);
+      else if (selectedArm) setSelectedArm("");
+    }
+  }, [selectedClass, allowedClassOptions, selectedArm]);
+
+  useEffect(() => {
+    if (isStudent || isParent) return;
+    if (!session || !term) return;
+
+    if (viewMode === "mark" || viewMode === "report") {
+      fetchStudents();
+    } else if (viewMode === "stats") {
+      fetchClassStatistics();
+    }
+  }, [
+    selectedClass,
+    selectedArm,
+    selectedDate,
+    session,
+    term,
+    viewMode,
+    classIdFromQuery,
+    selectedClassId,
+  ]);
+
+  useEffect(() => {
+    if (isStudent && myStudentProfile && session && term) {
+      setSelectedStudent(myStudentProfile);
+      fetchStudentAttendance(myStudentProfile);
+    }
+  }, [isStudent, myStudentProfile, session, term]);
+
+  useEffect(() => {
+    if (isParent && selectedWardId && session && term) {
+      const ward = parentWards.find(
+        (w) => String(w.id) === String(selectedWardId),
+      );
+      if (ward) {
+        setSelectedStudent(ward);
+        setSelectedClass(ward.studentClass || "");
+        setSelectedArm(ward.classArm || "");
+        fetchParentWardAttendance(ward);
+      }
+    }
+  }, [isParent, selectedWardId, session, term, parentWards]);
+
+  useEffect(() => {
+    if (!isStudent && !isParent && selectedStudent && session && term) {
+      fetchStudentAttendance(selectedStudent);
+    }
+  }, [selectedStudent, session, term, isStudent, isParent]);
 
   if (loadingSession) {
     return (
       <div className="text-center py-5">
         <FaSpinner className="spin" size={40} />
         <p className="mt-3">{ui.loadingActiveSession}</p>
-
         <style>{`
-          .spin {
-            animation: spin 1s linear infinite;
-          }
+          .spin { animation: spin 1s linear infinite; }
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
@@ -1104,7 +1128,7 @@ function AttendanceManager() {
     <div className="attendance-manager container-fluid py-4">
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h2 className="mb-0">
-          <FaCalendarAlt className="me-2" />{" "}
+          <FaCalendarAlt className="me-2" />
           {isParent ? ui.wardAttendance : ui.attendanceManagement}
         </h2>
 
@@ -1131,6 +1155,7 @@ function AttendanceManager() {
             {isParent ? ui.wardAttendanceControls : ui.attendanceControls}
           </h5>
         </div>
+
         <div className="card-body">
           <div className="row">
             <div className="col-md-2 mb-3">
@@ -1138,7 +1163,10 @@ function AttendanceManager() {
               <select
                 className="form-select"
                 value={viewMode}
-                onChange={(e) => setViewMode(e.target.value)}
+                onChange={(e) => {
+                  setViewMode(e.target.value);
+                  if (e.target.value !== "stats") setShowInlineStats(false);
+                }}
                 disabled={isStudent || isParent}
               >
                 {!isStudent && !isParent && (
@@ -1185,7 +1213,6 @@ function AttendanceManager() {
                     value={selectedClass}
                     onChange={(e) => {
                       const newClass = e.target.value;
-
                       const allowedArms =
                         allowedClassOptions.find(
                           (c) =>
@@ -1196,6 +1223,7 @@ function AttendanceManager() {
                       setSelectedClass(newClass);
                       setSelectedArm(allowedArms[0] || "");
                       setSelectedStudent(null);
+                      setClassStats(null);
                       setShowInlineStats(false);
                     }}
                     disabled={
@@ -1221,6 +1249,7 @@ function AttendanceManager() {
                     onChange={(e) => {
                       setSelectedArm(e.target.value);
                       setSelectedStudent(null);
+                      setClassStats(null);
                       setShowInlineStats(false);
                     }}
                     disabled={
@@ -1252,7 +1281,6 @@ function AttendanceManager() {
               (!isStudent && !isParent && viewMode === "report")) && (
               <div className="col-md-2 mb-3">
                 <label className="form-label">{ui.date}</label>
-
                 <input
                   type="date"
                   className="form-control"
@@ -1270,20 +1298,18 @@ function AttendanceManager() {
                 value={session}
                 onChange={(e) => {
                   setSession(e.target.value);
+                  setClassStats(null);
                   setShowInlineStats(false);
                 }}
-                disabled={availableSessions.length === 0}
               >
-                <option value="">
-                  {availableSessions.length === 0
-                    ? "No sessions available"
-                    : "Select Session"}
-                </option>
-                {availableSessions.map((s) => (
-                  <option key={s.id} value={getSessionName(s)}>
-                    {getSessionName(s)}
-                  </option>
-                ))}
+                {availableSessions.map((sessionItem) => {
+                  const sessionName = getSessionName(sessionItem);
+                  return (
+                    <option key={sessionName} value={sessionName}>
+                      {sessionName}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -1294,127 +1320,197 @@ function AttendanceManager() {
                 value={term}
                 onChange={(e) => {
                   setTerm(e.target.value);
+                  setClassStats(null);
                   setShowInlineStats(false);
                 }}
               >
-                {terms.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {terms.map((termItem) => (
+                  <option key={termItem.value} value={termItem.value}>
+                    {termItem.label}
                   </option>
                 ))}
               </select>
             </div>
-          </div>
 
-          {!isStudent &&
-            !isParent &&
-            viewMode === "mark" &&
-            (selectedClassId || (selectedClass && selectedArm)) && (
-              <div className="mt-3">
-                <label className="form-label me-3 fw-bold">
-                  Quick Actions:
-                </label>
-
-                <div className="d-flex flex-wrap gap-2">
-                  <button
-                    className="btn btn-success"
-                    onClick={() => handleMarkAll("PRESENT")}
-                    disabled={loading}
-                  >
-                    <FaCheckCircle className="me-2" />
-                    Mark All Present
-                  </button>
-
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => handleMarkAll("ABSENT")}
-                    disabled={loading}
-                  >
-                    <FaTimesCircle className="me-2" />
-                    Mark All Absent
-                  </button>
-
-                  <button
-                    className="btn btn-warning"
-                    onClick={() => handleMarkAll("LATE")}
-                    disabled={loading}
-                  >
-                    <FaClock className="me-2" />
-                    Mark All Late
-                  </button>
-
-                  <button
-                    className="btn btn-info"
-                    onClick={() => handleMarkAll("EXCUSED")}
-                    disabled={loading}
-                  >
-                    <FaExclamationTriangle className="me-2" />
-                    Mark All Excused
-                  </button>
-
-                  <button
-                    className="btn btn-outline-dark"
-                    onClick={handleShowInlineStats}
-                    disabled={loading}
-                  >
-                    <FaChartBar className="me-2" />
-                    Show Statistics
-                  </button>
-                </div>
-
-                {showInlineStats && (
-                  <div className="d-flex flex-wrap gap-2 mt-3">
-                    <button
-                      className="btn btn-outline-success"
-                      onClick={exportStatisticsToCsv}
-                      disabled={
-                        loading || !classStats?.studentAttendance?.length
-                      }
-                    >
-                      <FaDownload className="me-2" />
-                      Export Excel (CSV)
-                    </button>
-
-                    <button
-                      className="btn btn-outline-danger"
-                      onClick={exportStatisticsToPdf}
-                      disabled={
-                        loading ||
-                        exportingPdf ||
-                        !classStats?.studentAttendance?.length
-                      }
-                    >
-                      {exportingPdf ? (
-                        <>
-                          <FaSpinner className="spin me-2" />
-                          Exporting...
-                        </>
-                      ) : (
-                        <>
-                          <FaFilePdf className="me-2" />
-                          Export PDF
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      className="btn btn-outline-secondary"
-                      onClick={handleHideInlineStats}
-                      disabled={loading}
-                    >
-                      <FaTimesCircle className="me-2" />
-                      Hide Statistics
-                    </button>
-                  </div>
-                )}
+            {!isStudent && !isParent && viewMode === "stats" && (
+              <div className="col-md-2 mb-3 d-flex align-items-end">
+                <button
+                  className="btn btn-outline-info w-100"
+                  onClick={handleShowInlineStats}
+                  disabled={!selectedClassId || !session || !term}
+                  type="button"
+                >
+                  <FaChartBar className="me-2" />
+                  Show Stats
+                </button>
               </div>
             )}
+          </div>
+        </div>
+      </div>
 
-          {!isStudent &&
-            !isParent &&
-            viewMode === "report" &&
-            students.length > 0 && (
-              <div className="mt-3">
+      {viewMode === "stats" && showInlineStats && (
+        <div className="card mb-4">
+          <div className="card-header bg-info text-white d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">
+              <FaChartBar className="me-2" />
+              Attendance Statistics
+              {selectedClass ? ` - ${selectedClass}` : ""}
+              {selectedArm ? ` Arm ${selectedArm}` : ""}
+            </h5>
+            <div className="d-flex gap-2">
+              <button
+                className="btn btn-sm btn-light"
+                onClick={exportStatisticsToCsv}
+                type="button"
+                disabled={!classStats}
+              >
+                <FaDownload className="me-1" />
+                CSV
+              </button>
+              <button
+                className="btn btn-sm btn-light"
+                onClick={exportStatisticsToPdf}
+                type="button"
+                disabled={!classStats || exportingPdf}
+              >
+                <FaFilePdf className="me-1" />
+                {exportingPdf ? "Exporting..." : "PDF"}
+              </button>
+              <button
+                className="btn btn-sm btn-outline-light"
+                onClick={handleHideInlineStats}
+                type="button"
+              >
+                Hide
+              </button>
+            </div>
+          </div>
+
+          <div className="card-body" ref={statsExportRef}>
+            {!classStats ? (
+              <div className="alert alert-warning mb-0">
+                <FaInfoCircle className="me-2" />
+                No statistics available for this class, session and term.
+              </div>
+            ) : (
+              <>
+                <div className="row mb-3">
+                  <div className="col-md-3">
+                    <div className="alert alert-success mb-2">
+                      Present:{" "}
+                      <strong>
+                        {classStats.present ?? classStats.presentCount ?? 0}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="alert alert-danger mb-2">
+                      Absent:{" "}
+                      <strong>
+                        {classStats.absent ?? classStats.absentCount ?? 0}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="alert alert-warning mb-2">
+                      Late:{" "}
+                      <strong>
+                        {classStats.late ?? classStats.lateCount ?? 0}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="alert alert-info mb-2">
+                      Excused:{" "}
+                      <strong>
+                        {classStats.excused ?? classStats.excusedCount ?? 0}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {(classStats.studentAttendance || []).length > 0 ? (
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped table-hover">
+                      <thead className="table-light">
+                        <tr>
+                          <th>#</th>
+                          <th>Student Name</th>
+                          <th>Admission No.</th>
+                          <th className="text-center">Present</th>
+                          <th className="text-center">Absent</th>
+                          <th className="text-center">Late</th>
+                          <th className="text-center">Excused</th>
+                          <th className="text-center">Percentage</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(classStats.studentAttendance || []).map(
+                          (student, index) => (
+                            <tr key={student.studentId || index}>
+                              <td>{index + 1}</td>
+                              <td>{student.studentName || "-"}</td>
+                              <td>{student.admissionNumber || "-"}</td>
+                              <td className="text-center text-success fw-bold">
+                                {student.present ?? 0}
+                              </td>
+                              <td className="text-center text-danger fw-bold">
+                                {student.absent ?? 0}
+                              </td>
+                              <td className="text-center text-warning fw-bold">
+                                {student.late ?? 0}
+                              </td>
+                              <td className="text-center text-info fw-bold">
+                                {student.excused ?? 0}
+                              </td>
+                              <td className="text-center">
+                                <span
+                                  className={`badge ${
+                                    Number(student.percentage || 0) >= 75
+                                      ? "bg-success"
+                                      : Number(student.percentage || 0) >= 50
+                                        ? "bg-warning text-dark"
+                                        : "bg-danger"
+                                  }`}
+                                >
+                                  {Number(student.percentage || 0).toFixed(1)}%
+                                </span>
+                              </td>
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="alert alert-info mb-0">
+                    <FaInfoCircle className="me-2" />
+                    No attendance statistics found
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!loading && !isStudent && !isParent && viewMode === "mark" && (
+        <div className="card mb-4">
+          <div className="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">
+              <FaUsers className="me-2" />
+              Students - {selectedClass || "Selected Class"}{" "}
+              {selectedArm ? `Arm ${selectedArm}` : ""}
+            </h5>
+            <span className="badge bg-light text-dark">
+              {students.length} students
+            </span>
+          </div>
+
+          <div className="card-body">
+            <div className="row mb-3">
+              <div className="col-md-6">
                 <div className="input-group">
                   <span className="input-group-text">
                     <FaSearch />
@@ -1422,334 +1518,143 @@ function AttendanceManager() {
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Search students by name or admission number..."
+                    placeholder="Search by name or admission number"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
               </div>
-            )}
-        </div>
-      </div>
 
-      {loading && (
-        <div className="text-center py-5">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
+              {students.length > 0 && (
+                <div className="col-md-6 d-flex justify-content-md-end gap-2 mt-3 mt-md-0 flex-wrap">
+                  <button
+                    className="btn btn-success btn-sm"
+                    onClick={() => handleMarkAll("PRESENT")}
+                    disabled={loading}
+                    type="button"
+                  >
+                    {ui.present}
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => handleMarkAll("ABSENT")}
+                    disabled={loading}
+                    type="button"
+                  >
+                    {ui.absent}
+                  </button>
+                  <button
+                    className="btn btn-warning btn-sm"
+                    onClick={() => handleMarkAll("LATE")}
+                    disabled={loading}
+                    type="button"
+                  >
+                    {ui.late}
+                  </button>
+                  <button
+                    className="btn btn-info btn-sm"
+                    onClick={() => handleMarkAll("EXCUSED")}
+                    disabled={loading}
+                    type="button"
+                  >
+                    {ui.excused}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {students.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead className="table-light">
+                    <tr>
+                      <th>S/N</th>
+                      <th>Student Name</th>
+                      <th>Admission No.</th>
+                      <th>Current Status</th>
+                      <th>Mark Attendance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.map((student, index) => {
+                      const status = attendanceData[student.id];
+                      const badge = getStatusBadge(status);
+
+                      return (
+                        <tr key={student.id}>
+                          <td>{index + 1}</td>
+                          <td>{`${student.firstName || ""} ${student.lastName || ""}`}</td>
+                          <td>{student.admissionNumber}</td>
+                          <td>
+                            {badge ? (
+                              <span className={`badge ${badge.class}`}>
+                                {badge.icon}
+                                <span className="ms-1">{badge.text}</span>
+                              </span>
+                            ) : (
+                              <span className="badge bg-secondary">
+                                Not marked
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="btn-group btn-group-sm flex-wrap">
+                              {["PRESENT", "ABSENT", "LATE", "EXCUSED"].map(
+                                (s) => (
+                                  <button
+                                    key={s}
+                                    className={`btn btn-outline-${getStatusColor(s)} ${
+                                      status === s
+                                        ? `active btn-${getStatusColor(s)}`
+                                        : ""
+                                    }`}
+                                    onClick={() =>
+                                      handleMarkStudent(student.id, s)
+                                    }
+                                    disabled={loading}
+                                    type="button"
+                                  >
+                                    {s}
+                                  </button>
+                                ),
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="alert alert-info mb-0">
+                <FaInfoCircle className="me-2" />
+                No students found for the selected class.
+              </div>
+            )}
           </div>
-          <p className="mt-3">Loading...</p>
         </div>
       )}
 
       {!loading &&
-        !isStudent &&
-        !isParent &&
-        viewMode === "stats" &&
-        classStats && (
-          <div className="card">
-            <div className="card-header bg-info text-white">
-              <h5 className="mb-0">
-                <FaChartBar className="me-2" />
-                Class Statistics: {classStats.className} - Arm {classStats.arm}
-              </h5>
-            </div>
-            <div className="card-body">
-              <div ref={statsExportRef}>
-                <div className="row mb-4">
-                  <div className="col-md-3 mb-3">
-                    <div className="card bg-primary text-white">
-                      <div className="card-body text-center">
-                        <h3>{classStats.totalStudents}</h3>
-                        <small>Total Students</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-md-3 mb-3">
-                    <div className="card bg-success text-white">
-                      <div className="card-body text-center">
-                        <h3>{classStats.totalPresent}</h3>
-                        <small>Total Present</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-md-3 mb-3">
-                    <div className="card bg-danger text-white">
-                      <div className="card-body text-center">
-                        <h3>{classStats.totalAbsent}</h3>
-                        <small>Total Absent</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-md-3 mb-3">
-                    <div className="card bg-warning text-dark">
-                      <div className="card-body text-center">
-                        <h3>
-                          {Number(classStats.averageAttendance || 0).toFixed(1)}
-                          %
-                        </h3>
-                        <small>Average Attendance</small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="table-responsive">
-                  <table className="table table-bordered table-striped table-hover">
-                    <thead className="table-light">
-                      <tr>
-                        <th>#</th>
-                        <th>Student Name</th>
-                        <th>Admission No.</th>
-                        <th className="text-center">Present</th>
-                        <th className="text-center">Absent</th>
-                        <th className="text-center">Late</th>
-                        <th className="text-center">Excused</th>
-                        <th className="text-center">Percentage</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {classStats.studentAttendance?.map((student, index) => (
-                        <tr key={student.studentId}>
-                          <td>{index + 1}</td>
-                          <td>{student.studentName}</td>
-                          <td>{student.admissionNumber}</td>
-                          <td className="text-center text-success fw-bold">
-                            {student.present}
-                          </td>
-                          <td className="text-center text-danger fw-bold">
-                            {student.absent}
-                          </td>
-                          <td className="text-center text-warning fw-bold">
-                            {student.late}
-                          </td>
-                          <td className="text-center text-info fw-bold">
-                            {student.excused}
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`badge ${
-                                student.percentage >= 75
-                                  ? "bg-success"
-                                  : student.percentage >= 50
-                                    ? "bg-warning text-dark"
-                                    : "bg-danger"
-                              }`}
-                            >
-                              {student.percentage?.toFixed(1)}%
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-
-                      {!classStats.studentAttendance?.length && (
-                        <tr>
-                          <td colSpan="8" className="text-center text-muted">
-                            No attendance statistics found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-      {!loading &&
-        !isStudent &&
-        !isParent &&
-        viewMode === "mark" &&
-        (selectedClassId || (selectedClass && selectedArm)) && (
-          <div className="card mb-4">
-            <div className="card-header bg-success text-white d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">
-                <FaUsers className="me-2" />
-                Students - {selectedClass || "Selected Class"}{" "}
-                {selectedArm ? `Arm ${selectedArm}` : ""}
-              </h5>
-              <span className="badge bg-light text-dark">
-                {students.length} students
-              </span>
-            </div>
-            <div className="card-body">
-              {students.length > 0 ? (
-                <div className="table-responsive">
-                  <table className="table table-hover">
-                    <thead className="table-light">
-                      <tr>
-                        <th>S/N</th>
-                        <th>Student Name</th>
-                        <th>Admission No.</th>
-                        <th>Current Status</th>
-                        <th>Mark Attendance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students.map((student, index) => {
-                        const status = attendanceData[student.id];
-                        const badge = getStatusBadge(status);
-
-                        return (
-                          <tr key={student.id}>
-                            <td>{index + 1}</td>
-                            <td>{`${student.firstName || ""} ${student.lastName || ""}`}</td>
-                            <td>{student.admissionNumber}</td>
-                            <td>
-                              {badge ? (
-                                <span className={`badge ${badge.class}`}>
-                                  {badge.icon}{" "}
-                                  <span className="ms-1">{badge.text}</span>
-                                </span>
-                              ) : (
-                                <span className="badge bg-secondary">
-                                  Not marked
-                                </span>
-                              )}
-                            </td>
-                            <td>
-                              <div className="btn-group btn-group-sm flex-wrap">
-                                {["PRESENT", "ABSENT", "LATE", "EXCUSED"].map(
-                                  (s) => (
-                                    <button
-                                      key={s}
-                                      className={`btn btn-outline-${getStatusColor(
-                                        s,
-                                      )} ${status === s ? `active btn-${getStatusColor(s)}` : ""}`}
-                                      onClick={() =>
-                                        handleMarkStudent(student.id, s)
-                                      }
-                                      disabled={loading}
-                                      type="button"
-                                    >
-                                      {s}
-                                    </button>
-                                  ),
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="alert alert-info mb-0">
-                  <FaInfoCircle className="me-2" />
-                  No students found for the selected class.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-      {!loading &&
         (isStudent ||
           isParent ||
-          (!isStudent && !isParent && viewMode === "report")) &&
-        selectedStudent && (
+          (!isStudent && !isParent && viewMode === "report")) && (
           <div className="card mb-4">
             <div className="card-header bg-warning text-dark">
               <h5 className="mb-0">
                 <FaEye className="me-2" />
-                Attendance Report -{" "}
-                {selectedStudent.fullName ||
-                  `${selectedStudent.firstName || ""} ${selectedStudent.lastName || ""}`}
+                {isStudent
+                  ? ui.myAttendanceReport
+                  : isParent
+                    ? ui.wardAttendanceReport
+                    : ui.studentReport}
               </h5>
             </div>
+
             <div className="card-body">
-              {studentSummary && (
-                <div className="row mb-4">
-                  <div className="col-md-3 mb-3">
-                    <div className="card bg-primary text-white">
-                      <div className="card-body text-center">
-                        <h3>{studentSummary.totalSchoolDays || 0}</h3>
-                        <small>Total School Days</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-md-3 mb-3">
-                    <div className="card bg-success text-white">
-                      <div className="card-body text-center">
-                        <h3>{studentSummary.daysPresent || 0}</h3>
-                        <small>Days Present</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-md-3 mb-3">
-                    <div className="card bg-danger text-white">
-                      <div className="card-body text-center">
-                        <h3>{studentSummary.daysAbsent || 0}</h3>
-                        <small>Days Absent</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-md-3 mb-3">
-                    <div className="card bg-info text-white">
-                      <div className="card-body text-center">
-                        <h3>
-                          {Number(
-                            studentSummary.attendancePercentage || 0,
-                          ).toFixed(1)}
-                          %
-                        </h3>
-                        <small>Attendance Rate</small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="table-responsive">
-                <table className="table table-bordered table-striped">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Date</th>
-                      <th>Status</th>
-                      <th>Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentAttendance.length > 0 ? (
-                      studentAttendance.map((record) => {
-                        const badge = getStatusBadge(record.status);
-                        return (
-                          <tr key={record.id}>
-                            <td>{moment(record.date).format("DD/MM/YYYY")}</td>
-                            <td>
-                              {badge ? (
-                                <span className={`badge ${badge.class}`}>
-                                  {badge.icon}
-                                  <span className="ms-1">{badge.text}</span>
-                                </span>
-                              ) : (
-                                record.status
-                              )}
-                            </td>
-                            <td>{record.remarks || "-"}</td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan="3" className="text-center text-muted">
-                          No attendance records found
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {!isStudent && !isParent && students.length > 0 && (
-                <div className="mt-4">
+              {!isStudent && !isParent && (
+                <div className="mb-4">
                   <label className="form-label fw-bold">
                     Select Student for Report View
                   </label>
@@ -1774,44 +1679,149 @@ function AttendanceManager() {
                 </div>
               )}
 
-              {studentAttendance.length > 0 && (
-                <div className="row mt-4">
-                  <div className="col-md-3">
-                    <div className="alert alert-success mb-2">
-                      Present: <strong>{reportStats.present}</strong>
+              {selectedStudent ? (
+                <>
+                  <h6 className="mb-3">
+                    {selectedStudent.fullName ||
+                      `${selectedStudent.firstName || ""} ${selectedStudent.lastName || ""}`}
+                  </h6>
+
+                  {studentSummary && (
+                    <div className="row mb-4">
+                      <div className="col-md-3">
+                        <div className="alert alert-success mb-2">
+                          Present:{" "}
+                          <strong>
+                            {studentSummary.present ??
+                              studentSummary.daysPresent ??
+                              0}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="alert alert-danger mb-2">
+                          Absent:{" "}
+                          <strong>
+                            {studentSummary.absent ??
+                              studentSummary.daysAbsent ??
+                              0}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="alert alert-warning mb-2">
+                          Late:{" "}
+                          <strong>
+                            {studentSummary.late ??
+                              studentSummary.daysLate ??
+                              0}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="alert alert-info mb-2">
+                          Excused:{" "}
+                          <strong>
+                            {studentSummary.excused ??
+                              studentSummary.daysExcused ??
+                              0}
+                          </strong>
+                        </div>
+                      </div>
                     </div>
+                  )}
+
+                  <div className="table-responsive">
+                    <table className="table table-striped table-hover">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Date</th>
+                          <th>Status</th>
+                          <th>Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentAttendance.length > 0 ? (
+                          studentAttendance.map((record) => {
+                            const badge = getStatusBadge(record.status);
+                            return (
+                              <tr key={record.id}>
+                                <td>
+                                  {moment(record.date).format("DD/MM/YYYY")}
+                                </td>
+                                <td>
+                                  {badge ? (
+                                    <span className={`badge ${badge.class}`}>
+                                      {badge.icon}
+                                      <span className="ms-1">{badge.text}</span>
+                                    </span>
+                                  ) : (
+                                    record.status
+                                  )}
+                                </td>
+                                <td>{record.remarks || "-"}</td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan="3" className="text-center text-muted">
+                              No attendance records found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="col-md-3">
-                    <div className="alert alert-danger mb-2">
-                      Absent: <strong>{reportStats.absent}</strong>
+
+                  {studentAttendance.length > 0 && (
+                    <div className="row mt-4">
+                      <div className="col-md-3">
+                        <div className="alert alert-success mb-2">
+                          Present: <strong>{reportStats.present}</strong>
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="alert alert-danger mb-2">
+                          Absent: <strong>{reportStats.absent}</strong>
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="alert alert-warning mb-2">
+                          Late: <strong>{reportStats.late}</strong>
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="alert alert-info mb-2">
+                          Excused: <strong>{reportStats.excused}</strong>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="col-md-3">
-                    <div className="alert alert-warning mb-2">
-                      Late: <strong>{reportStats.late}</strong>
-                    </div>
-                  </div>
-                  <div className="col-md-3">
-                    <div className="alert alert-info mb-2">
-                      Excused: <strong>{reportStats.excused}</strong>
-                    </div>
-                  </div>
+                  )}
+                </>
+              ) : (
+                <div className="alert alert-info mb-0">
+                  <FaInfoCircle className="me-2" />
+                  Please select a student to view report.
                 </div>
               )}
             </div>
           </div>
         )}
 
-      {!loading &&
-        !isStudent &&
-        !isParent &&
-        !selectedClassId &&
-        !selectedClass && (
-          <div className="alert alert-info">
-            <FaFilter className="me-2" />
-            Please select a class and arm to view attendance.
-          </div>
-        )}
+      {loading && (
+        <div className="text-center py-5">
+          <FaSpinner className="spin" size={32} />
+          <p className="mt-3 mb-0">Loading...</p>
+        </div>
+      )}
+
+      {!loading && !isStudent && !isParent && !selectedClass && (
+        <div className="alert alert-info">
+          <FaFilter className="me-2" />
+          Please select a class and arm to view attendance.
+        </div>
+      )}
 
       {!loading && isParent && !selectedWardId && (
         <div className="alert alert-info">

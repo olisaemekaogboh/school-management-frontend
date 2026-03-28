@@ -219,6 +219,12 @@ export const attendanceAPI = {
       params: { date, session, term },
     }),
 
+  // alias so old components still work
+  getClassAttendance: (classId, date, session, term) =>
+    api.get(`/attendance/class/${classId}`, {
+      params: { date, session, term },
+    }),
+
   getClassTermStatisticsByClassId: (classId, session, term) =>
     api.get(`/attendance/statistics/class/${classId}`, {
       params: { session, term },
@@ -229,7 +235,6 @@ export const attendanceAPI = {
       params: { session, term },
     }),
 };
-
 /* ================================
    TEACHER API
 ================================ */

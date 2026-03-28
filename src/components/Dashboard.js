@@ -8,6 +8,8 @@ import {
   announcementAPI,
   attendanceAPI,
   feeAPI,
+  sessionAPI,
+  classAPI,
 } from "../services/api";
 import {
   FaUsers,
@@ -85,14 +87,13 @@ function Dashboard() {
   const [todayAttendance, setTodayAttendance] = useState([]);
   const [showDailyPreview, setShowDailyPreview] = useState(false);
   const [attendanceError, setAttendanceError] = useState(null);
-  const [isFetchingAttendance, setIsFetchingAttendance] = useState(false);
-
-  const currentSession = "2025/2026";
-  const currentTerm = "SECOND";
+  const [activeSession, setActiveSession] = useState("");
+  const [activeTerm, setActiveTerm] = useState("");
 
   useEffect(() => {
     isMounted.current = true;
     fetchDashboardData();
+
     return () => {
       isMounted.current = false;
     };
@@ -101,164 +102,151 @@ function Dashboard() {
   const getStudentDisplayName = (student) => {
     if (!student) return "N/A";
     if (student.fullName && student.fullName.trim()) return student.fullName;
+
     const firstName = student.firstName || "";
     const lastName = student.lastName || "";
-    const otherName = student.otherName || "";
+    const otherName = student.otherName || student.middleName || "";
+
     const combined = `${firstName} ${otherName} ${lastName}`
       .replace(/\s+/g, " ")
       .trim();
+
     return combined || student.admissionNumber || "N/A";
   };
 
-  const fetchAttendanceByClassArm = async () => {
+  const normalizeAttendanceResponse = (responseData) => {
+    if (!responseData) return [];
+
+    if (Array.isArray(responseData)) return responseData;
+    if (Array.isArray(responseData.attendance)) return responseData.attendance;
+    if (Array.isArray(responseData.data)) return responseData.data;
+
+    return [];
+  };
+
+  const fetchAttendanceByClassId = async (sessionName, termName) => {
     try {
-      // First get all students to get the class-arm groupings
-      const studentsResponse = await studentAPI.getAllStudents();
+      const today = moment().format("YYYY-MM-DD");
+
+      const [studentsResponse, classesResponse] = await Promise.all([
+        studentAPI.getAllStudents(),
+        classAPI.getAllClasses(),
+      ]);
+
       const allStudents = Array.isArray(studentsResponse.data)
         ? studentsResponse.data
         : [];
+      const allClasses = Array.isArray(classesResponse.data)
+        ? classesResponse.data
+        : [];
 
-      // Create a map of students by ID for quick lookup
       const studentMap = new Map();
       allStudents.forEach((student) => {
         studentMap.set(student.id, student);
       });
 
-      const today = moment().format("YYYY-MM-DD");
-      console.log("Fetching attendance for date:", today);
-      console.log("Current Session:", currentSession);
-      console.log("Current Term:", currentTerm);
+      const validClassIds = allClasses
+        .map((c) => c?.id)
+        .filter((id) => id !== null && id !== undefined);
 
-      // Get unique class-arm combinations from students
-      const classArmMap = new Map();
-      allStudents.forEach((student) => {
-        const className = student.studentClass?.trim();
-        const arm = student.classArm?.trim();
-        if (className && arm) {
-          const key = `${className}|${arm}`;
-          if (!classArmMap.has(key)) {
-            classArmMap.set(key, { className, arm, students: [] });
-          }
-          classArmMap.get(key).students.push(student);
+      const attendancePromises = validClassIds.map(async (classId) => {
+        try {
+          const response = await attendanceAPI.getClassAttendance(
+            classId,
+            today,
+            sessionName,
+            termName,
+          );
+
+          const attendanceRecords = normalizeAttendanceResponse(response.data);
+
+          return attendanceRecords.map((record) => {
+            const studentId =
+              record.studentId || record.student_id || record.student?.id;
+            const student = studentMap.get(studentId);
+
+            return {
+              ...record,
+              student: student || record.student || null,
+              status: record.status || record.attendanceStatus || "UNKNOWN",
+            };
+          });
+        } catch (error) {
+          console.warn(
+            `Error fetching attendance for class ${classId}:`,
+            error?.response?.data || error.message,
+          );
+          return [];
         }
       });
 
-      console.log(
-        "Class-arm combinations to fetch:",
-        Array.from(classArmMap.keys()),
-      );
-
-      // Fetch attendance for each class-arm combination
-      const attendancePromises = Array.from(classArmMap.values()).map(
-        async ({ className, arm }) => {
-          try {
-            const response = await attendanceAPI.getClassAttendance(
-              className,
-              arm,
-              today,
-              currentSession,
-              currentTerm,
-            );
-
-            console.log(`Response for ${className} ${arm}:`, response.data);
-
-            let attendanceRecords = [];
-
-            // Handle different response formats
-            if (response.data) {
-              if (Array.isArray(response.data)) {
-                attendanceRecords = response.data;
-              } else if (
-                response.data.attendance &&
-                Array.isArray(response.data.attendance)
-              ) {
-                attendanceRecords = response.data.attendance;
-              } else if (
-                response.data.data &&
-                Array.isArray(response.data.data)
-              ) {
-                attendanceRecords = response.data.data;
-              }
-            }
-
-            // Map each attendance record to include full student details
-            return attendanceRecords.map((record) => {
-              const studentId =
-                record.studentId || record.student_id || record.student?.id;
-              const student = studentMap.get(studentId);
-
-              return {
-                ...record,
-                student: student || {
-                  id: studentId,
-                  firstName: record.firstName,
-                  lastName: record.lastName,
-                  studentClass: record.className || className,
-                  classArm: record.classArm || arm,
-                  admissionNumber: record.admissionNumber,
-                },
-                status: record.status || record.attendanceStatus || "UNKNOWN",
-              };
-            });
-          } catch (error) {
-            console.warn(
-              `Error fetching attendance for ${className} ${arm}:`,
-              error.message,
-            );
-            return [];
-          }
-        },
-      );
-
       const results = await Promise.all(attendancePromises);
-      const allAttendance = results.flat();
+      const mergedAttendance = results.flat();
 
-      console.log("Total attendance records found:", allAttendance.length);
-      console.log("Attendance records:", allAttendance);
+      const uniqueByStudent = new Map();
+      mergedAttendance.forEach((record) => {
+        const studentId = record.student?.id || record.studentId;
+        if (!studentId) return;
+        uniqueByStudent.set(studentId, record);
+      });
 
-      if (isMounted.current) {
-        setTodayAttendance(allAttendance);
+      const allAttendance = Array.from(uniqueByStudent.values());
 
-        const presentCount = allAttendance.filter(
-          (a) => a.status === "PRESENT" || a.status === "present",
-        ).length;
-        const lateCount = allAttendance.filter(
-          (a) => a.status === "LATE" || a.status === "late",
-        ).length;
-        const absentCount = allAttendance.filter(
-          (a) => a.status === "ABSENT" || a.status === "absent",
-        ).length;
-        const excusedCount = allAttendance.filter(
-          (a) => a.status === "EXCUSED" || a.status === "excused",
-        ).length;
+      if (!isMounted.current) return;
 
-        setAttendanceStats({
-          totalPresent: presentCount,
-          totalAbsent: absentCount,
-          totalLate: lateCount,
-          totalExcused: excusedCount,
-          averageAttendance:
-            allAttendance.length > 0
-              ? ((presentCount + lateCount) / allAttendance.length) * 100
-              : 0,
-          totalStudents: allAttendance.length,
-        });
+      setTodayAttendance(allAttendance);
 
-        if (allAttendance.length === 0) {
-          setAttendanceError(
-            "No attendance records found for today. Please mark attendance first.",
-          );
-        } else {
-          setAttendanceError(null);
-        }
-      }
+      const presentCount = allAttendance.filter(
+        (a) => String(a.status).toUpperCase() === "PRESENT",
+      ).length;
+
+      const lateCount = allAttendance.filter(
+        (a) => String(a.status).toUpperCase() === "LATE",
+      ).length;
+
+      const absentCount = allAttendance.filter(
+        (a) => String(a.status).toUpperCase() === "ABSENT",
+      ).length;
+
+      const excusedCount = allAttendance.filter(
+        (a) => String(a.status).toUpperCase() === "EXCUSED",
+      ).length;
+
+      setAttendanceStats({
+        totalPresent: presentCount,
+        totalAbsent: absentCount,
+        totalLate: lateCount,
+        totalExcused: excusedCount,
+        averageAttendance:
+          allAttendance.length > 0
+            ? ((presentCount + lateCount + excusedCount) /
+                allAttendance.length) *
+              100
+            : 0,
+        totalStudents: allAttendance.length,
+      });
+
+      setAttendanceError(
+        allAttendance.length === 0
+          ? "No attendance records found for today in the active session/term."
+          : null,
+      );
     } catch (error) {
       console.error("Error fetching attendance:", error);
+
       if (isMounted.current) {
         setAttendanceError(
           "Could not fetch attendance data. Please try again.",
         );
         setTodayAttendance([]);
+        setAttendanceStats({
+          totalPresent: 0,
+          totalAbsent: 0,
+          totalLate: 0,
+          totalExcused: 0,
+          averageAttendance: 0,
+          totalStudents: 0,
+        });
       }
     }
   };
@@ -268,29 +256,37 @@ function Dashboard() {
       setLoading(true);
       setAttendanceError(null);
 
-      // Fetch statistics
+      const activeSessionResponse = await sessionAPI.getActiveSession();
+      const active = activeSessionResponse?.data || null;
+
+      const sessionName = active?.session || active?.sessionName || "2025/2026";
+      const termName = active?.currentTerm || "FIRST";
+
+      if (isMounted.current) {
+        setActiveSession(sessionName);
+        setActiveTerm(termName);
+      }
+
       const statsResponse = await studentAPI.getStatistics();
       if (isMounted.current) {
         setStatistics(statsResponse.data);
       }
 
-      // Fetch all students for recent admissions
       const studentsResponse = await studentAPI.getAllStudents();
       const allStudents = Array.isArray(studentsResponse.data)
         ? studentsResponse.data
         : [];
+
       if (isMounted.current) {
         setRecentStudents(allStudents.slice(0, 5));
       }
 
-      // Fetch attendance
-      await fetchAttendanceByClassArm();
+      await fetchAttendanceByClassId(sessionName, termName);
 
-      // Fetch fee statistics
       try {
         const feeResponse = await feeAPI.getFeeStatistics(
-          currentSession,
-          currentTerm,
+          sessionName,
+          termName,
         );
         if (feeResponse.data && isMounted.current) {
           setFeeSummary({
@@ -307,16 +303,17 @@ function Dashboard() {
         console.log("Fee statistics not available");
       }
 
-      // Fetch announcements
       try {
         const announcementsResponse =
           await announcementAPI.getAllAnnouncements();
         const allAnnouncements = Array.isArray(announcementsResponse.data)
           ? announcementsResponse.data
           : [];
+
         const activeAnnouncements = allAnnouncements
           .filter((a) => a.active !== false)
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
         if (isMounted.current) {
           setAnnouncements(activeAnnouncements.slice(0, 5));
         }
@@ -450,7 +447,9 @@ function Dashboard() {
         icon: <FaInfoCircle />,
       },
     };
+
     const badge = badges[priority] || badges.NORMAL;
+
     return (
       <span className={`announcement-badge ${badge.class}`}>
         {badge.icon} {badge.label}
@@ -475,6 +474,7 @@ function Dashboard() {
       EXAM: { icon: "📝", label: t?.dashboard?.exam || "Exam" },
       GENERAL: { icon: "📢", label: t?.dashboard?.general || "General" },
     };
+
     return (
       icons[type] || { icon: "📢", label: t?.dashboard?.general || "General" }
     );
@@ -482,7 +482,6 @@ function Dashboard() {
 
   return (
     <div className={`dashboard ${darkMode ? "dark-mode" : ""}`}>
-      {/* Hero Section */}
       <div className="hero-section">
         <div className="container">
           <h1 className="display-4">
@@ -499,7 +498,17 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
+      <div className="row mb-2">
+        <div className="col-12">
+          <div className="alert alert-info">
+            <FaInfoCircle className="me-2" />
+            Active attendance window: <strong>
+              {activeSession || "-"}
+            </strong> / <strong>{activeTerm || "-"}</strong>
+          </div>
+        </div>
+      </div>
+
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
           <div className="stat-card stat-primary">
@@ -537,7 +546,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Attendance Cards */}
       <div className="row mb-4">
         <div className="col-md-3 mb-3">
           <div
@@ -617,7 +625,6 @@ function Dashboard() {
         </Link>
       </div>
 
-      {/* Today's Attendance Preview */}
       {todayAttendance.length > 0 && (
         <div className="row mb-4">
           <div className="col-12">
@@ -686,7 +693,6 @@ function Dashboard() {
         </div>
       )}
 
-      {/* Charts */}
       <div className="row">
         <div className="col-md-6 mb-4">
           <div className="school-card p-3">
@@ -703,7 +709,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Announcements and Recent Admissions */}
       <div className="row">
         <div className="col-md-6 mb-4">
           <div className="school-card">
@@ -812,7 +817,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Quick Actions */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-4">
@@ -868,7 +872,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Attendance Summary */}
       <div className="row mt-4">
         <div className="col-12">
           <div className="school-card p-3">
@@ -902,7 +905,8 @@ function Dashboard() {
                 {attendanceStats.totalStudents > 0
                   ? (
                       ((attendanceStats.totalPresent +
-                        attendanceStats.totalLate) /
+                        attendanceStats.totalLate +
+                        attendanceStats.totalExcused) /
                         attendanceStats.totalStudents) *
                       100
                     ).toFixed(1)
@@ -914,13 +918,22 @@ function Dashboard() {
               <div
                 className="progress-fill"
                 style={{
-                  width: `${attendanceStats.totalStudents > 0 ? ((attendanceStats.totalPresent + attendanceStats.totalLate) / attendanceStats.totalStudents) * 100 : 0}%`,
+                  width: `${
+                    attendanceStats.totalStudents > 0
+                      ? ((attendanceStats.totalPresent +
+                          attendanceStats.totalLate +
+                          attendanceStats.totalExcused) /
+                          attendanceStats.totalStudents) *
+                        100
+                      : 0
+                  }%`,
                 }}
               >
                 {attendanceStats.totalStudents > 0
                   ? (
                       ((attendanceStats.totalPresent +
-                        attendanceStats.totalLate) /
+                        attendanceStats.totalLate +
+                        attendanceStats.totalExcused) /
                         attendanceStats.totalStudents) *
                       100
                     ).toFixed(0)
@@ -932,7 +945,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Fee Summary */}
       {feeSummary.totalCollected > 0 && (
         <div className="fee-summary mt-4">
           <h4 className="mb-3">
