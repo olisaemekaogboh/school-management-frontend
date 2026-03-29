@@ -368,47 +368,6 @@ function AttendanceManager() {
     }
   };
 
-  const fetchExistingAttendance = async (studentList) => {
-    try {
-      const updates = {};
-
-      for (const student of studentList) {
-        try {
-          const response = await attendanceAPI.getStudentAttendance(
-            student.id,
-            selectedDate,
-            session,
-            term,
-          );
-
-          const data = response?.data;
-
-          if (data?.exists === false) {
-            updates[student.id] = null;
-          } else if (data?.status) {
-            updates[student.id] = data.status;
-          } else {
-            updates[student.id] = null;
-          }
-        } catch (error) {
-          console.error(
-            "Error fetching attendance for student:",
-            student.id,
-            error,
-          );
-          updates[student.id] = null;
-        }
-      }
-
-      setAttendanceData((prev) => ({
-        ...prev,
-        ...updates,
-      }));
-    } catch (error) {
-      console.error("Error fetching existing attendance:", error);
-    }
-  };
-
   const fetchStudents = async () => {
     if (!session || !term) return;
 
@@ -416,32 +375,44 @@ function AttendanceManager() {
 
     if (!classId) {
       setStudents([]);
+      setAttendanceData({});
       return;
     }
 
     setLoading(true);
+
     try {
-      const response = await studentAPI.getStudentsByClassId(classId);
-      const studentList = Array.isArray(response?.data) ? response.data : [];
+      // 🔥 USE CLASS ATTENDANCE ENDPOINT (ONE CALL ONLY)
+      const response = await attendanceAPI.getClassAttendance(
+        classId,
+        selectedDate,
+        session,
+        term,
+      );
+
+      const data = response?.data?.attendance || [];
+
+      // extract students
+      const studentList = data.map((item) => item.student);
 
       setStudents(studentList);
 
+      // build attendance map
       const map = {};
-      studentList.forEach((s) => {
-        map[s.id] = null;
+      data.forEach((item) => {
+        map[item.student.id] = item.status || null;
       });
-      setAttendanceData(map);
 
-      await fetchExistingAttendance(studentList);
+      setAttendanceData(map);
     } catch (error) {
-      console.error("FETCH STUDENTS ERROR:", error);
+      console.error("FETCH CLASS ATTENDANCE ERROR:", error);
       toast.error(ui.failedStudents);
       setStudents([]);
+      setAttendanceData({});
     } finally {
       setLoading(false);
     }
   };
-
   const fetchClassStatistics = async () => {
     if (!session || !term) return;
 

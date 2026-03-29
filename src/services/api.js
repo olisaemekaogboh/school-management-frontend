@@ -204,6 +204,11 @@ export const attendanceAPI = {
       params: { session, term },
     }),
 
+  getStudentSessionSummary: (studentId, session) =>
+    api.get(`/attendance/student/${studentId}/session`, {
+      params: { session },
+    }),
+
   getMyAttendance: (session, term) =>
     api.get(`/attendance/me/term`, {
       params: { session, term },
@@ -219,7 +224,6 @@ export const attendanceAPI = {
       params: { date, session, term },
     }),
 
-  // alias so old components still work
   getClassAttendance: (classId, date, session, term) =>
     api.get(`/attendance/class/${classId}`, {
       params: { date, session, term },
@@ -232,6 +236,16 @@ export const attendanceAPI = {
 
   getSchoolAttendanceStatistics: (session, term) =>
     api.get(`/attendance/statistics/school`, {
+      params: { session, term },
+    }),
+
+  initializeSchoolDays: (dates, session, term) =>
+    api.post(`/attendance/initialize-days`, dates, {
+      params: { session, term },
+    }),
+
+  calculateAllTermSummaries: (session, term) =>
+    api.post(`/attendance/calculate-all`, null, {
       params: { session, term },
     }),
 };
