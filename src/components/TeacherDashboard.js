@@ -34,23 +34,22 @@ function TeacherDashboard() {
     try {
       setLoading(true);
 
-      // Get teacher profile
-      const teacherRes = await teacherAPI.getMyTeacherProfile();
-      setTeacherProfile(teacherRes.data || null);
+      const [teacherRes, classesRes, subjectsRes] = await Promise.all([
+        teacherAPI.getMyTeacherProfile(),
+        teacherAPI.getMyClasses(),
+        teacherAPI.getMySubjectAssignments(),
+      ]);
 
-      // Get classes where teacher is assigned
-      const classesRes = await teacherAPI.getMyClasses();
-      const classes = Array.isArray(classesRes.data) ? classesRes.data : [];
-      console.log("Teacher classes:", classes);
-      setAssignedClasses(classes);
-
-      // Get subject assignments
-      const subjectsRes = await teacherAPI.getMySubjectAssignments();
-      const subjects = Array.isArray(subjectsRes.data) ? subjectsRes.data : [];
-      console.log("Teacher subject assignments:", subjects);
-      setSubjectAssignments(subjects);
+      setTeacherProfile(teacherRes?.data || null);
+      setAssignedClasses(
+        Array.isArray(classesRes?.data) ? classesRes.data : [],
+      );
+      setSubjectAssignments(
+        Array.isArray(subjectsRes?.data) ? subjectsRes.data : [],
+      );
     } catch (error) {
       console.error("Error loading teacher dashboard:", error);
+      setTeacherProfile(null);
       setAssignedClasses([]);
       setSubjectAssignments([]);
     } finally {

@@ -46,161 +46,46 @@ const buildFullName = (...parts) =>
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
-
-const normalizeStudentLike = (...candidates) => {
-  const sources = candidates.filter(Boolean);
-
-  const pick = (...selectors) => {
-    for (const source of sources) {
-      for (const selector of selectors) {
-        const value = selector(source);
-        if (value !== undefined && value !== null && value !== "") {
-          return value;
-        }
-      }
-    }
-    return null;
-  };
-
-  const firstName = pick(
-    (s) => s.firstName,
-    (s) => s.firstname,
-    (s) => s.givenName,
-  );
-
-  const middleName = pick(
-    (s) => s.middleName,
-    (s) => s.middlename,
-    (s) => s.otherName,
-    (s) => s.otherNames,
-  );
-
-  const lastName = pick(
-    (s) => s.lastName,
-    (s) => s.lastname,
-    (s) => s.surname,
-  );
-
-  const fullName =
-    pick(
-      (s) => s.fullName,
-      (s) => s.name,
-      (s) => s.studentName,
-    ) || buildFullName(firstName, middleName, lastName);
+const normalizeStudentLike = (student) => {
+  if (!student) return null;
 
   return {
-    id: pick(
-      (s) => s.id,
-      (s) => s.studentId,
-      (s) => s.student_id,
-    ),
-    firstName,
-    middleName,
-    lastName,
-    fullName,
-    admissionNumber: pick(
-      (s) => s.admissionNumber,
-      (s) => s.admissionNo,
-      (s) => s.admission_number,
-      (s) => s.regNo,
-      (s) => s.registrationNumber,
-    ),
-    studentClass: pick(
-      (s) => s.studentClass,
-      (s) => s.className,
-      (s) => s.classLevel,
-      (s) => s.classLabel,
-      (s) => s.currentClass,
-      (s) => s.class,
-    ),
-    classArm: pick(
-      (s) => s.classArm,
-      (s) => s.arm,
-      (s) => s.classSection,
-      (s) => s.section,
-    ),
-    status:
-      pick(
-        (s) => s.status,
-        (s) => s.studentStatus,
-        (s) => s.accountStatus,
-      ) || "ACTIVE",
-    profilePictureUrl: pick(
-      (s) => s.profilePictureUrl,
-      (s) => s.profileImageUrl,
-      (s) => s.avatar,
-      (s) => s.imageUrl,
-    ),
-    email: pick((s) => s.email),
-    username: pick((s) => s.username),
+    id: student.id ?? null,
+    firstName: student.firstName ?? "",
+    middleName: student.middleName ?? "",
+    lastName: student.lastName ?? "",
+    fullName:
+      student.fullName ??
+      buildFullName(student.firstName, student.middleName, student.lastName),
+    admissionNumber: student.admissionNumber ?? "",
+    studentClass: student.studentClass ?? "",
+    classArm: student.classArm ?? "",
+    status: student.status ?? "ACTIVE",
+    profilePictureUrl: student.profilePictureUrl ?? "",
+    email: student.email ?? "",
+    username: student.username ?? "",
   };
 };
-
 const normalizeResults = (payload) => {
   const data = payload?.data ?? payload ?? {};
+  const items = Array.isArray(data?.subjects)
+    ? data.subjects
+    : Array.isArray(data)
+      ? data
+      : [];
 
-  const items =
-    data?.subjects ||
-    data?.results ||
-    data?.resultItems ||
-    data?.records ||
-    data?.items ||
-    data?.content ||
-    data?.data?.subjects ||
-    data?.data?.results ||
-    data?.data?.resultItems ||
-    (Array.isArray(data) ? data : []);
-
-  return toArray(items).map((item, index) => ({
-    id: getFirstDefined(item?.id, item?.subjectId, item?.code, index),
-    subject: getFirstDefined(
-      item?.subject,
-      item?.subjectName,
-      item?.name,
-      item?.course,
-      item?.title,
-      "-",
-    ),
-    continuousAssessment: getFirstDefined(
-      item?.continuousAssessment,
-      item?.ca,
-      item?.caScore,
-      item?.testScore,
-      item?.assessment,
-      0,
-    ),
-    examination: getFirstDefined(
-      item?.examination,
-      item?.exam,
-      item?.examScore,
-      item?.examMark,
-      0,
-    ),
-    total: getFirstDefined(
-      item?.total,
-      item?.totalScore,
-      item?.grandTotal,
-      item?.score,
-      0,
-    ),
-    grade: getFirstDefined(
-      item?.grade,
-      item?.remarkGrade,
-      item?.letterGrade,
-      "-",
-    ),
+  return items.map((item, index) => ({
+    id: item.id ?? index,
+    subject: item.subject ?? "-",
+    continuousAssessment: toNumber(item.continuousAssessment, 0),
+    examination: toNumber(item.examination, 0),
+    total: toNumber(item.total, 0),
+    grade: item.grade ?? "-",
   }));
 };
 
 const normalizeAttendance = (payload) => {
-  const data =
-    payload?.data?.summary ||
-    payload?.data?.attendance ||
-    payload?.data ||
-    payload?.summary ||
-    payload?.attendance ||
-    payload ||
-    null;
+  const data = payload?.data ?? payload ?? null;
 
   if (!data || typeof data !== "object") {
     return {
@@ -210,110 +95,30 @@ const normalizeAttendance = (payload) => {
     };
   }
 
-  const daysPresent = toNumber(
-    getFirstDefined(
-      data.daysPresent,
-      data.presentDays,
-      data.presentCount,
-      data.totalPresent,
-      data.attendedDays,
-    ),
-    0,
-  );
-
-  const daysAbsent = toNumber(
-    getFirstDefined(
-      data.daysAbsent,
-      data.absentDays,
-      data.absentCount,
-      data.totalAbsent,
-      data.missedDays,
-    ),
-    0,
-  );
-
-  const explicitPercentage = getFirstDefined(
-    data.attendancePercentage,
-    data.percentage,
-    data.attendanceRate,
-    data.rate,
-  );
-
-  const attendancePercentage =
-    explicitPercentage !== null
-      ? toNumber(explicitPercentage, 0)
-      : daysPresent + daysAbsent > 0
-        ? (daysPresent / (daysPresent + daysAbsent)) * 100
-        : 0;
-
   return {
     ...data,
-    daysPresent,
-    daysAbsent,
-    attendancePercentage,
+    daysPresent: toNumber(data.daysPresent, 0),
+    daysAbsent: toNumber(data.daysAbsent, 0),
+    attendancePercentage: toNumber(data.attendancePercentage, 0),
   };
 };
-
 const normalizeFees = (payload) => {
-  const data = payload?.data ?? payload ?? {};
+  const data = payload?.data ?? payload ?? [];
+  const items = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.fees)
+      ? data.fees
+      : [];
 
-  const items =
-    data?.fees ||
-    data?.records ||
-    data?.items ||
-    data?.content ||
-    data?.feeRecords ||
-    data?.studentFees ||
-    (Array.isArray(data) ? data : []);
-
-  return toArray(items).map((fee, index) => {
-    const amount = toNumber(
-      getFirstDefined(
-        fee?.amount,
-        fee?.totalAmount,
-        fee?.feeAmount,
-        fee?.billAmount,
-      ),
-      0,
-    );
-
-    const paidAmount = toNumber(
-      getFirstDefined(
-        fee?.paidAmount,
-        fee?.amountPaid,
-        fee?.paid,
-        fee?.paymentAmount,
-      ),
-      0,
-    );
-
-    const balance = toNumber(
-      getFirstDefined(
-        fee?.balance,
-        fee?.outstandingAmount,
-        amount - paidAmount,
-      ),
-      0,
-    );
-
-    return {
-      id: getFirstDefined(fee?.id, fee?.feeId, fee?.code, index),
-      feeType: getFirstDefined(fee?.feeType, fee?.name, fee?.title, "Fee"),
-      amount,
-      paidAmount,
-      balance,
-      dueDate: getFirstDefined(
-        fee?.dueDate,
-        fee?.paymentDueDate,
-        fee?.deadline,
-      ),
-      paymentStatus: getFirstDefined(
-        fee?.paymentStatus,
-        fee?.status,
-        balance <= 0 ? "PAID" : "PENDING",
-      ),
-    };
-  });
+  return items.map((fee, index) => ({
+    id: fee.id ?? index,
+    feeType: fee.feeType ?? "Fee",
+    amount: toNumber(fee.amount, 0),
+    paidAmount: toNumber(fee.paidAmount, 0),
+    balance: toNumber(fee.balance, 0),
+    dueDate: fee.dueDate ?? null,
+    paymentStatus: fee.status ?? "PENDING",
+  }));
 };
 
 const getGradeBadgeClass = (grade) => {

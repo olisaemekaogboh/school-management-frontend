@@ -18,9 +18,11 @@ const api = axios.create({
 ================================ */
 api.interceptors.request.use(
   (config) => {
-    console.log(
-      `Making ${config.method?.toUpperCase()} request to: ${config.url}`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `Making ${config.method?.toUpperCase()} request to: ${config.url}`,
+      );
+    }
     return config;
   },
   (error) => Promise.reject(error),
@@ -699,6 +701,7 @@ export const feeAPI = {
     }),
 
   getOverdueFees: () => api.get("/fees/overdue"),
+
   getUpcomingFees: (days = 7) =>
     api.get("/fees/upcoming", { params: { days } }),
 
@@ -726,11 +729,21 @@ export const feeAPI = {
 
   getFeePaymentHistory: (feeId) => api.get(`/fees/${feeId}/payments`),
 
-  sendSingleReminder: (feeId) => api.post(`/fees/${feeId}/send-reminder`),
-
-  getDashboardData: (session, term) =>
-    api.get("/fees/dashboard", {
+  downloadFeeReportPdf: (session, term) =>
+    api.get("/fees/report/pdf", {
       params: { session, term },
+      responseType: "blob",
+    }),
+
+  downloadFeeReportExcel: (session, term) =>
+    api.get("/fees/report/excel", {
+      params: { session, term },
+      responseType: "blob",
+    }),
+
+  downloadReceipt: (feeId) =>
+    api.get(`/fees/${feeId}/receipt`, {
+      responseType: "blob",
     }),
 };
 

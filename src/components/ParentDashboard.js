@@ -55,14 +55,61 @@ function ParentDashboard() {
   const getWardFullName = (ward) => {
     return (
       ward?.fullName ||
+      ward?.studentName ||
       `${ward?.firstName || ""} ${ward?.middleName || ""} ${ward?.lastName || ""}`
         .replace(/\s+/g, " ")
         .trim()
     );
   };
 
+  const getWardClassName = (ward) => {
+    const className =
+      ward?.studentClass ||
+      ward?.className ||
+      ward?.class ||
+      ward?.schoolClass?.className ||
+      "";
+
+    const arm = ward?.classArm || ward?.arm || ward?.schoolClass?.arm || "";
+
+    const combined = `${className} ${arm}`.replace(/\s+/g, " ").trim();
+    return combined || "N/A";
+  };
+
+  const normalizeImageUrl = (url) => {
+    if (!url) return "";
+
+    const trimmed = String(url).trim();
+    if (!trimmed) return "";
+
+    if (
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("data:")
+    ) {
+      return trimmed;
+    }
+
+    const apiBase =
+      process.env.REACT_APP_API_BASE_URL || "https://localhost:8443/api";
+    const origin = apiBase.replace(/\/api\/?$/, "");
+
+    if (trimmed.startsWith("/")) {
+      return `${origin}${trimmed}`;
+    }
+
+    return `${origin}/${trimmed}`;
+  };
+
   const getWardProfilePicture = (ward) => {
-    return ward?.profilePictureUrl || ward?.profilePicture || "";
+    return normalizeImageUrl(
+      ward?.profilePictureUrl ||
+        ward?.profilePicture ||
+        ward?.avatar ||
+        ward?.studentProfilePictureUrl ||
+        ward?.studentPhoto ||
+        "",
+    );
   };
 
   const normalizeAttendanceSummary = (data, ward) => {
@@ -75,7 +122,12 @@ function ParentDashboard() {
       daysExcused: Number(data?.daysExcused || 0),
       session: data?.session || session || "",
       term: data?.term || term || "",
-      nextClass: getNextClass(ward?.studentClass),
+      nextClass: getNextClass(
+        ward?.studentClass ||
+          ward?.className ||
+          ward?.class ||
+          ward?.schoolClass?.className,
+      ),
     };
   };
 
@@ -154,6 +206,7 @@ function ParentDashboard() {
 
       const statsEntries = await Promise.all(
         normalizedWards.map(async (ward) => {
+          const wardId = ward?.id;
           const stats = {
             attendance: 0,
             totalSchoolDays: 0,
@@ -169,12 +222,21 @@ function ParentDashboard() {
             feePaid: 0,
             feeBalance: 0,
             feeCount: 0,
-            nextClass: getNextClass(ward?.studentClass),
+            nextClass: getNextClass(
+              ward?.studentClass ||
+                ward?.className ||
+                ward?.class ||
+                ward?.schoolClass?.className,
+            ),
           };
+
+          if (!wardId) {
+            return [String(Math.random()), stats];
+          }
 
           try {
             const attendanceRes = await parentPortalAPI.getWardAttendance(
-              ward.id,
+              wardId,
               session,
               term,
             );
@@ -183,12 +245,12 @@ function ParentDashboard() {
               normalizeAttendanceSummary(attendanceRes?.data, ward),
             );
           } catch (error) {
-            console.error(`Attendance load failed for ward ${ward.id}`, error);
+            console.error(`Attendance load failed for ward ${wardId}`, error);
           }
 
           try {
             const sessionResultRes = await parentPortalAPI.getWardSessionResult(
-              ward.id,
+              wardId,
               session,
             );
             Object.assign(
@@ -197,7 +259,7 @@ function ParentDashboard() {
             );
           } catch (error) {
             console.error(
-              `Session result load failed for ward ${ward.id}`,
+              `Session result load failed for ward ${wardId}`,
               error,
             );
           }
@@ -205,7 +267,7 @@ function ParentDashboard() {
           try {
             if (parentPortalAPI.getWardFees) {
               const feesRes = await parentPortalAPI.getWardFees(
-                ward.id,
+                wardId,
                 session,
                 term,
               );
@@ -216,10 +278,10 @@ function ParentDashboard() {
               stats.feeCount = feeSummary.count;
             }
           } catch (error) {
-            console.error(`Fees load failed for ward ${ward.id}`, error);
+            console.error(`Fees load failed for ward ${wardId}`, error);
           }
 
-          return [ward.id, stats];
+          return [wardId, stats];
         }),
       );
 
@@ -243,14 +305,42 @@ function ParentDashboard() {
   };
 
   const getNextClass = (currentClass) => {
+    const normalized = String(currentClass || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, " ");
+
+    const aliases = {
+      "SS 1": "SSS 1",
+      "SS 2": "SSS 2",
+      "SS 3": "SSS 3",
+      SS1: "SSS 1",
+      SS2: "SSS 2",
+      SS3: "SSS 3",
+      SSS1: "SSS 1",
+      SSS2: "SSS 2",
+      SSS3: "SSS 3",
+      JSS1: "JSS 1",
+      JSS2: "JSS 2",
+      JSS3: "JSS 3",
+      PRIMARY1: "PRIMARY 1",
+      PRIMARY2: "PRIMARY 2",
+      PRIMARY3: "PRIMARY 3",
+      PRIMARY4: "PRIMARY 4",
+      PRIMARY5: "PRIMARY 5",
+      PRIMARY6: "PRIMARY 6",
+    };
+
+    const resolved = aliases[normalized.replace(/\s+/g, "")] || normalized;
+
     const classOrder = [
-      "Nursery",
-      "Primary 1",
-      "Primary 2",
-      "Primary 3",
-      "Primary 4",
-      "Primary 5",
-      "Primary 6",
+      "NURSERY",
+      "PRIMARY 1",
+      "PRIMARY 2",
+      "PRIMARY 3",
+      "PRIMARY 4",
+      "PRIMARY 5",
+      "PRIMARY 6",
       "JSS 1",
       "JSS 2",
       "JSS 3",
@@ -259,8 +349,7 @@ function ParentDashboard() {
       "SSS 3",
     ];
 
-    const normalized = String(currentClass || "").trim();
-    const index = classOrder.findIndex((c) => c === normalized);
+    const index = classOrder.findIndex((c) => c === resolved);
 
     if (index !== -1 && index < classOrder.length - 1) {
       return classOrder[index + 1];
@@ -455,18 +544,31 @@ function ParentDashboard() {
                         <img
                           src={getWardProfilePicture(ward)}
                           alt={getWardFullName(ward)}
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            const fallback =
+                              e.currentTarget.parentElement?.querySelector(
+                                ".avatar-fallback-icon",
+                              );
+                            if (fallback) fallback.style.display = "block";
+                          }}
                         />
-                      ) : (
-                        <FaUserCircle />
-                      )}
+                      ) : null}
+                      <FaUserCircle
+                        className="avatar-fallback-icon"
+                        style={{
+                          display: getWardProfilePicture(ward)
+                            ? "none"
+                            : "block",
+                        }}
+                      />
                     </div>
 
                     <div className="ward-info">
                       <h3 className="ward-name">{getWardFullName(ward)}</h3>
                       <div className="ward-meta">
                         <span className="ward-class">
-                          <FaSchool /> {ward.studentClass || "N/A"}{" "}
-                          {ward.classArm || ""}
+                          <FaSchool /> {getWardClassName(ward)}
                         </span>
                         <span className="ward-admission">
                           <FaIdCard /> {ward.admissionNumber || "N/A"}
@@ -564,7 +666,10 @@ function ParentDashboard() {
                           <div className="detail-content">
                             <span className="detail-label">Phone</span>
                             <span className="detail-value">
-                              {ward.phone || ward.phoneNumber || "N/A"}
+                              {ward.phone ||
+                                ward.phoneNumber ||
+                                ward.parentPhone ||
+                                "N/A"}
                             </span>
                           </div>
                         </div>
@@ -574,7 +679,7 @@ function ParentDashboard() {
                           <div className="detail-content">
                             <span className="detail-label">Email</span>
                             <span className="detail-value">
-                              {ward.email || "N/A"}
+                              {ward.email || ward.parentEmail || "N/A"}
                             </span>
                           </div>
                         </div>

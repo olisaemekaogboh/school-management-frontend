@@ -69,133 +69,49 @@ function ResultSheet() {
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
-
   const normalizeStudent = (rawStudent, rawResultData) => {
     const studentInfo = rawResultData?.studentInfo || {};
-    const source = rawStudent || {};
-
-    const firstName = getFirstDefined(
-      source.firstName,
-      studentInfo.firstName,
-      user?.firstName,
-    );
-
-    const middleName = getFirstDefined(
-      source.middleName,
-      studentInfo.middleName,
-      user?.middleName,
-    );
-
-    const lastName = getFirstDefined(
-      source.lastName,
-      studentInfo.lastName,
-      user?.lastName,
-    );
-
-    const fullName =
-      getFirstDefined(source.fullName, source.name, studentInfo.name) ||
-      buildName(firstName, middleName, lastName);
+    const source = rawStudent || studentInfo || {};
 
     return {
-      id: getFirstDefined(source.id, studentId),
-      firstName,
-      middleName,
-      lastName,
-      fullName,
-      admissionNumber: getFirstDefined(
-        source.admissionNumber,
-        source.admissionNo,
-        studentInfo.admissionNumber,
-        user?.admissionNumber,
-      ),
-      studentClass: getFirstDefined(
-        source.studentClass,
-        source.className,
-        studentInfo.class,
-        user?.studentClass,
-      ),
-      classArm: getFirstDefined(
-        source.classArm,
-        source.arm,
-        studentInfo.arm,
-        user?.classArm,
-      ),
-      parentName: getFirstDefined(source.parentName, source.guardianName),
-      parentPhone: getFirstDefined(
-        source.parentPhone,
-        source.guardianPhone,
-        source.parentContact,
-      ),
-      address: getFirstDefined(source.address, source.homeAddress),
-      dateOfBirth: getFirstDefined(source.dateOfBirth, source.dob),
-      profilePictureUrl: getFirstDefined(
-        source.profilePictureUrl,
-        studentInfo.profilePictureUrl,
-        source.profileImageUrl,
-      ),
+      id: source.id ?? studentId,
+      firstName: source.firstName ?? "",
+      middleName: source.middleName ?? "",
+      lastName: source.lastName ?? "",
+      fullName:
+        source.fullName ||
+        buildName(source.firstName, source.middleName, source.lastName),
+      admissionNumber: source.admissionNumber ?? "",
+      studentClass: source.studentClass ?? "",
+      classArm: source.classArm ?? "",
+      parentName: source.parentName ?? "",
+      parentPhone: source.parentPhone ?? "",
+      address: source.address ?? "",
+      dateOfBirth: source.dateOfBirth ?? null,
+      profilePictureUrl: source.profilePictureUrl ?? "",
     };
   };
-
   const normalizeSubjects = (rawResultData) => {
-    const rawSubjects =
-      rawResultData?.subjects ||
-      rawResultData?.results ||
-      rawResultData?.resultItems ||
-      [];
-
-    if (!Array.isArray(rawSubjects)) return [];
+    const rawSubjects = Array.isArray(rawResultData?.subjects)
+      ? rawResultData.subjects
+      : [];
 
     return rawSubjects.map((subject, index) => ({
-      id: getFirstDefined(subject.id, index),
-      subject: getFirstDefined(
-        subject.subject,
-        subject.subjectName,
-        subject.name,
-        "-",
-      ),
-      resumptionTest: safeNumber(
-        getFirstDefined(
-          subject.resumptionTest,
-          subject.resumption,
-          subject.resitTest,
-        ),
-      ),
-      assignments: safeNumber(
-        getFirstDefined(
-          subject.assignments,
-          subject.assignment,
-          subject.assgn,
-          subject.assg,
-        ),
-      ),
-      secondTest: safeNumber(
-        getFirstDefined(subject.secondTest, subject.second, subject.test2),
-      ),
-      midtermTest: safeNumber(
-        getFirstDefined(subject.midtermTest, subject.midterm, subject.mid),
-      ),
-      project: safeNumber(
-        getFirstDefined(subject.project, subject.proj, subject.projects),
-      ),
-      continuousAssessment: safeNumber(
-        getFirstDefined(
-          subject.continuousAssessment,
-          subject.ca,
-          subject.caTotal,
-        ),
-      ),
-      examination: safeNumber(
-        getFirstDefined(subject.examination, subject.exam, subject.examScore),
-      ),
-      total: safeNumber(
-        getFirstDefined(subject.total, subject.totalScore, subject.score),
-      ),
-      grade: getFirstDefined(subject.grade, "-"),
-      remarks: getFirstDefined(subject.remarks, subject.remark, "-"),
+      id: subject.id ?? index,
+      subject: subject.subject ?? "-",
+      resumptionTest: safeNumber(subject.resumptionTest),
+      assignments: safeNumber(subject.assignments),
+      secondTest: safeNumber(subject.secondTest),
+      midtermTest: safeNumber(subject.midtermTest),
+      project: safeNumber(subject.project),
+      continuousAssessment: safeNumber(subject.continuousAssessment),
+      examination: safeNumber(subject.examination),
+      total: safeNumber(subject.total),
+      grade: subject.grade ?? "-",
+      remarks: subject.remarks ?? "-",
       raw: subject,
     }));
   };
-
   const normalizeSummary = (rawResultData) => {
     const summary = rawResultData?.summary || {};
     return {
@@ -672,9 +588,7 @@ function ResultSheet() {
                     {t?.studentDetails?.class || "Class"}:
                   </td>
                   <td className="value">
-                    {resultData?.studentInfo?.class ||
-                      student?.studentClass ||
-                      "N/A"}{" "}
+                    {student?.studentClass || "N/A"} {student?.classArm || ""}
                     {resultData?.studentInfo?.arm || student?.classArm || ""}
                   </td>
                   <td className="label">

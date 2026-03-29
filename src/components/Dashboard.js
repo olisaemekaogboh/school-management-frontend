@@ -9,7 +9,6 @@ import {
   attendanceAPI,
   feeAPI,
   sessionAPI,
-  classAPI,
 } from "../services/api";
 import {
   FaUsers,
@@ -30,7 +29,6 @@ import {
   FaEye,
   FaBell,
   FaMoneyCheck,
-  FaClipboardList,
   FaChartBar,
   FaSpinner,
 } from "react-icons/fa";
@@ -84,8 +82,6 @@ function Dashboard() {
     pendingCount: 0,
     overdueCount: 0,
   });
-  const [todayAttendance, setTodayAttendance] = useState([]);
-  const [showDailyPreview, setShowDailyPreview] = useState(false);
   const [attendanceError, setAttendanceError] = useState(null);
   const [activeSession, setActiveSession] = useState("");
   const [activeTerm, setActiveTerm] = useState("");
@@ -98,6 +94,11 @@ function Dashboard() {
       isMounted.current = false;
     };
   }, []);
+
+  const toNumber = (value, fallback = 0) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
+  };
 
   const getStudentDisplayName = (student) => {
     if (!student) return "N/A";
@@ -114,138 +115,134 @@ function Dashboard() {
     return combined || student.admissionNumber || "N/A";
   };
 
-  const normalizeAttendanceResponse = (responseData) => {
-    if (!responseData) return [];
+  const sanitizeAttendanceCounts = (rawData, totalStudentsHint = 0) => {
+    const totalStudents = Math.max(
+      0,
+      toNumber(
+        totalStudentsHint,
+        rawData?.totalStudents ||
+          rawData?.studentCount ||
+          rawData?.trackedStudents ||
+          0,
+      ),
+    );
 
-    if (Array.isArray(responseData)) return responseData;
-    if (Array.isArray(responseData.attendance)) return responseData.attendance;
-    if (Array.isArray(responseData.data)) return responseData.data;
+    const rawPresent = Math.max(
+      0,
+      toNumber(rawData?.presentCount, toNumber(rawData?.totalPresent, 0)),
+    );
+    const rawAbsent = Math.max(
+      0,
+      toNumber(rawData?.absentCount, toNumber(rawData?.totalAbsent, 0)),
+    );
+    const rawLate = Math.max(
+      0,
+      toNumber(rawData?.lateCount, toNumber(rawData?.totalLate, 0)),
+    );
+    const rawExcused = Math.max(
+      0,
+      toNumber(rawData?.excusedCount, toNumber(rawData?.totalExcused, 0)),
+    );
 
-    return [];
+    const rawSum = rawPresent + rawAbsent + rawLate + rawExcused;
+    const safeAverageAttendance = Math.max(
+      0,
+      Math.min(100, toNumber(rawData?.attendancePercentage, 0)),
+    );
+
+    if (totalStudents <= 0) {
+      return {
+        totalPresent: 0,
+        totalAbsent: 0,
+        totalLate: 0,
+        totalExcused: 0,
+        averageAttendance: safeAverageAttendance,
+        totalStudents: 0,
+      };
+    }
+
+    // If backend already returned sane daily counts, keep them.
+    if (
+      rawPresent <= totalStudents &&
+      rawAbsent <= totalStudents &&
+      rawLate <= totalStudents &&
+      rawExcused <= totalStudents &&
+      rawSum <= totalStudents
+    ) {
+      return {
+        totalPresent: rawPresent,
+        totalAbsent: rawAbsent,
+        totalLate: rawLate,
+        totalExcused: rawExcused,
+        averageAttendance:
+          rawData?.attendancePercentage != null
+            ? safeAverageAttendance
+            : Number(
+                (
+                  ((rawPresent + rawLate + rawExcused) / totalStudents) *
+                  100
+                ).toFixed(1),
+              ),
+        totalStudents,
+      };
+    }
+
+    // Backend returned cumulative or inflated counts. Normalize them.
+    const presentLike = Math.round(
+      (safeAverageAttendance / 100) * totalStudents,
+    );
+    let remaining = Math.max(0, totalStudents - presentLike);
+
+    let late = Math.min(rawLate, remaining);
+    remaining -= late;
+
+    let excused = Math.min(rawExcused, remaining);
+    remaining -= excused;
+
+    let absent = Math.min(rawAbsent, remaining);
+    remaining -= absent;
+
+    let present = Math.max(0, totalStudents - (late + excused + absent));
+
+    return {
+      totalPresent: present,
+      totalAbsent: absent,
+      totalLate: late,
+      totalExcused: excused,
+      averageAttendance: safeAverageAttendance,
+      totalStudents,
+    };
   };
 
-  const fetchAttendanceByClassId = async (sessionName, termName) => {
+  const fetchAttendanceSummaryOnly = async (
+    sessionName,
+    termName,
+    totalStudentsHint = 0,
+  ) => {
     try {
-      const today = moment().format("YYYY-MM-DD");
+      const response = await attendanceAPI.getSchoolAttendanceStatistics(
+        sessionName,
+        termName,
+      );
 
-      const [studentsResponse, classesResponse] = await Promise.all([
-        studentAPI.getAllStudents(),
-        classAPI.getAllClasses(),
-      ]);
-
-      const allStudents = Array.isArray(studentsResponse.data)
-        ? studentsResponse.data
-        : [];
-      const allClasses = Array.isArray(classesResponse.data)
-        ? classesResponse.data
-        : [];
-
-      const studentMap = new Map();
-      allStudents.forEach((student) => {
-        studentMap.set(student.id, student);
-      });
-
-      const validClassIds = allClasses
-        .map((c) => c?.id)
-        .filter((id) => id !== null && id !== undefined);
-
-      const attendancePromises = validClassIds.map(async (classId) => {
-        try {
-          const response = await attendanceAPI.getClassAttendance(
-            classId,
-            today,
-            sessionName,
-            termName,
-          );
-
-          const attendanceRecords = normalizeAttendanceResponse(response.data);
-
-          return attendanceRecords.map((record) => {
-            const studentId =
-              record.studentId || record.student_id || record.student?.id;
-            const student = studentMap.get(studentId);
-
-            return {
-              ...record,
-              student: student || record.student || null,
-              status: record.status || record.attendanceStatus || "UNKNOWN",
-            };
-          });
-        } catch (error) {
-          console.warn(
-            `Error fetching attendance for class ${classId}:`,
-            error?.response?.data || error.message,
-          );
-          return [];
-        }
-      });
-
-      const results = await Promise.all(attendancePromises);
-      const mergedAttendance = results.flat();
-
-      const uniqueByStudent = new Map();
-      mergedAttendance.forEach((record) => {
-        const studentId = record.student?.id || record.studentId;
-        if (!studentId) return;
-        uniqueByStudent.set(studentId, record);
-      });
-
-      const allAttendance = Array.from(uniqueByStudent.values());
-
+      const data = response?.data || {};
       if (!isMounted.current) return;
 
-      setTodayAttendance(allAttendance);
-
-      const presentCount = allAttendance.filter(
-        (a) => String(a.status).toUpperCase() === "PRESENT",
-      ).length;
-
-      const lateCount = allAttendance.filter(
-        (a) => String(a.status).toUpperCase() === "LATE",
-      ).length;
-
-      const absentCount = allAttendance.filter(
-        (a) => String(a.status).toUpperCase() === "ABSENT",
-      ).length;
-
-      const excusedCount = allAttendance.filter(
-        (a) => String(a.status).toUpperCase() === "EXCUSED",
-      ).length;
-
-      setAttendanceStats({
-        totalPresent: presentCount,
-        totalAbsent: absentCount,
-        totalLate: lateCount,
-        totalExcused: excusedCount,
-        averageAttendance:
-          allAttendance.length > 0
-            ? ((presentCount + lateCount + excusedCount) /
-                allAttendance.length) *
-              100
-            : 0,
-        totalStudents: allAttendance.length,
-      });
-
-      setAttendanceError(
-        allAttendance.length === 0
-          ? "No attendance records found for today in the active session/term."
-          : null,
-      );
+      const normalized = sanitizeAttendanceCounts(data, totalStudentsHint);
+      setAttendanceStats(normalized);
+      setAttendanceError(null);
     } catch (error) {
-      console.error("Error fetching attendance:", error);
+      console.error("Error fetching attendance summary:", error);
 
       if (isMounted.current) {
-        setAttendanceError(
-          "Could not fetch attendance data. Please try again.",
-        );
-        setTodayAttendance([]);
+        setAttendanceError("Could not fetch attendance summary.");
         setAttendanceStats({
           totalPresent: 0,
           totalAbsent: 0,
           totalLate: 0,
           totalExcused: 0,
           averageAttendance: 0,
-          totalStudents: 0,
+          totalStudents: Math.max(0, toNumber(totalStudentsHint, 0)),
         });
       }
     }
@@ -256,8 +253,8 @@ function Dashboard() {
       setLoading(true);
       setAttendanceError(null);
 
-      const activeSessionResponse = await sessionAPI.getActiveSession();
-      const active = activeSessionResponse?.data || null;
+      const activeRes = await sessionAPI.getActiveSession();
+      const active = activeRes?.data || null;
 
       const sessionName = active?.session || active?.sessionName || "2025/2026";
       const termName = active?.currentTerm || "FIRST";
@@ -267,45 +264,54 @@ function Dashboard() {
         setActiveTerm(termName);
       }
 
-      const statsResponse = await studentAPI.getStatistics();
-      if (isMounted.current) {
-        setStatistics(statsResponse.data);
+      const [
+        statsResponse,
+        studentsResponse,
+        feeResponse,
+        announcementsResponse,
+      ] = await Promise.all([
+        studentAPI.getStatistics(),
+        studentAPI.getPaginatedStudents(0, 5),
+        feeAPI.getFeeStatistics(sessionName, termName).catch(() => null),
+        announcementAPI.getAllAnnouncements().catch(() => null),
+      ]);
+
+      if (!isMounted.current) return;
+
+      const stats = statsResponse?.data || null;
+      setStatistics(stats);
+
+      const students =
+        studentsResponse?.data?.content || studentsResponse?.data || [];
+      setRecentStudents(Array.isArray(students) ? students : []);
+
+      await fetchAttendanceSummaryOnly(
+        sessionName,
+        termName,
+        toNumber(stats?.totalStudents, 0),
+      );
+
+      if (feeResponse?.data) {
+        setFeeSummary({
+          totalCollected: toNumber(feeResponse.data.totalCollected, 0),
+          totalOutstanding: toNumber(feeResponse.data.totalOutstanding, 0),
+          paidCount: toNumber(feeResponse.data.paidCount, 0),
+          pendingCount:
+            toNumber(feeResponse.data.pendingCount, 0) +
+            toNumber(feeResponse.data.partialCount, 0),
+          overdueCount: toNumber(feeResponse.data.overdueCount, 0),
+        });
+      } else {
+        setFeeSummary({
+          totalCollected: 0,
+          totalOutstanding: 0,
+          paidCount: 0,
+          pendingCount: 0,
+          overdueCount: 0,
+        });
       }
 
-      const studentsResponse = await studentAPI.getAllStudents();
-      const allStudents = Array.isArray(studentsResponse.data)
-        ? studentsResponse.data
-        : [];
-
-      if (isMounted.current) {
-        setRecentStudents(allStudents.slice(0, 5));
-      }
-
-      await fetchAttendanceByClassId(sessionName, termName);
-
-      try {
-        const feeResponse = await feeAPI.getFeeStatistics(
-          sessionName,
-          termName,
-        );
-        if (feeResponse.data && isMounted.current) {
-          setFeeSummary({
-            totalCollected: feeResponse.data.totalCollected || 0,
-            totalOutstanding: feeResponse.data.totalOutstanding || 0,
-            paidCount: feeResponse.data.paidCount || 0,
-            pendingCount:
-              (feeResponse.data.pendingCount || 0) +
-              (feeResponse.data.partialCount || 0),
-            overdueCount: feeResponse.data.overdueCount || 0,
-          });
-        }
-      } catch (error) {
-        console.log("Fee statistics not available");
-      }
-
-      try {
-        const announcementsResponse =
-          await announcementAPI.getAllAnnouncements();
+      if (announcementsResponse?.data) {
         const allAnnouncements = Array.isArray(announcementsResponse.data)
           ? announcementsResponse.data
           : [];
@@ -314,14 +320,9 @@ function Dashboard() {
           .filter((a) => a.active !== false)
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        if (isMounted.current) {
-          setAnnouncements(activeAnnouncements.slice(0, 5));
-        }
-      } catch (error) {
-        console.error("Error fetching announcements:", error);
-        if (isMounted.current) {
-          setAnnouncements([]);
-        }
+        setAnnouncements(activeAnnouncements.slice(0, 5));
+      } else {
+        setAnnouncements([]);
       }
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -367,7 +368,7 @@ function Dashboard() {
     ],
     datasets: [
       {
-        label: t?.dashboard?.todaysAttendance || "Today's Attendance",
+        label: t?.dashboard?.attendanceOverview || "Attendance Overview",
         data: [
           attendanceStats.totalPresent,
           attendanceStats.totalLate,
@@ -411,9 +412,7 @@ function Dashboard() {
       },
       title: {
         display: true,
-        text:
-          t?.dashboard?.attendanceDistribution ||
-          "Today's Attendance Distribution",
+        text: t?.dashboard?.attendanceDistribution || "Attendance Distribution",
         color: darkMode ? "#f9fafb" : "#1f2937",
       },
     },
@@ -479,6 +478,17 @@ function Dashboard() {
       icons[type] || { icon: "📢", label: t?.dashboard?.general || "General" }
     );
   };
+
+  const recordedAttendanceRate =
+    attendanceStats.totalStudents > 0
+      ? (
+          ((attendanceStats.totalPresent +
+            attendanceStats.totalLate +
+            attendanceStats.totalExcused) /
+            attendanceStats.totalStudents) *
+          100
+        ).toFixed(1)
+      : "0.0";
 
   return (
     <div className={`dashboard ${darkMode ? "dark-mode" : ""}`}>
@@ -550,11 +560,11 @@ function Dashboard() {
         <div className="col-md-3 mb-3">
           <div
             className="stat-card stat-success clickable"
-            onClick={() => (window.location.href = "/attendance?tab=daily")}
+            onClick={() => (window.location.href = "/attendance")}
           >
             <FaCheckCircle size={40} />
             <h3>{attendanceStats.totalPresent}</h3>
-            <p>{t?.dashboard?.presentToday || "Present Today"}</p>
+            <p>{t?.dashboard?.present || "Present"}</p>
             <small>
               {t?.dashboard?.clickToView || "Click to view details"}
             </small>
@@ -563,13 +573,11 @@ function Dashboard() {
         <div className="col-md-3 mb-3">
           <div
             className="stat-card stat-warning clickable"
-            onClick={() =>
-              (window.location.href = "/attendance?tab=daily&filter=late")
-            }
+            onClick={() => (window.location.href = "/attendance")}
           >
             <FaClock size={40} />
             <h3>{attendanceStats.totalLate}</h3>
-            <p>{t?.dashboard?.lateToday || "Late Today"}</p>
+            <p>{t?.dashboard?.late || "Late"}</p>
             <small>
               {t?.dashboard?.clickToView || "Click to view details"}
             </small>
@@ -578,13 +586,11 @@ function Dashboard() {
         <div className="col-md-3 mb-3">
           <div
             className="stat-card stat-danger clickable"
-            onClick={() =>
-              (window.location.href = "/attendance?tab=daily&filter=absent")
-            }
+            onClick={() => (window.location.href = "/attendance")}
           >
             <FaTimesCircle size={40} />
             <h3>{attendanceStats.totalAbsent}</h3>
-            <p>{t?.dashboard?.absentToday || "Absent Today"}</p>
+            <p>{t?.dashboard?.absent || "Absent"}</p>
             <small>
               {t?.dashboard?.clickToView || "Click to view details"}
             </small>
@@ -593,13 +599,11 @@ function Dashboard() {
         <div className="col-md-3 mb-3">
           <div
             className="stat-card stat-cyan clickable"
-            onClick={() =>
-              (window.location.href = "/attendance?tab=daily&filter=excused")
-            }
+            onClick={() => (window.location.href = "/attendance")}
           >
             <FaUmbrella size={40} />
             <h3>{attendanceStats.totalExcused}</h3>
-            <p>{t?.dashboard?.excusedToday || "Excused Today"}</p>
+            <p>{t?.dashboard?.excused || "Excused"}</p>
             <small>
               {t?.dashboard?.clickToView || "Click to view details"}
             </small>
@@ -618,80 +622,12 @@ function Dashboard() {
         <FaInfoCircle />
         <span>
           {t?.dashboard?.attendanceCardHint ||
-            "Click on any attendance card above to view detailed daily reports"}
+            "Attendance cards below are normalized to your actual student count."}
         </span>
         <Link to="/attendance" className="info-link">
           {t?.dashboard?.goToAttendance || "Go to Attendance Management"}
         </Link>
       </div>
-
-      {todayAttendance.length > 0 && (
-        <div className="row mb-4">
-          <div className="col-12">
-            <div className="school-card">
-              <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">
-                  <FaClipboardList className="me-2" />
-                  {t?.dashboard?.todaysAttendancePreview ||
-                    "Today's Attendance Preview"}
-                </h5>
-                <button
-                  className="btn-toggle-preview"
-                  onClick={() => setShowDailyPreview(!showDailyPreview)}
-                >
-                  {showDailyPreview ? "Hide" : "Show"} Preview
-                </button>
-              </div>
-              {showDailyPreview && (
-                <div className="card-body">
-                  <div className="table-responsive">
-                    <table className="attendance-table">
-                      <thead>
-                        <tr>
-                          <th>
-                            {t?.studentManagement?.studentName || "Student"}
-                          </th>
-                          <th>{t?.studentManagement?.class || "Class"}</th>
-                          <th>{t?.attendanceManager?.status || "Status"}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {todayAttendance.slice(0, 10).map((record, index) => (
-                          <tr key={record.id || index}>
-                            <td>{getStudentDisplayName(record.student)}</td>
-                            <td>
-                              {record.student?.studentClass ||
-                                record.className ||
-                                record.studentClass ||
-                                "N/A"}{" "}
-                              {record.student?.classArm ||
-                                record.classArm ||
-                                record.arm ||
-                                ""}
-                            </td>
-                            <td>
-                              <span
-                                className={`status-badge status-${record.status?.toLowerCase() || "unknown"}`}
-                              >
-                                {record.status || "Unknown"}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {todayAttendance.length > 10 && (
-                      <p className="text-muted mt-2">
-                        Showing 10 of {todayAttendance.length} records
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="row">
         <div className="col-md-6 mb-4">
@@ -825,14 +761,9 @@ function Dashboard() {
             </h4>
             <div className="quick-actions-grid">
               <Link to="/attendance" className="quick-action">
-                <FaClipboardList className="quick-icon" />
-                <span className="quick-label">Mark Attendance</span>
-                <small>Take today's attendance</small>
-              </Link>
-              <Link to="/attendance?tab=daily" className="quick-action">
                 <FaChartBar className="quick-icon" />
-                <span className="quick-label">Daily Report</span>
-                <small>View today's attendance</small>
+                <span className="quick-label">Attendance</span>
+                <small>View attendance records</small>
               </Link>
               <Link to="/fees" className="quick-action">
                 <FaMoneyCheck className="quick-icon" />
@@ -876,8 +807,7 @@ function Dashboard() {
         <div className="col-12">
           <div className="school-card p-3">
             <h5 className="mb-3">
-              {t?.dashboard?.todaysAttendanceSummary ||
-                "Today's Attendance Summary"}
+              {t?.dashboard?.attendanceOverview || "Attendance Overview"}
             </h5>
             <div className="summary-grid">
               <div className="summary-item success">
@@ -901,44 +831,17 @@ function Dashboard() {
               <p>
                 <strong>Total Students Tracked:</strong>{" "}
                 {attendanceStats.totalStudents} |{" "}
-                <strong>Attendance Rate:</strong>{" "}
-                {attendanceStats.totalStudents > 0
-                  ? (
-                      ((attendanceStats.totalPresent +
-                        attendanceStats.totalLate +
-                        attendanceStats.totalExcused) /
-                        attendanceStats.totalStudents) *
-                      100
-                    ).toFixed(1)
-                  : 0}
-                %
+                <strong>Attendance Rate:</strong> {recordedAttendanceRate}%
               </p>
             </div>
             <div className="progress-bar-custom">
               <div
                 className="progress-fill"
                 style={{
-                  width: `${
-                    attendanceStats.totalStudents > 0
-                      ? ((attendanceStats.totalPresent +
-                          attendanceStats.totalLate +
-                          attendanceStats.totalExcused) /
-                          attendanceStats.totalStudents) *
-                        100
-                      : 0
-                  }%`,
+                  width: `${recordedAttendanceRate}%`,
                 }}
               >
-                {attendanceStats.totalStudents > 0
-                  ? (
-                      ((attendanceStats.totalPresent +
-                        attendanceStats.totalLate +
-                        attendanceStats.totalExcused) /
-                        attendanceStats.totalStudents) *
-                      100
-                    ).toFixed(0)
-                  : 0}
-                % On Record
+                {Number(recordedAttendanceRate).toFixed(0)}% On Record
               </div>
             </div>
           </div>

@@ -1,8 +1,8 @@
-// src/components/FeeManagement.js
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { studentAPI, feeAPI, parentPortalAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
 import {
   FiDollarSign,
@@ -30,6 +30,11 @@ import {
   FiPieChart,
   FiCreditCard,
   FiEdit2,
+  FiDownload,
+  FiMail,
+  FiBookOpen,
+  FiUserCheck,
+  FiMapPin,
 } from "react-icons/fi";
 import {
   BsWallet2,
@@ -37,7 +42,14 @@ import {
   BsFileEarmarkPdf,
 } from "react-icons/bs";
 import { MdOutlinePayments, MdOutlinePendingActions } from "react-icons/md";
-import { RiUserStarLine } from "react-icons/ri";
+import { RiUserStarLine, RiUserLocationLine } from "react-icons/ri";
+import {
+  FaUserCircle,
+  FaSchool,
+  FaIdCard,
+  FaGraduationCap,
+  FaPhoneAlt,
+} from "react-icons/fa";
 import moment from "moment";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -48,6 +60,7 @@ import "./FeeManagement.css";
 function FeeManagement() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
 
   const isAdmin = user?.role === "ADMIN";
   const isStudent = user?.role === "STUDENT";
@@ -76,6 +89,7 @@ function FeeManagement() {
   const [activeTab, setActiveTab] = useState("fees");
   const [hoveredCard, setHoveredCard] = useState(null);
   const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const {
     session,
@@ -129,14 +143,132 @@ function FeeManagement() {
     notes: "",
   });
 
-  const getStudentName = (student) => {
+  // Helper function to normalize image URLs (from ParentDashboard)
+  const normalizeImageUrl = useCallback((url) => {
+    if (!url) return "";
+
+    const trimmed = String(url).trim();
+    if (!trimmed) return "";
+
+    if (
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("data:")
+    ) {
+      return trimmed;
+    }
+
+    const apiBase =
+      process.env.REACT_APP_API_BASE_URL || "https://localhost:8443/api";
+    const origin = apiBase.replace(/\/api\/?$/, "");
+
+    if (trimmed.startsWith("/")) {
+      return `${origin}${trimmed}`;
+    }
+
+    return `${origin}/${trimmed}`;
+  }, []);
+
+  // Helper function to get student profile picture
+  const getStudentProfilePicture = useCallback(
+    (student) => {
+      if (!student) return "";
+
+      const pictureUrl =
+        student?.profilePictureUrl ||
+        student?.profilePicture ||
+        student?.avatar ||
+        student?.photo ||
+        student?.studentProfilePictureUrl ||
+        "";
+
+      return normalizeImageUrl(pictureUrl);
+    },
+    [normalizeImageUrl],
+  );
+
+  // Helper function to get student full name
+  const getStudentFullName = useCallback((student) => {
+    if (!student) return "Unknown Student";
+
     return (
       student?.fullName ||
-      `${student?.firstName || ""} ${student?.lastName || ""}`.trim() ||
-      t?.feeManagement?.unknownStudent ||
+      student?.studentName ||
+      `${student?.firstName || ""} ${student?.lastName || ""}`
+        .replace(/\s+/g, " ")
+        .trim() ||
       "Unknown Student"
     );
-  };
+  }, []);
+
+  // Helper function to get student class name
+  const getStudentClassName = useCallback((student) => {
+    if (!student) return "N/A";
+
+    const className =
+      student?.studentClass ||
+      student?.className ||
+      student?.class ||
+      student?.schoolClass?.className ||
+      "";
+
+    const arm =
+      student?.classArm || student?.arm || student?.schoolClass?.arm || "";
+
+    const combined = `${className} ${arm}`.replace(/\s+/g, " ").trim();
+    return combined || "N/A";
+  }, []);
+
+  // Helper function to get student admission number
+  const getStudentAdmissionNumber = useCallback((student) => {
+    return (
+      student?.admissionNumber ||
+      student?.admissionNo ||
+      student?.regNo ||
+      "N/A"
+    );
+  }, []);
+
+  // Helper function to get student parent name
+  const getStudentParentName = useCallback((student) => {
+    return (
+      student?.parentName ||
+      student?.parent?.name ||
+      student?.guardianName ||
+      ""
+    );
+  }, []);
+
+  // Helper function to get student parent phone
+  const getStudentParentPhone = useCallback((student) => {
+    return (
+      student?.parentPhone ||
+      student?.parent?.phone ||
+      student?.guardianPhone ||
+      ""
+    );
+  }, []);
+
+  // Helper function to get student parent email
+  const getStudentParentEmail = useCallback((student) => {
+    return student?.parentEmail || student?.parent?.email || "";
+  }, []);
+
+  // Helper function to get student address
+  const getStudentAddress = useCallback((student) => {
+    return student?.address || student?.homeAddress || "";
+  }, []);
+
+  // Helper function to get emergency contact
+  const getEmergencyContact = useCallback((student) => {
+    return {
+      name: student?.emergencyContactName || "",
+      phone: student?.emergencyContactPhone || "",
+      relationship: student?.emergencyContactRelationship || "",
+    };
+  }, []);
+
+  const getStudentName = getStudentFullName;
 
   const canManageFees = isAdmin;
   const canViewAdminTabs = isAdmin;
@@ -146,7 +278,6 @@ function FeeManagement() {
 
   useEffect(() => {
     loadScopedStudents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   useEffect(() => {
@@ -172,7 +303,6 @@ function FeeManagement() {
       fetchFeeStatistics();
       fetchDefaulters();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, term, selectedStudent, isAdmin, isStudent]);
 
   useEffect(() => {
@@ -181,7 +311,6 @@ function FeeManagement() {
     if (activeTab === "all-students") {
       fetchAllStudentsFeeStatus();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, term, activeTab, isAdmin]);
 
   const loadScopedStudents = async () => {
@@ -490,13 +619,13 @@ function FeeManagement() {
 
     const searchLower = studentSearchTerm.toLowerCase().trim();
     return allStudentsFeeStatus.filter((student) => {
-      const fullName = student.fullName?.toLowerCase() || "";
+      const fullName = getStudentFullName(student).toLowerCase();
       const firstName = student.firstName?.toLowerCase() || "";
       const lastName = student.lastName?.toLowerCase() || "";
-      const admission = student.admissionNumber?.toLowerCase() || "";
-      const studentClass = student.studentClass?.toLowerCase() || "";
-      const parentName = student.parentName?.toLowerCase() || "";
-      const parentPhone = student.parentPhone?.toLowerCase() || "";
+      const admission = getStudentAdmissionNumber(student).toLowerCase();
+      const studentClass = getStudentClassName(student).toLowerCase();
+      const parentName = getStudentParentName(student).toLowerCase();
+      const parentPhone = getStudentParentPhone(student).toLowerCase();
 
       return (
         fullName.includes(searchLower) ||
@@ -508,7 +637,15 @@ function FeeManagement() {
         parentPhone.includes(searchLower)
       );
     });
-  }, [allStudentsFeeStatus, studentSearchTerm]);
+  }, [
+    allStudentsFeeStatus,
+    studentSearchTerm,
+    getStudentFullName,
+    getStudentAdmissionNumber,
+    getStudentClassName,
+    getStudentParentName,
+    getStudentParentPhone,
+  ]);
 
   const getFilteredFees = () => {
     return fees.filter((fee) => {
@@ -698,12 +835,13 @@ function FeeManagement() {
         data = fees.map((fee) => ({
           Student:
             fee.studentName ||
-            getStudentName(selectedStudent) ||
-            getStudentName(students[0]),
+            getStudentFullName(selectedStudent) ||
+            getStudentFullName(students[0]),
           Admission:
-            fee.admissionNumber || selectedStudent?.admissionNumber || "",
-          Class:
-            `${fee.studentClass || selectedStudent?.studentClass || ""} ${fee.classArm || selectedStudent?.classArm || ""}`.trim(),
+            fee.admissionNumber ||
+            getStudentAdmissionNumber(selectedStudent) ||
+            "",
+          Class: getStudentClassName(selectedStudent) || "",
           FeeType: fee.feeType,
           Description: fee.description || "",
           Amount: fee.amount || 0,
@@ -714,12 +852,11 @@ function FeeManagement() {
         }));
       } else if (activeTab === "all-students" && isAdmin) {
         data = filteredStudents.map((student) => ({
-          Student: getStudentName(student),
-          Admission: student.admissionNumber || "",
-          Class:
-            `${student.studentClass || ""} ${student.classArm || ""}`.trim(),
-          Parent: student.parentName || "-",
-          Phone: student.parentPhone || "-",
+          Student: getStudentFullName(student),
+          Admission: getStudentAdmissionNumber(student),
+          Class: getStudentClassName(student),
+          Parent: getStudentParentName(student) || "-",
+          Phone: getStudentParentPhone(student) || "-",
           TotalFees: student.totalFees || 0,
           Paid: student.totalPaid || 0,
           Balance: student.balance || 0,
@@ -761,7 +898,7 @@ function FeeManagement() {
 
       if (activeTab === "fees") {
         const exportStudent = selectedStudent || students[0];
-        title = `Fee Report - ${getStudentName(exportStudent)}`;
+        title = `Fee Report - ${getStudentFullName(exportStudent)}`;
         tableHeaders = [
           [
             "Fee Type",
@@ -796,9 +933,9 @@ function FeeManagement() {
           ],
         ];
         tableData = filteredStudents.map((student) => [
-          getStudentName(student),
-          student.admissionNumber || "",
-          `${student.studentClass || ""} ${student.classArm || ""}`.trim(),
+          getStudentFullName(student),
+          getStudentAdmissionNumber(student),
+          getStudentClassName(student),
           `₦${(student.totalFees || 0).toLocaleString()}`,
           `₦${(student.totalPaid || 0).toLocaleString()}`,
           `₦${(student.balance || 0).toLocaleString()}`,
@@ -999,7 +1136,7 @@ function FeeManagement() {
     if (
       !window.confirm(
         `${t?.feeManagement?.sendReminderConfirm || "Send fee reminder to"} ${
-          student.parentName || getStudentName(student)
+          getStudentParentName(student) || getStudentFullName(student)
         }?`,
       )
     ) {
@@ -1083,7 +1220,7 @@ function FeeManagement() {
 
   if (loadingSession) {
     return (
-      <div className="fee-management">
+      <div className={`fee-management ${darkMode ? "dark-mode" : ""}`}>
         <div className="fee-content-wrapper">
           <div className="loading-spinner">
             <FiLoader className="spin" />
@@ -1096,12 +1233,12 @@ function FeeManagement() {
 
   if (isTeacher) {
     return (
-      <div className="fee-management">
+      <div className={`fee-management ${darkMode ? "dark-mode" : ""}`}>
         <div className="fee-content-wrapper">
-          <div className="glass-effect p-4 text-center">
-            <FiXCircle size={42} className="mb-3 text-danger" />
+          <div className="access-denied-card">
+            <FiXCircle size={48} className="access-icon" />
             <h3>{t?.feeManagement?.accessRestricted || "Access Restricted"}</h3>
-            <p className="mb-0">
+            <p>
               {t?.feeManagement?.teacherAccessMessage ||
                 "Teachers are not allowed to access fee management."}
             </p>
@@ -1115,7 +1252,7 @@ function FeeManagement() {
   const isScopedUser = isStudent || isParent;
 
   return (
-    <div className="fee-management">
+    <div className={`fee-management ${darkMode ? "dark-mode" : ""}`}>
       <div className="animated-bg">
         <div className="gradient-orb orb-1"></div>
         <div className="gradient-orb orb-2"></div>
@@ -1126,10 +1263,10 @@ function FeeManagement() {
         <div className="header-section glass-effect">
           <div className="header-top">
             <div className="header-title">
-              <h1>
+              <div className="title-badge">
                 <FiDollarSign className="title-icon" />
-                {t?.feeManagement?.title || "Fee Management"}
-              </h1>
+                <h1>{t?.feeManagement?.title || "Fee Management"}</h1>
+              </div>
               <p className="header-subtitle">
                 {isAdmin
                   ? t?.feeManagement?.manageAllPayments ||
@@ -1139,34 +1276,59 @@ function FeeManagement() {
                     : t?.feeManagement?.viewWardFees ||
                       "View your ward's fee records"}
               </p>
-              <p className="header-subtitle">
-                Active Session:{" "}
-                <strong>{session || "No active session"}</strong> | Term:{" "}
-                <strong>{term || "N/A"}</strong>
-              </p>
+              <div className="session-info">
+                <span className="session-badge">
+                  <FiCalendar /> {session || "No active session"}
+                </span>
+                <span className="term-badge">
+                  <FiClock /> {term || "N/A"}
+                </span>
+              </div>
             </div>
 
-            <button
-              className="btn-refresh"
-              onClick={() => {
-                refreshActiveSession();
-                if (isAdmin) {
-                  fetchFeeStatistics();
-                  fetchDefaulters();
-                  if (activeTab === "all-students") fetchAllStudentsFeeStatus();
-                }
-                if (selectedStudent || isStudent) fetchStudentFees();
-              }}
-            >
-              <FiRefreshCw className={loading ? "spin" : ""} />
-              <span>{t?.common?.refresh || "Refresh"}</span>
-            </button>
+            <div className="header-actions">
+              <button
+                className="btn-refresh"
+                onClick={() => {
+                  refreshActiveSession();
+                  if (isAdmin) {
+                    fetchFeeStatistics();
+                    fetchDefaulters();
+                    if (activeTab === "all-students")
+                      fetchAllStudentsFeeStatus();
+                  }
+                  if (selectedStudent || isStudent) fetchStudentFees();
+                }}
+              >
+                <FiRefreshCw className={loading ? "spin" : ""} />
+                <span>{t?.common?.refresh || "Refresh"}</span>
+              </button>
+
+              <div className="export-dropdown">
+                <button
+                  className="btn-export"
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                >
+                  <FiDownload /> Export
+                </button>
+                {showExportMenu && (
+                  <div className="export-menu">
+                    <button onClick={handleExportToExcel}>
+                      <BsFileEarmarkExcel /> Excel
+                    </button>
+                    <button onClick={handleExportToPDF}>
+                      <BsFileEarmarkPdf /> PDF
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {isAdmin && stats && (
             <div className="stats-grid">
               <div
-                className={`stat-card glass-effect ${hoveredCard === "collected" ? "hovered" : ""}`}
+                className={`stat-card ${hoveredCard === "collected" ? "hovered" : ""}`}
                 onMouseEnter={() => setHoveredCard("collected")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -1185,7 +1347,7 @@ function FeeManagement() {
               </div>
 
               <div
-                className={`stat-card glass-effect ${hoveredCard === "outstanding" ? "hovered" : ""}`}
+                className={`stat-card ${hoveredCard === "outstanding" ? "hovered" : ""}`}
                 onMouseEnter={() => setHoveredCard("outstanding")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -1204,7 +1366,7 @@ function FeeManagement() {
               </div>
 
               <div
-                className={`stat-card glass-effect ${hoveredCard === "overdue" ? "hovered" : ""}`}
+                className={`stat-card ${hoveredCard === "overdue" ? "hovered" : ""}`}
                 onMouseEnter={() => setHoveredCard("overdue")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -1223,7 +1385,7 @@ function FeeManagement() {
               </div>
 
               <div
-                className={`stat-card glass-effect ${hoveredCard === "rate" ? "hovered" : ""}`}
+                className={`stat-card ${hoveredCard === "rate" ? "hovered" : ""}`}
                 onMouseEnter={() => setHoveredCard("rate")}
                 onMouseLeave={() => setHoveredCard(null)}
               >
@@ -1250,7 +1412,9 @@ function FeeManagement() {
         </button>
 
         <div
-          className={`filters-section glass-effect ${showMobileFilters ? "show" : ""}`}
+          className={`filters-section glass-effect ${
+            showMobileFilters ? "show" : ""
+          }`}
         >
           <div className="filters-grid">
             <div className="filter-group">
@@ -1315,7 +1479,7 @@ function FeeManagement() {
                   </option>
                   {students.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {getStudentName(s)} - {s.admissionNumber}
+                      {getStudentFullName(s)} - {getStudentAdmissionNumber(s)}
                     </option>
                   ))}
                 </select>
@@ -1358,13 +1522,6 @@ function FeeManagement() {
                 <BsWallet2 /> Bulk Payment
               </button>
             )}
-
-            <button className="btn-excel" onClick={handleExportToExcel}>
-              <BsFileEarmarkExcel /> Excel
-            </button>
-            <button className="btn-pdf" onClick={handleExportToPDF}>
-              <BsFileEarmarkPdf /> PDF
-            </button>
           </div>
 
           <div className="search-filter">
@@ -1435,57 +1592,184 @@ function FeeManagement() {
           <div className="fees-tab glass-effect">
             {feeOwner ? (
               <>
-                <div className="student-info-card ">
-                  <div className="student-left">
-                    <div className="student-avatar small">
-                      <RiUserStarLine />
+                {/* Enhanced Student Info Card with all details */}
+                <div className="student-info-card enhanced">
+                  <div className="student-header">
+                    <div className="student-avatar-large">
+                      {getStudentProfilePicture(feeOwner) ? (
+                        <img
+                          src={getStudentProfilePicture(feeOwner)}
+                          alt={getStudentFullName(feeOwner)}
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            const fallback =
+                              e.currentTarget.parentElement?.querySelector(
+                                ".avatar-fallback-icon",
+                              );
+                            if (fallback) fallback.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="avatar-fallback-icon"
+                        style={{
+                          display: getStudentProfilePicture(feeOwner)
+                            ? "none"
+                            : "flex",
+                        }}
+                      >
+                        <FaUserCircle />
+                      </div>
                     </div>
-                    <div className="student-details">
-                      <h3>{getStudentName(feeOwner)}</h3>
-                      <div className="student-meta">
-                        <span>
-                          <FiUser /> {feeOwner.admissionNumber || "-"}
+
+                    <div className="student-info-main">
+                      <h2 className="student-name">
+                        {getStudentFullName(feeOwner)}
+                      </h2>
+                      <div className="student-badges">
+                        <span className="badge-class">
+                          <FaSchool /> {getStudentClassName(feeOwner)}
                         </span>
-                        <p></p>
-                        <span>
-                          <FiUsers /> {feeOwner.studentClass || "-"}{" "}
-                          {feeOwner.classArm || ""}
+                        <span className="badge-admission">
+                          <FaIdCard /> {getStudentAdmissionNumber(feeOwner)}
+                        </span>
+                      </div>
+                      <div className="student-contact-info">
+                        {getStudentParentPhone(feeOwner) && (
+                          <a
+                            href={`tel:${getStudentParentPhone(feeOwner)}`}
+                            className="contact-link"
+                          >
+                            <FaPhoneAlt /> {getStudentParentPhone(feeOwner)}
+                          </a>
+                        )}
+                        {getStudentParentEmail(feeOwner) && (
+                          <a
+                            href={`mailto:${getStudentParentEmail(feeOwner)}`}
+                            className="contact-link"
+                          >
+                            <FiMail /> {getStudentParentEmail(feeOwner)}
+                          </a>
+                        )}
+                        {getStudentAddress(feeOwner) && (
+                          <span className="contact-link">
+                            <FiMapPin /> {getStudentAddress(feeOwner)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="student-stats-grid">
+                    <div className="stat-detail-card">
+                      <div className="stat-icon-sm success">
+                        <FiTrendingUp />
+                      </div>
+                      <div className="stat-detail-content">
+                        <span className="stat-label-sm">Total Fees</span>
+                        <span className="stat-value-lg">
+                          ₦
+                          {fees
+                            .reduce(
+                              (sum, f) => sum + (Number(f.amount) || 0),
+                              0,
+                            )
+                            .toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="stat-detail-card">
+                      <div className="stat-icon-sm success">
+                        <FiCheckCircle />
+                      </div>
+                      <div className="stat-detail-content">
+                        <span className="stat-label-sm">Amount Paid</span>
+                        <span className="stat-value-lg text-success">
+                          ₦
+                          {fees
+                            .reduce(
+                              (sum, f) => sum + (Number(f.paidAmount) || 0),
+                              0,
+                            )
+                            .toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="stat-detail-card">
+                      <div className="stat-icon-sm danger">
+                        <FiAlertTriangle />
+                      </div>
+                      <div className="stat-detail-content">
+                        <span className="stat-label-sm">
+                          Outstanding Balance
+                        </span>
+                        <span className="stat-value-lg text-danger">
+                          ₦
+                          {fees
+                            .reduce(
+                              (sum, f) => sum + (Number(f.balance) || 0),
+                              0,
+                            )
+                            .toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="stat-detail-card">
+                      <div className="stat-icon-sm info">
+                        <FiClock />
+                      </div>
+                      <div className="stat-detail-content">
+                        <span className="stat-label-sm">Payment Status</span>
+                        <span className="stat-value-lg">
+                          {fees.filter((f) => f.status === "PAID").length} /{" "}
+                          {fees.length} Paid
                         </span>
                       </div>
                     </div>
                   </div>
-                  <div className="student-stats compact">
-                    <div className="stat-item">
-                      <span className="stat-label">Total</span>
-                      <span className="stat-value">
-                        ₦
-                        {fees
-                          .reduce((sum, f) => sum + (Number(f.amount) || 0), 0)
-                          .toLocaleString()}
-                      </span>
+
+                  {getStudentParentName(feeOwner) && (
+                    <div className="parent-info-banner">
+                      <RiUserLocationLine className="parent-icon" />
+                      <div className="parent-info-text">
+                        <strong>Parent/Guardian:</strong>{" "}
+                        {getStudentParentName(feeOwner)}
+                        {getStudentParentPhone(feeOwner) && (
+                          <a
+                            href={`tel:${getStudentParentPhone(feeOwner)}`}
+                            className="parent-phone"
+                          >
+                            <FaPhoneAlt /> {getStudentParentPhone(feeOwner)}
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <div className="stat-item">
-                      <span className="stat-label">Paid</span>
-                      <span className="stat-value text-success">
-                        ₦
-                        {fees
-                          .reduce(
-                            (sum, f) => sum + (Number(f.paidAmount) || 0),
-                            0,
-                          )
-                          .toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">Balance</span>
-                      <span className="stat-value text-danger">
-                        ₦
-                        {fees
-                          .reduce((sum, f) => sum + (Number(f.balance) || 0), 0)
-                          .toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
+                  )}
+
+                  {(() => {
+                    const emergency = getEmergencyContact(feeOwner);
+                    if (emergency.name) {
+                      return (
+                        <div className="emergency-info">
+                          <FiAlertTriangle className="emergency-icon" />
+                          <span>
+                            <strong>Emergency Contact:</strong> {emergency.name}
+                            {emergency.phone && (
+                              <a href={`tel:${emergency.phone}`}>
+                                ({emergency.phone})
+                              </a>
+                            )}
+                            {emergency.relationship &&
+                              ` - ${emergency.relationship}`}
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 {loading ? (

@@ -42,7 +42,6 @@ function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [teacherClasses, setTeacherClasses] = useState([]);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -61,25 +60,6 @@ function Navbar() {
     setIsOpen(false);
     setOpenDropdown(null);
   }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    const loadTeacherClasses = async () => {
-      if (!isAuthenticated || role !== "TEACHER") {
-        setTeacherClasses([]);
-        return;
-      }
-
-      try {
-        const response = await teacherAPI.getMyClasses();
-        setTeacherClasses(Array.isArray(response.data) ? response.data : []);
-      } catch (error) {
-        console.error("Error loading teacher classes for navbar:", error);
-        setTeacherClasses([]);
-      }
-    };
-
-    loadTeacherClasses();
-  }, [isAuthenticated, role]);
 
   const toggleMenu = () => {
     setIsOpen((prev) => !prev);
@@ -116,11 +96,7 @@ function Navbar() {
     navigate("/login");
   };
 
-  const getTeacherScopedPath = (basePath) => {
-    const firstClass = teacherClasses[0];
-    if (!firstClass?.id) return basePath;
-    return `${basePath}?classId=${firstClass.id}&mine=true`;
-  };
+  const getTeacherScopedPath = (basePath) => `${basePath}?mine=true`;
 
   const publicNavItems = [
     { type: "link", path: "/", icon: <FaHome />, label: t.common.home },
@@ -267,7 +243,7 @@ function Navbar() {
       name: "teacher-academics",
       items: [
         {
-          path: getTeacherScopedPath("/students"),
+          path: "/students?mine=true",
           activePath: "/students",
           icon: <FaUsers />,
           label: t.navbar.myStudents,

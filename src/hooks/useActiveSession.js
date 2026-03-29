@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sessionAPI } from "../services/api";
 
 function getSessionName(item) {
@@ -7,8 +7,8 @@ function getSessionName(item) {
 
 function sortSessions(list) {
   return [...list].sort((a, b) => {
-    const aDate = new Date(a.startDate || 0).getTime();
-    const bDate = new Date(b.startDate || 0).getTime();
+    const aDate = new Date(a?.startDate || 0).getTime();
+    const bDate = new Date(b?.startDate || 0).getTime();
     return bDate - aDate;
   });
 }
@@ -20,6 +20,9 @@ export default function useActiveSession(defaultTerm = "FIRST") {
   const [term, setTerm] = useState(defaultTerm);
   const [loadingSession, setLoadingSession] = useState(true);
   const [sessionError, setSessionError] = useState("");
+
+  const mountedRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   const normalizedSessions = useMemo(() => {
     return (availableSessions || []).map((item) => ({
@@ -34,6 +37,7 @@ export default function useActiveSession(defaultTerm = "FIRST") {
   }, [availableSessions, defaultTerm]);
 
   const refreshActiveSession = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoadingSession(true);
     setSessionError("");
 
@@ -42,6 +46,8 @@ export default function useActiveSession(defaultTerm = "FIRST") {
         sessionAPI.getAllSessions(),
         sessionAPI.getActiveSession(),
       ]);
+
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
 
       const allSessions = Array.isArray(sessionsRes?.data)
         ? sessionsRes.data
@@ -55,28 +61,38 @@ export default function useActiveSession(defaultTerm = "FIRST") {
 
       if (active) {
         setSession(getSessionName(active));
-        setTerm(active.currentTerm || defaultTerm);
+        setTerm(active.currentTerm || active.term || defaultTerm);
       } else if (sorted.length > 0) {
         setSession(getSessionName(sorted[0]));
-        setTerm(sorted[0].currentTerm || defaultTerm);
+        setTerm(sorted[0].currentTerm || sorted[0].term || defaultTerm);
       } else {
         setSession("");
         setTerm(defaultTerm);
       }
     } catch (err) {
       console.error("Failed to load active session:", err);
+
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+
       setSessionError("Failed to load active session");
       setAvailableSessions([]);
       setActiveSessionRecord(null);
       setSession("");
       setTerm(defaultTerm);
     } finally {
-      setLoadingSession(false);
+      if (mountedRef.current && requestId === requestIdRef.current) {
+        setLoadingSession(false);
+      }
     }
   }, [defaultTerm]);
 
   useEffect(() => {
+    mountedRef.current = true;
     refreshActiveSession();
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, [refreshActiveSession]);
 
   return {
