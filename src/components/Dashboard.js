@@ -9,6 +9,7 @@ import {
   attendanceAPI,
   feeAPI,
   sessionAPI,
+  classAPI,
 } from "../services/api";
 import {
   FaUsers,
@@ -82,6 +83,8 @@ function Dashboard() {
     pendingCount: 0,
     overdueCount: 0,
   });
+  const [todayAttendance, setTodayAttendance] = useState([]);
+  const [showDailyPreview, setShowDailyPreview] = useState(false);
   const [attendanceError, setAttendanceError] = useState(null);
   const [activeSession, setActiveSession] = useState("");
   const [activeTerm, setActiveTerm] = useState("");
@@ -115,127 +118,71 @@ function Dashboard() {
     return combined || student.admissionNumber || "N/A";
   };
 
-  const sanitizeAttendanceCounts = (rawData, totalStudentsHint = 0) => {
-    const totalStudents = Math.max(
-      0,
-      toNumber(
-        totalStudentsHint,
-        rawData?.totalStudents ||
-          rawData?.studentCount ||
-          rawData?.trackedStudents ||
-          0,
-      ),
-    );
+  const normalizeAttendanceList = (responseData) => {
+    if (!responseData) return [];
 
-    const rawPresent = Math.max(
-      0,
-      toNumber(rawData?.presentCount, toNumber(rawData?.totalPresent, 0)),
-    );
-    const rawAbsent = Math.max(
-      0,
-      toNumber(rawData?.absentCount, toNumber(rawData?.totalAbsent, 0)),
-    );
-    const rawLate = Math.max(
-      0,
-      toNumber(rawData?.lateCount, toNumber(rawData?.totalLate, 0)),
-    );
-    const rawExcused = Math.max(
-      0,
-      toNumber(rawData?.excusedCount, toNumber(rawData?.totalExcused, 0)),
-    );
+    if (Array.isArray(responseData)) return responseData;
+    if (Array.isArray(responseData.attendance)) return responseData.attendance;
+    if (Array.isArray(responseData.data)) return responseData.data;
 
-    const rawSum = rawPresent + rawAbsent + rawLate + rawExcused;
-    const safeAverageAttendance = Math.max(
-      0,
-      Math.min(100, toNumber(rawData?.attendancePercentage, 0)),
-    );
-
-    if (totalStudents <= 0) {
-      return {
-        totalPresent: 0,
-        totalAbsent: 0,
-        totalLate: 0,
-        totalExcused: 0,
-        averageAttendance: safeAverageAttendance,
-        totalStudents: 0,
-      };
-    }
-
-    // If backend already returned sane daily counts, keep them.
-    if (
-      rawPresent <= totalStudents &&
-      rawAbsent <= totalStudents &&
-      rawLate <= totalStudents &&
-      rawExcused <= totalStudents &&
-      rawSum <= totalStudents
-    ) {
-      return {
-        totalPresent: rawPresent,
-        totalAbsent: rawAbsent,
-        totalLate: rawLate,
-        totalExcused: rawExcused,
-        averageAttendance:
-          rawData?.attendancePercentage != null
-            ? safeAverageAttendance
-            : Number(
-                (
-                  ((rawPresent + rawLate + rawExcused) / totalStudents) *
-                  100
-                ).toFixed(1),
-              ),
-        totalStudents,
-      };
-    }
-
-    // Backend returned cumulative or inflated counts. Normalize them.
-    const presentLike = Math.round(
-      (safeAverageAttendance / 100) * totalStudents,
-    );
-    let remaining = Math.max(0, totalStudents - presentLike);
-
-    let late = Math.min(rawLate, remaining);
-    remaining -= late;
-
-    let excused = Math.min(rawExcused, remaining);
-    remaining -= excused;
-
-    let absent = Math.min(rawAbsent, remaining);
-    remaining -= absent;
-
-    let present = Math.max(0, totalStudents - (late + excused + absent));
-
-    return {
-      totalPresent: present,
-      totalAbsent: absent,
-      totalLate: late,
-      totalExcused: excused,
-      averageAttendance: safeAverageAttendance,
-      totalStudents,
-    };
+    return [];
   };
 
-  const fetchAttendanceSummaryOnly = async (
+  const buildTodayDate = () => moment().format("YYYY-MM-DD");
+
+  const sanitizeDailyCounts = (records, totalStudentsHint = 0) => {
+    const totalStudents = Math.max(0, toNumber(totalStudentsHint, 0));
+
+    const totals = {
+      totalPresent: 0,
+      totalAbsent: 0,
+      totalLate: 0,
+      totalExcused: 0,
+      averageAttendance: 0,
+      totalStudents,
+    };
+
+    records.forEach((record) => {
+      const status = String(record?.status || "").toUpperCase();
+
+      if (status === "PRESENT") totals.totalPresent += 1;
+      else if (status === "ABSENT") totals.totalAbsent += 1;
+      else if (status === "LATE") totals.totalLate += 1;
+      else if (status === "EXCUSED") totals.totalExcused += 1;
+    });
+
+    const attendedCount =
+      totals.totalPresent + totals.totalLate + totals.totalExcused;
+
+    totals.averageAttendance =
+      totalStudents > 0
+        ? Number(((attendedCount / totalStudents) * 100).toFixed(1))
+        : 0;
+
+    return totals;
+  };
+
+  const fetchAccurateDailyAttendance = async (
     sessionName,
     termName,
     totalStudentsHint = 0,
   ) => {
+    const today = buildTodayDate();
+
     try {
-      const response = await attendanceAPI.getSchoolAttendanceStatistics(
-        sessionName,
-        termName,
-      );
+      const classesResponse = await classAPI.getAllClasses();
+      const classList = Array.isArray(classesResponse?.data)
+        ? classesResponse.data
+        : [];
 
-      const data = response?.data || {};
-      if (!isMounted.current) return;
+      const classIds = classList
+        .map((item) => item?.id)
+        .filter((id) => id !== undefined && id !== null);
 
-      const normalized = sanitizeAttendanceCounts(data, totalStudentsHint);
-      setAttendanceStats(normalized);
-      setAttendanceError(null);
-    } catch (error) {
-      console.error("Error fetching attendance summary:", error);
+      if (!classIds.length) {
+        if (!isMounted.current) return;
 
-      if (isMounted.current) {
-        setAttendanceError("Could not fetch attendance summary.");
+        setTodayAttendance([]);
         setAttendanceStats({
           totalPresent: 0,
           totalAbsent: 0,
@@ -244,6 +191,65 @@ function Dashboard() {
           averageAttendance: 0,
           totalStudents: Math.max(0, toNumber(totalStudentsHint, 0)),
         });
+        setAttendanceError(null);
+        return;
+      }
+
+      const responses = await Promise.all(
+        classIds.map((classId) =>
+          attendanceAPI
+            .getClassAttendance(classId, today, sessionName, termName)
+            .catch(() => null),
+        ),
+      );
+
+      if (!isMounted.current) return;
+
+      const uniqueByStudent = new Map();
+
+      responses.forEach((response) => {
+        const records = normalizeAttendanceList(response?.data);
+
+        records.forEach((record) => {
+          const studentId =
+            record?.student?.id ||
+            record?.studentId ||
+            record?.student?.studentId ||
+            null;
+
+          if (!studentId) return;
+
+          uniqueByStudent.set(String(studentId), record);
+        });
+      });
+
+      const uniqueRecords = Array.from(uniqueByStudent.values()).sort(
+        (a, b) => {
+          const aName = getStudentDisplayName(a?.student || a).toLowerCase();
+          const bName = getStudentDisplayName(b?.student || b).toLowerCase();
+          return aName.localeCompare(bName);
+        },
+      );
+
+      const totals = sanitizeDailyCounts(uniqueRecords, totalStudentsHint);
+
+      setTodayAttendance(uniqueRecords);
+      setAttendanceStats(totals);
+      setAttendanceError(null);
+    } catch (error) {
+      console.error("Error fetching accurate daily attendance:", error);
+
+      if (isMounted.current) {
+        setTodayAttendance([]);
+        setAttendanceStats({
+          totalPresent: 0,
+          totalAbsent: 0,
+          totalLate: 0,
+          totalExcused: 0,
+          averageAttendance: 0,
+          totalStudents: Math.max(0, toNumber(totalStudentsHint, 0)),
+        });
+        setAttendanceError("Could not fetch today's attendance.");
       }
     }
   };
@@ -285,7 +291,7 @@ function Dashboard() {
         studentsResponse?.data?.content || studentsResponse?.data || [];
       setRecentStudents(Array.isArray(students) ? students : []);
 
-      await fetchAttendanceSummaryOnly(
+      await fetchAccurateDailyAttendance(
         sessionName,
         termName,
         toNumber(stats?.totalStudents, 0),
@@ -368,7 +374,7 @@ function Dashboard() {
     ],
     datasets: [
       {
-        label: t?.dashboard?.attendanceOverview || "Attendance Overview",
+        label: t?.dashboard?.todaysAttendance || "Today's Attendance",
         data: [
           attendanceStats.totalPresent,
           attendanceStats.totalLate,
@@ -412,7 +418,9 @@ function Dashboard() {
       },
       title: {
         display: true,
-        text: t?.dashboard?.attendanceDistribution || "Attendance Distribution",
+        text:
+          t?.dashboard?.attendanceDistribution ||
+          "Today's Attendance Distribution",
         color: darkMode ? "#f9fafb" : "#1f2937",
       },
     },
@@ -564,7 +572,7 @@ function Dashboard() {
           >
             <FaCheckCircle size={40} />
             <h3>{attendanceStats.totalPresent}</h3>
-            <p>{t?.dashboard?.present || "Present"}</p>
+            <p>{t?.dashboard?.presentToday || "Present Today"}</p>
             <small>
               {t?.dashboard?.clickToView || "Click to view details"}
             </small>
@@ -577,7 +585,7 @@ function Dashboard() {
           >
             <FaClock size={40} />
             <h3>{attendanceStats.totalLate}</h3>
-            <p>{t?.dashboard?.late || "Late"}</p>
+            <p>{t?.dashboard?.lateToday || "Late Today"}</p>
             <small>
               {t?.dashboard?.clickToView || "Click to view details"}
             </small>
@@ -590,7 +598,7 @@ function Dashboard() {
           >
             <FaTimesCircle size={40} />
             <h3>{attendanceStats.totalAbsent}</h3>
-            <p>{t?.dashboard?.absent || "Absent"}</p>
+            <p>{t?.dashboard?.absentToday || "Absent Today"}</p>
             <small>
               {t?.dashboard?.clickToView || "Click to view details"}
             </small>
@@ -603,7 +611,7 @@ function Dashboard() {
           >
             <FaUmbrella size={40} />
             <h3>{attendanceStats.totalExcused}</h3>
-            <p>{t?.dashboard?.excused || "Excused"}</p>
+            <p>{t?.dashboard?.excusedToday || "Excused Today"}</p>
             <small>
               {t?.dashboard?.clickToView || "Click to view details"}
             </small>
@@ -622,12 +630,87 @@ function Dashboard() {
         <FaInfoCircle />
         <span>
           {t?.dashboard?.attendanceCardHint ||
-            "Attendance cards below are normalized to your actual student count."}
+            "These cards now use actual records for today, not cumulative term totals."}
         </span>
         <Link to="/attendance" className="info-link">
           {t?.dashboard?.goToAttendance || "Go to Attendance Management"}
         </Link>
       </div>
+
+      {todayAttendance.length > 0 && (
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="school-card">
+              <div className="card-header d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">
+                  <FaChartBar className="me-2" />
+                  {t?.dashboard?.todaysAttendancePreview ||
+                    "Today's Attendance Preview"}
+                </h5>
+                <button
+                  className="btn-toggle-preview"
+                  onClick={() => setShowDailyPreview(!showDailyPreview)}
+                >
+                  {showDailyPreview ? "Hide" : "Show"} Preview
+                </button>
+              </div>
+              {showDailyPreview && (
+                <div className="card-body">
+                  <div className="table-responsive">
+                    <table className="attendance-table">
+                      <thead>
+                        <tr>
+                          <th>
+                            {t?.studentManagement?.studentName || "Student"}
+                          </th>
+                          <th>{t?.studentManagement?.class || "Class"}</th>
+                          <th>{t?.attendanceManager?.status || "Status"}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {todayAttendance.slice(0, 10).map((record, index) => (
+                          <tr
+                            key={
+                              record?.id ||
+                              `${record?.student?.id || record?.studentId || index}`
+                            }
+                          >
+                            <td>
+                              {getStudentDisplayName(record?.student || record)}
+                            </td>
+                            <td>
+                              {record?.student?.studentClass ||
+                                record?.studentClass ||
+                                record?.className ||
+                                "N/A"}{" "}
+                              {record?.student?.classArm ||
+                                record?.classArm ||
+                                record?.arm ||
+                                ""}
+                            </td>
+                            <td>
+                              <span
+                                className={`status-badge status-${String(record?.status || "unknown").toLowerCase()}`}
+                              >
+                                {record?.status || "Unknown"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {todayAttendance.length > 10 && (
+                      <p className="text-muted mt-2">
+                        Showing 10 of {todayAttendance.length} records
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="row">
         <div className="col-md-6 mb-4">
@@ -807,7 +890,8 @@ function Dashboard() {
         <div className="col-12">
           <div className="school-card p-3">
             <h5 className="mb-3">
-              {t?.dashboard?.attendanceOverview || "Attendance Overview"}
+              {t?.dashboard?.todaysAttendanceSummary ||
+                "Today's Attendance Summary"}
             </h5>
             <div className="summary-grid">
               <div className="summary-item success">
