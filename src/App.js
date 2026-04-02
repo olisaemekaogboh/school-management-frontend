@@ -25,7 +25,7 @@ import TeacherRegistrationCompletion from "./components/TeacherRegistrationCompl
 
 import ParentEmailVerification from "./components/parent/ParentEmailVerification";
 import VerifyStudent from "./components/VerifyStudent";
-
+import Reports from "./components/Reports";
 import Profile from "./components/Profile";
 import Settings from "./components/Settings";
 import PageNotFound from "./components/PageNotFound";
@@ -62,8 +62,7 @@ import ResultSheet from "./components/ResultSheet";
 import FeeManagement from "./components/FeeManagement";
 
 import AnnouncementManager from "./components/AnnouncementManager";
-import AnnouncementForm from "./components/AnnouncementForm";
-import AnnouncementDetails from "./components/AnnouncementDetails";
+
 import EventManagement from "./components/EventManagement";
 import LibraryManagement from "./components/LibraryManagement";
 import BookManagement from "./components/BookManagement";
@@ -74,8 +73,7 @@ import BusTracking from "./components/BusTracking";
 import ParentManagement from "./components/parent/ParentManagement";
 import ParentRegistration from "./components/parent/ParentRegistration";
 import ParentDetails from "./components/parent/ParentDetails";
-import Reports from "./components/Reports";
-import ReportGenerator from "./components/ReportGenerator";
+
 import Search from "./components/Search";
 import SessionManagement from "./components/SessionManagement";
 
@@ -132,7 +130,14 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-
+<Route
+  path="/reports"
+  element={
+    <ProtectedRoute requiredRole="ADMIN">
+      <Reports />
+    </ProtectedRoute>
+  }
+/>
                   <Route
                     path="/users"
                     element={
@@ -373,30 +378,6 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route
-                    path="/announcements/new"
-                    element={
-                      <ProtectedRoute requiredRole="ADMIN">
-                        <AnnouncementForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/announcements/edit/:id"
-                    element={
-                      <ProtectedRoute requiredRole="ADMIN">
-                        <AnnouncementForm />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/announcements/:id"
-                    element={
-                      <ProtectedRoute requiredRole="ADMIN">
-                        <AnnouncementDetails />
-                      </ProtectedRoute>
-                    }
-                  />
 
                   <Route
                     path="/events"
@@ -407,22 +388,6 @@ function App() {
                     }
                   />
 
-                  <Route
-                    path="/reports"
-                    element={
-                      <ProtectedRoute requiredRole="ADMIN">
-                        <Reports />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/reports/generate"
-                    element={
-                      <ProtectedRoute requiredRole="ADMIN">
-                        <ReportGenerator />
-                      </ProtectedRoute>
-                    }
-                  />
                   <Route
                     path="/search"
                     element={

@@ -256,6 +256,7 @@
   color: #60a5fa;
 }
 
+/* FIXED: Input field styling for both modes */
 .form-group input {
   width: 100%;
   padding: 12px 16px;
@@ -267,31 +268,39 @@
   transition: all 0.3s ease;
 }
 
+/* Dark mode input fields */
 .dark-mode .form-group input {
-  background: #0f172a;
-  border-color: #334155;
+  background: #1e293b;
+  border-color: #475569;
   color: #f1f5f9;
 }
 
+/* Input placeholder styling */
 .form-group input::placeholder {
   color: var(--app-text-soft, #6b7280);
+  opacity: 0.7;
 }
 
 .dark-mode .form-group input::placeholder {
-  color: #64748b;
+  color: #94a3b8;
+  opacity: 0.7;
 }
 
+/* Input focus states */
 .form-group input:focus {
   outline: none;
   border-color: #ffd700;
-  background: color-mix(in srgb, var(--app-input-bg, #ffffff) 92%, #ffd700 8%);
+  background: var(--app-input-bg, #ffffff);
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1);
 }
 
 .dark-mode .form-group input:focus {
   border-color: #60a5fa;
-  background: color-mix(in srgb, #0f172a 92%, #60a5fa 8%);
+  background: #1e293b;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
 }
 
+/* Input error states */
 .form-group input.error {
   border-color: #f44336;
 }
@@ -300,6 +309,14 @@
   border-color: #f87171;
 }
 
+/* Input disabled/readonly states */
+.form-group input:disabled,
+.form-group input:read-only {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Password input wrapper */
 .password-input {
   position: relative;
   width: 100%;
@@ -309,18 +326,23 @@
   padding-right: 45px;
 }
 
+/* Password toggle button */
 .password-toggle {
   position: absolute;
   right: 12px;
   top: 50%;
   transform: translateY(-50%);
-  background: none;
+  background: transparent;
   border: none;
   color: var(--app-text-soft, #6b7280);
   cursor: pointer;
-  padding: 0;
+  padding: 8px;
   font-size: 1rem;
-  transition: color 0.3s ease;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dark-mode .password-toggle {
@@ -329,12 +351,24 @@
 
 .password-toggle:hover {
   color: #ffd700;
+  background: rgba(255, 215, 0, 0.1);
 }
 
 .dark-mode .password-toggle:hover {
   color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
 }
 
+.password-toggle:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.3);
+}
+
+.dark-mode .password-toggle:focus {
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3);
+}
+
+/* Form options */
 .form-options {
   display: flex;
   justify-content: space-between;
@@ -371,7 +405,7 @@
 
 .dark-mode .checkbox-custom {
   border-color: rgba(96, 165, 250, 0.3);
-  background: #0f172a;
+  background: #1e293b;
 }
 
 .remember-me input:checked + .checkbox-custom {
@@ -418,6 +452,7 @@
   color: #f97316;
 }
 
+/* Auth button */
 .auth-button {
   display: flex;
   align-items: center;
@@ -454,6 +489,7 @@
   cursor: not-allowed;
 }
 
+/* Spinner animation */
 .spin {
   animation: spin 1s linear infinite;
 }

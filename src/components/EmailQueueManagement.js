@@ -172,6 +172,17 @@ function EmailQueueManagement() {
     return statusMap[status] || status;
   };
 
+  // Dynamic classes based on dark mode
+  const textMutedClass = darkMode ? "text-secondary" : "text-muted";
+  const cardBgClass = darkMode ? "bg-dark text-white" : "";
+  const cardHeaderClass = darkMode ? "bg-dark border-secondary" : "bg-white";
+  const tableClass = darkMode ? "table-dark" : "";
+  const formControlClass = darkMode
+    ? "bg-dark text-white border-secondary"
+    : "";
+  const selectClass = darkMode ? "bg-dark text-white border-secondary" : "";
+  const alertClass = darkMode ? "alert-dark" : "";
+
   return (
     <div className={`email-queue-container ${darkMode ? "dark-mode" : ""}`}>
       <div className="container py-4">
@@ -181,7 +192,7 @@ function EmailQueueManagement() {
               <FaEnvelope className="me-2 text-primary" />
               {emailQueueT.title || "Email Queue Dashboard"}
             </h2>
-            <p className="text-muted mb-0">
+            <p className={`mb-0 ${textMutedClass}`}>
               {emailQueueT.subtitle ||
                 "Monitor pending, retrying, failed, and sent announcement emails"}
             </p>
@@ -289,8 +300,8 @@ function EmailQueueManagement() {
           </div>
         </div>
 
-        <div className="card shadow-sm border-0 mb-4">
-          <div className="card-body">
+        <div className={`card shadow-sm border-0 mb-4 ${cardBgClass}`}>
+          <div className={`card-body ${darkMode ? "text-white" : ""}`}>
             <div className="row g-3 align-items-end">
               <div className="col-md-4">
                 <label className="form-label">
@@ -298,7 +309,7 @@ function EmailQueueManagement() {
                   {emailQueueT.statusFilter || "Status Filter"}
                 </label>
                 <select
-                  className="form-select"
+                  className={`form-select ${selectClass}`}
                   value={selectedStatus}
                   onChange={(e) => handleFilterChange(e.target.value)}
                 >
@@ -325,7 +336,7 @@ function EmailQueueManagement() {
                 </label>
                 <input
                   type="text"
-                  className="form-control"
+                  className={`form-control ${formControlClass}`}
                   placeholder={
                     emailQueueT.searchPlaceholder ||
                     "Search by email, subject, status, or announcement ID"
@@ -338,8 +349,8 @@ function EmailQueueManagement() {
           </div>
         </div>
 
-        <div className="card shadow-sm border-0">
-          <div className="card-header bg-white">
+        <div className={`card shadow-sm border-0 ${cardBgClass}`}>
+          <div className={`card-header ${cardHeaderClass} border-0`}>
             <h5 className="mb-0">
               {emailQueueT.queuedEmails || "Queued Emails"}
             </h5>
@@ -351,14 +362,16 @@ function EmailQueueManagement() {
                 {emailQueueT.loading || "Loading email queue..."}
               </div>
             ) : filteredEmails.length === 0 ? (
-              <div className="alert alert-info mb-0">
+              <div className={`alert alert-info mb-0 ${alertClass}`}>
                 {emailQueueT.noRecords || "No email queue records found."}
               </div>
             ) : (
               <div className="table-responsive">
-                <table className="table table-hover align-middle">
+                <table
+                  className={`table ${tableClass} table-hover align-middle`}
+                >
                   <thead>
-                    <tr>
+                    <tr className={darkMode ? "table-dark" : ""}>
                       <th>{emailQueueT.id || "ID"}</th>
                       <th>{emailQueueT.announcement || "Announcement"}</th>
                       <th>{emailQueueT.recipient || "Recipient"}</th>

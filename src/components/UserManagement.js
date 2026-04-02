@@ -407,8 +407,18 @@ function UserManagement() {
     );
   }
 
+  // Dynamic classes based on dark mode
+  const cardBgClass = darkMode ? "bg-dark text-white" : "";
+  const cardHeaderClass = darkMode ? "bg-dark border-secondary" : "bg-white";
+  const tableClass = darkMode ? "table-dark" : "";
+  const formControlClass = darkMode
+    ? "bg-dark text-white border-secondary"
+    : "";
+  const selectClass = darkMode ? "bg-dark text-white border-secondary" : "";
+  const alertClass = darkMode ? "alert-dark" : "";
+
   return (
-    <div className="user-management">
+    <div className={`user-management ${darkMode ? "dark-mode" : ""}`}>
       <div className="header-section">
         <div className="header-top">
           <h1>
@@ -490,6 +500,7 @@ function UserManagement() {
           <div className="filter-group">
             <label>{t?.userManagement?.role || "Role"}</label>
             <select
+              className={selectClass}
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
             >
@@ -505,6 +516,7 @@ function UserManagement() {
           <div className="filter-group">
             <label>{t?.userManagement?.status || "Status"}</label>
             <select
+              className={selectClass}
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
@@ -538,9 +550,9 @@ function UserManagement() {
         ) : (
           <>
             <div className="table-responsive">
-              <table className="user-table">
+              <table className={`user-table ${tableClass}`}>
                 <thead>
-                  <tr>
+                  <tr className={darkMode ? "table-dark" : ""}>
                     <th></th>
                     <th>{t?.userManagement?.username || "Username"}</th>
                     <th>{t?.userManagement?.name || "Name"}</th>
@@ -585,7 +597,10 @@ function UserManagement() {
                           </div>
                         </td>
                         <td>
-                          <a href={`mailto:${user.email}`}>
+                          <a
+                            href={`mailto:${user.email}`}
+                            className="email-link"
+                          >
                             <FaEnvelope /> {user.email}
                           </a>
                         </td>

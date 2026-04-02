@@ -223,6 +223,19 @@ function ResultManagement() {
     );
   }, [displayedStudents, searchTerm]);
 
+  const termPrintableMessage =
+    resultSheet?.printLockMessage ||
+    "Printable result is locked. The admin will unlock it when it is ready.";
+
+  const canOpenPrintableResult =
+    !isStudent &&
+    !isParent &&
+    !!resultSheet &&
+    resultSheet?.printable === true &&
+    !!session &&
+    !!term &&
+    !!(selectedStudent?.id || students[0]?.id || user?.student?.id);
+
   useEffect(() => {
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -285,7 +298,74 @@ function ResultManagement() {
       setSelectedArm(teacherFormClass.arm);
     }
   }, [isTeacher, activeTab, teacherFormClass]);
+  const [termPrintableBusy, setTermPrintableBusy] = useState(false);
+  const [termLockMessageInput, setTermLockMessageInput] = useState("");
 
+  const effectiveTermLockMessage =
+    termLockMessageInput.trim() ||
+    resultSheet?.printLockMessage ||
+    "Printable result is locked. The admin will unlock it when it is ready.";
+
+  const syncTermLockMessageFromResult = (data) => {
+    setTermLockMessageInput(
+      data?.printLockMessage ||
+        "Printable result is locked. The admin will unlock it when it is ready.",
+    );
+  };
+
+  const updateTermPrintableStatus = async (printable) => {
+    if (!isAdmin) {
+      toast.error("Only admin can change printable status");
+      return;
+    }
+
+    if (!selectedStudent?.id || !session || !term) {
+      toast.error("Please select a student, session and term first");
+      return;
+    }
+
+    setTermPrintableBusy(true);
+    try {
+      const response = await resultAPI.setTermPrintableStatus(
+        selectedStudent.id,
+        session,
+        term,
+        printable,
+        printable ? null : effectiveTermLockMessage,
+      );
+
+      const updated =
+        response?.data && typeof response.data === "object"
+          ? {
+              ...resultSheet,
+              printable: response.data.printable,
+              printLockMessage:
+                response.data.printLockMessage || effectiveTermLockMessage,
+            }
+          : {
+              ...resultSheet,
+              printable,
+              printLockMessage: printable ? null : effectiveTermLockMessage,
+            };
+
+      setResultSheet(updated);
+      syncTermLockMessageFromResult(updated);
+
+      toast.success(
+        printable
+          ? "Term printable result unlocked successfully"
+          : "Term printable result locked successfully",
+      );
+    } catch (error) {
+      console.error("Error updating term printable status:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          "Failed to update term printable status",
+      );
+    } finally {
+      setTermPrintableBusy(false);
+    }
+  };
   const loadSessionData = async () => {
     setSessionsLoading(true);
     try {
@@ -960,6 +1040,7 @@ function ResultManagement() {
       if (isStudent) {
         const response = await resultAPI.getMyTermResult(session, term);
         setResultSheet(response.data);
+        syncTermLockMessageFromResult(response.data);
         toast.success(
           t?.resultManagement?.resultLoaded || "Result loaded successfully",
         );
@@ -980,6 +1061,7 @@ function ResultManagement() {
           term,
         );
         setResultSheet(response.data);
+        syncTermLockMessageFromResult(response.data);
         toast.success(
           t?.resultManagement?.resultLoaded || "Result loaded successfully",
         );
@@ -1017,6 +1099,7 @@ function ResultManagement() {
         term,
       );
       setResultSheet(response.data);
+      syncTermLockMessageFromResult(response.data);
       toast.success(
         t?.resultManagement?.resultLoaded || "Result loaded successfully",
       );
@@ -1126,6 +1209,16 @@ function ResultManagement() {
       toast.error(
         t?.resultManagement?.loadResultFirst || "Load a result first",
       );
+      return;
+    }
+
+    if (isStudent || isParent) {
+      toast.error(termPrintableMessage);
+      return;
+    }
+
+    if (resultSheet?.printable !== true) {
+      toast.error(termPrintableMessage);
       return;
     }
 
@@ -1731,13 +1824,79 @@ function ResultManagement() {
                 Load Result
               </button>
 
-              {resultSheet && (
-                <button className="btn btn-success" onClick={viewResultSheet}>
-                  <FaPrint size={14} /> <span>Printable Result</span>
+              {resultSheet && !isStudent && !isParent && (
+                <button
+                  className="btn btn-success"
+                  onClick={viewResultSheet}
+                  disabled={!canOpenPrintableResult}
+                  title={
+                    canOpenPrintableResult
+                      ? "Open printable result"
+                      : termPrintableMessage
+                  }
+                >
+                  <FaPrint size={14} />{" "}
+                  <span>
+                    {canOpenPrintableResult
+                      ? "Printable Result"
+                      : "Printable Locked"}
+                  </span>
                 </button>
+              )}
+
+              {resultSheet && isAdmin && (
+                <>
+                  <button
+                    className="btn btn-warning"
+                    onClick={() => updateTermPrintableStatus(false)}
+                    disabled={
+                      termPrintableBusy || resultSheet?.printable !== true
+                    }
+                    title="Lock printable term result"
+                  >
+                    {termPrintableBusy ? (
+                      <FaSpinner className="spin me-2" />
+                    ) : null}
+                    Lock Print
+                  </button>
+
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => updateTermPrintableStatus(true)}
+                    disabled={
+                      termPrintableBusy || resultSheet?.printable === true
+                    }
+                    title="Unlock printable term result"
+                  >
+                    {termPrintableBusy ? (
+                      <FaSpinner className="spin me-2" />
+                    ) : null}
+                    Unlock Print
+                  </button>
+                </>
               )}
             </div>
           </div>
+          {resultSheet && isAdmin && (
+            <div className="result-lock-admin-panel no-print">
+              <label className="form-label fw-bold">Print lock message</label>
+              <textarea
+                className="form-control"
+                rows="2"
+                value={termLockMessageInput}
+                onChange={(e) => setTermLockMessageInput(e.target.value)}
+                placeholder="Printable result is locked. The admin will unlock it when it is ready."
+              />
+              <div className="small text-muted mt-2">
+                This message is shown when printable term result is locked.
+              </div>
+            </div>
+          )}
+          {resultSheet && resultSheet?.printable !== true && (
+            <div className="result-lock-banner no-print" role="alert">
+              {termPrintableMessage}
+            </div>
+          )}
 
           {resultSheet && (
             <div className="result-card print-area">

@@ -40,6 +40,7 @@ const buildImageUrl = (value) => {
   const cleaned = String(value).trim();
   if (!cleaned) return "";
 
+  // Already full URL
   if (
     cleaned.startsWith("http://") ||
     cleaned.startsWith("https://") ||
@@ -49,10 +50,30 @@ const buildImageUrl = (value) => {
   }
 
   const base =
+    process.env.REACT_APP_API_BASE_URL?.replace(/\/api\/?$/, "") ||
     process.env.REACT_APP_API_URL?.replace(/\/api\/?$/, "") ||
-    "http://localhost:8080";
+    "https://localhost:8443";
 
-  return cleaned.startsWith("/") ? `${base}${cleaned}` : `${base}/${cleaned}`;
+  // If already contains /uploads
+  if (cleaned.startsWith("/uploads/")) {
+    return `${base}${cleaned}`;
+  }
+
+  if (cleaned.startsWith("uploads/")) {
+    return `${base}/${cleaned}`;
+  }
+
+  // 🔥 CRITICAL FIX (students/teachers folders)
+  if (cleaned.startsWith("students/") || cleaned.startsWith("teachers/")) {
+    return `${base}/uploads/${cleaned}`;
+  }
+
+  if (cleaned.startsWith("/students/") || cleaned.startsWith("/teachers/")) {
+    return `${base}/uploads${cleaned}`;
+  }
+
+  // fallback
+  return `${base}/uploads/${cleaned}`;
 };
 
 const normalizeUser = (rawUser) => {
@@ -221,7 +242,14 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      return !!localStorage.getItem("accessToken");
+    } catch {
+      return false;
+    }
+  });
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -242,19 +270,34 @@ export const AuthProvider = ({ children }) => {
 
         try {
           const refreshResponse = await authAPI.refreshToken();
+          const refreshedAccessToken = refreshResponse?.data?.accessToken || null;
           const normalizedRefreshUser = normalizeUser(
-            refreshResponse.data?.user,
+            refreshResponse?.data?.user,
           );
 
           if (!isMounted) return;
 
+          if (refreshedAccessToken) {
+            setAuthToken(
+              refreshedAccessToken,
+              refreshResponse?.data?.refreshToken,
+              normalizedRefreshUser,
+            );
+          }
+
           if (normalizedRefreshUser) {
             setUser(normalizedRefreshUser);
             setIsAuthenticated(true);
-            localStorage.setItem("user", JSON.stringify(normalizedRefreshUser));
+            localStorage.setItem(
+              "user",
+              JSON.stringify(normalizedRefreshUser),
+            );
           } else {
             const meResponse = await authAPI.getCurrentUser();
             const meUser = normalizeUser(meResponse.data);
+
+            if (!isMounted) return;
+
             setUser(meUser);
             setIsAuthenticated(true);
             localStorage.setItem("user", JSON.stringify(meUser));
@@ -285,9 +328,14 @@ export const AuthProvider = ({ children }) => {
   const login = async (usernameOrEmail, password) => {
     try {
       const response = await authAPI.login({ usernameOrEmail, password });
-      const normalizedUser = normalizeUser(response.data?.user);
+      const accessToken = response?.data?.accessToken || null;
+      const normalizedUser = normalizeUser(response?.data?.user);
 
-      setAuthToken(null, null, normalizedUser);
+      setAuthToken(
+        accessToken,
+        response?.data?.refreshToken,
+        normalizedUser,
+      );
       setUser(normalizedUser);
       setIsAuthenticated(true);
 
@@ -303,9 +351,14 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await authAPI.register(userData);
-      const normalizedUser = normalizeUser(response.data?.user);
+      const accessToken = response?.data?.accessToken || null;
+      const normalizedUser = normalizeUser(response?.data?.user);
 
-      setAuthToken(null, null, normalizedUser);
+      setAuthToken(
+        accessToken,
+        response?.data?.refreshToken,
+        normalizedUser,
+      );
       setUser(normalizedUser);
       setIsAuthenticated(true);
 

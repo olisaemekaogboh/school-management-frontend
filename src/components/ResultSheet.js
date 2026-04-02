@@ -1,4 +1,3 @@
-// src/components/ResultSheet.js
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, resultAPI, parentPortalAPI } from "../services/api";
@@ -69,6 +68,7 @@ function ResultSheet() {
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
+
   const normalizeStudent = (rawStudent, rawResultData) => {
     const studentInfo = rawResultData?.studentInfo || {};
     const source = rawStudent || studentInfo || {};
@@ -91,6 +91,7 @@ function ResultSheet() {
       profilePictureUrl: source.profilePictureUrl ?? "",
     };
   };
+
   const normalizeSubjects = (rawResultData) => {
     const rawSubjects = Array.isArray(rawResultData?.subjects)
       ? rawResultData.subjects
@@ -112,6 +113,7 @@ function ResultSheet() {
       raw: subject,
     }));
   };
+
   const normalizeSummary = (rawResultData) => {
     const summary = rawResultData?.summary || {};
     return {
@@ -133,6 +135,13 @@ function ResultSheet() {
       attendancePercentage: safeNumber(summary.attendancePercentage),
     };
   };
+
+  const printableMessage =
+    resultData?.printLockMessage ||
+    "Printable result is locked. The admin will unlock it when it is ready.";
+
+  const canAccessPrintablePage = !isStudent && !isParent;
+  const canPrint = canAccessPrintablePage && resultData?.printable === true;
 
   const normalizedSubjects = useMemo(
     () => normalizeSubjects(resultData),
@@ -162,6 +171,7 @@ function ResultSheet() {
       setError(t?.resultSheet?.missingParams || "Missing required parameters");
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, session, term]);
 
   const fetchStudentRecord = async (rawResult) => {
@@ -172,8 +182,11 @@ function ResultSheet() {
       try {
         const response = await studentAPI.getMyProfile();
         fetchedStudent = response?.data || null;
-      } catch (error) {
-        console.warn("Failed to fetch current student profile:", error);
+      } catch (fetchProfileError) {
+        console.warn(
+          "Failed to fetch current student profile:",
+          fetchProfileError,
+        );
       }
     }
 
@@ -181,8 +194,8 @@ function ResultSheet() {
       try {
         const response = await studentAPI.getStudentById(studentId);
         fetchedStudent = response?.data || null;
-      } catch (error) {
-        console.warn("Failed to fetch student by id:", error);
+      } catch (fetchStudentError) {
+        console.warn("Failed to fetch student by id:", fetchStudentError);
       }
     }
 
@@ -254,23 +267,24 @@ function ResultSheet() {
       const fetchedStudent = await fetchStudentRecord(rawResult);
       setStudent(fetchedStudent);
       setStudentLoading(false);
-    } catch (error) {
-      console.error("Error fetching result sheet:", error);
+    } catch (fetchError) {
+      console.error("Error fetching result sheet:", fetchError);
 
-      if (error.response?.status === 404) {
+      if (fetchError.response?.status === 404) {
         setError(
           t?.resultSheet?.noResultFound ||
             "No result found for this student in the selected term",
         );
-      } else if (error.response?.status === 403) {
+      } else if (fetchError.response?.status === 403) {
         setError(
-          t?.resultSheet?.accessDenied ||
+          fetchError.response?.data?.message ||
+            t?.resultSheet?.accessDenied ||
             "You are not allowed to view this result",
         );
       } else {
         setError(
-          error.response?.data?.message ||
-            error.message ||
+          fetchError.response?.data?.message ||
+            fetchError.message ||
             t?.resultSheet?.loadFailed ||
             "Failed to load result sheet",
         );
@@ -281,6 +295,15 @@ function ResultSheet() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!resultData) return;
+
+    if (!canAccessPrintablePage) {
+      toast.error(printableMessage);
+      navigate("/results", { replace: true });
+    }
+  }, [resultData, canAccessPrintablePage, printableMessage, navigate]);
 
   const formatDate = (date) => {
     return date ? moment(date).format("DD/MM/YYYY") : "N/A";
@@ -306,64 +329,59 @@ function ResultSheet() {
 
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
-    documentTitle: buildFileName(),
-    onAfterPrint: () =>
-      toast.success(
-        t?.resultSheet?.printSuccess || "Result sheet printed successfully",
-      ),
+    documentTitle: `${getStudentName().replace(/\s+/g, "_")}_${session}_${term}_RESULT`,
+    onBeforePrint: async () => {
+      if (!canPrint) {
+        toast.error(printableMessage);
+        throw new Error(printableMessage);
+      }
+    },
   });
 
-  const handleDownloadPDF = async () => {
-    if (!componentRef.current) {
-      toast.error(t?.resultSheet?.notReady || "Result sheet not ready");
+  const handleDownloadPdf = async () => {
+    if (!canPrint) {
+      toast.error(printableMessage);
       return;
     }
 
-    setDownloading(true);
+    if (!componentRef.current) {
+      toast.error("Result sheet not ready");
+      return;
+    }
+
     try {
-      const element = componentRef.current;
-      const canvas = await html2canvas(element, {
+      setDownloading(true);
+
+      const canvas = await html2canvas(componentRef.current, {
         scale: 2,
         backgroundColor: "#ffffff",
         logging: false,
         allowTaint: true,
         useCORS: true,
-        scrollY: -window.scrollY,
       });
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "px",
-        format: "a4",
+        format: [canvas.width * 0.75, canvas.height * 0.75],
       });
 
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
+      pdf.addImage(
+        imgData,
+        "PNG",
+        0,
+        0,
+        canvas.width * 0.75,
+        canvas.height * 0.75,
+      );
 
       pdf.save(`${buildFileName()}.pdf`);
-      toast.success(
-        t?.resultSheet?.downloadSuccess || "PDF downloaded successfully",
-      );
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast.error(t?.resultSheet?.downloadFailed || "Failed to download PDF");
+
+      toast.success("PDF downloaded successfully");
+    } catch (downloadError) {
+      console.error("Error generating PDF:", downloadError);
+      toast.error("Failed to download PDF");
     } finally {
       setDownloading(false);
     }
@@ -374,7 +392,7 @@ function ResultSheet() {
       resultData?.studentInfo?.profilePictureUrl || student?.profilePictureUrl;
 
     if (!rawUrl) return null;
-    if (rawUrl.startsWith("https://") || rawUrl.startsWith("https://")) {
+    if (rawUrl.startsWith("https://") || rawUrl.startsWith("http://")) {
       return rawUrl;
     }
     return `https://localhost:8443${rawUrl}`;
@@ -477,7 +495,7 @@ function ResultSheet() {
             className="btn btn-primary mt-3"
             onClick={() => navigate("/results")}
           >
-            <FaArrowLeft className="me-2" />{" "}
+            <FaArrowLeft className="me-2" />
             {t?.resultSheet?.backToResults || "Back to Results"}
           </button>
         </div>
@@ -500,7 +518,7 @@ function ResultSheet() {
             className="btn btn-primary mt-3"
             onClick={() => navigate("/results")}
           >
-            <FaArrowLeft className="me-2" />{" "}
+            <FaArrowLeft className="me-2" />
             {t?.resultSheet?.backToResults || "Back to Results"}
           </button>
         </div>
@@ -510,42 +528,60 @@ function ResultSheet() {
 
   return (
     <div className="result-sheet-wrapper">
-      <div className="d-flex justify-content-between align-items-center mb-4 no-print">
-        <button
-          className="btn btn-outline-secondary"
-          onClick={() => navigate(-1)}
-        >
-          <FaArrowLeft className="me-2" /> {t?.common?.back || "Back"}
-        </button>
+      {!isStudent && !isParent && (
+        <>
+          <div className="result-sheet-actions">
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => navigate(-1)}
+            >
+              <FaArrowLeft />
+              <span>Back</span>
+            </button>
 
-        <div>
-          <button
-            className="btn btn-outline-success me-2"
-            onClick={handlePrint}
-            disabled={downloading}
-          >
-            <FaPrint className="me-2" /> {t?.common?.print || "Print"}
-          </button>
+            <button
+              type="button"
+              className={`btn ${canPrint ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => {
+                if (!canPrint) {
+                  toast.error(printableMessage);
+                  return;
+                }
+                handlePrint();
+              }}
+              disabled={loading || resultLoading || !canPrint}
+              title={!canPrint ? printableMessage : "Print result"}
+            >
+              <FaPrint />
+              <span>{canPrint ? "Print" : "Print Locked"}</span>
+            </button>
 
-          <button
-            className="btn btn-outline-primary"
-            onClick={handleDownloadPDF}
-            disabled={downloading}
-          >
-            {downloading ? (
-              <>
-                <FaSpinner className="spinner me-2" />{" "}
-                {t?.common?.generating || "Generating..."}
-              </>
-            ) : (
-              <>
-                <FaDownload className="me-2" />{" "}
-                {t?.common?.downloadPDF || "Download PDF"}
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+            <button
+              type="button"
+              className={`btn ${canPrint ? "btn-success" : "btn-secondary"}`}
+              onClick={handleDownloadPdf}
+              disabled={loading || downloading || !canPrint}
+              title={!canPrint ? printableMessage : "Download PDF"}
+            >
+              <FaDownload />
+              <span>
+                {canPrint
+                  ? downloading
+                    ? "Preparing..."
+                    : "Download PDF"
+                  : "Download Locked"}
+              </span>
+            </button>
+          </div>
+
+          {!canPrint && (
+            <div className="result-lock-banner" role="alert">
+              {printableMessage}
+            </div>
+          )}
+        </>
+      )}
 
       <div className="result-sheet-container" ref={componentRef}>
         <div className="result-sheet-content">
@@ -588,7 +624,7 @@ function ResultSheet() {
                     {t?.studentDetails?.class || "Class"}:
                   </td>
                   <td className="value">
-                    {student?.studentClass || "N/A"} {student?.classArm || ""}
+                    {student?.studentClass || "N/A"}{" "}
                     {resultData?.studentInfo?.arm || student?.classArm || ""}
                   </td>
                   <td className="label">
@@ -807,7 +843,8 @@ function ResultSheet() {
             <div className="signature-item">
               <div className="signature-line"></div>
               <div className="signature-label">
-                {t?.sessionResultSheet?.parentSignature || "Parent's Signature"}
+                {t?.sessionResultSheet?.parentSignature ||
+                  "Parent's Signature"}
               </div>
             </div>
           </div>

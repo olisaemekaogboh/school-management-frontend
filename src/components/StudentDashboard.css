@@ -1,15 +1,15 @@
-/* src/components/StudentDashboard.css */
-
 /* ===== THEME VARIABLES ===== */
 .student-dashboard {
-  --sd-bg: var(--app-bg, #f3f6fb);
-  --sd-card: var(--app-card, #ffffff);
-  --sd-text: var(--app-text, #1f2937);
-  --sd-text-soft: var(--app-text-soft, #6b7280);
-  --sd-border: var(--app-border, #e5e7eb);
-  --sd-accent: var(--app-accent, #2563eb);
-  --sd-accent-soft: var(--app-accent-soft, rgba(37, 99, 235, 0.08));
-  --sd-shadow: var(--app-shadow, 0 10px 30px rgba(15, 23, 42, 0.08));
+  /* Light mode defaults */
+  --sd-bg: #f3f6fb;
+  --sd-card: #ffffff;
+  --sd-text: #1f2937;
+  --sd-text-soft: #6b7280;
+  --sd-border: #e5e7eb;
+  --sd-hover: #f3f7ff;
+  --sd-accent: #2563eb;
+  --sd-accent-soft: rgba(37, 99, 235, 0.08);
+  --sd-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
   --sd-transition: all 0.3s ease;
   --sd-radius-sm: 0.375rem;
   --sd-radius-md: 0.5rem;
@@ -21,6 +21,21 @@
   color: var(--sd-text);
   transition: var(--sd-transition);
   min-height: 100vh;
+}
+
+/* Dark mode variables */
+.dark-mode .student-dashboard,
+.student-dashboard.dark-mode,
+[data-theme="dark"] .student-dashboard {
+  --sd-bg: #0f172a;
+  --sd-card: #1e293b;
+  --sd-text: #e2e8f0;
+  --sd-text-soft: #94a3b8;
+  --sd-border: #334155;
+  --sd-hover: #334155;
+  --sd-accent: #3b82f6;
+  --sd-accent-soft: rgba(59, 130, 246, 0.15);
+  --sd-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .student-dashboard .card {
@@ -69,14 +84,21 @@
 }
 
 .student-dashboard .table th {
-  background: var(--sd-hover, #f3f7ff);
+  background: var(--sd-hover);
   border-bottom: 2px solid var(--sd-border);
   color: var(--sd-text);
+  font-weight: 600;
 }
 
 .student-dashboard .table td {
   border-bottom: 1px solid var(--sd-border);
   color: var(--sd-text);
+}
+
+/* Table row hover states */
+.student-dashboard .table tbody tr:hover {
+  background: var(--sd-accent-soft);
+  transition: var(--sd-transition);
 }
 
 .student-dashboard .progress {
@@ -122,6 +144,27 @@
 .student-dashboard .badge {
   font-size: 0.85rem;
   padding: 0.35rem 0.75rem;
+}
+
+/* Ensure badge colors work well in dark mode */
+.dark-mode .student-dashboard .badge.bg-success,
+.student-dashboard.dark-mode .badge.bg-success {
+  background-color: #059669 !important;
+}
+
+.dark-mode .student-dashboard .badge.bg-danger,
+.student-dashboard.dark-mode .badge.bg-danger {
+  background-color: #dc2626 !important;
+}
+
+.dark-mode .student-dashboard .badge.bg-warning,
+.student-dashboard.dark-mode .badge.bg-warning {
+  background-color: #d97706 !important;
+}
+
+.dark-mode .student-dashboard .badge.bg-info,
+.student-dashboard.dark-mode .badge.bg-info {
+  background-color: #2563eb !important;
 }
 
 .student-dashboard .text-success {

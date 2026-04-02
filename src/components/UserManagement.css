@@ -31,7 +31,7 @@
   transition: var(--um-transition);
 }
 
-[data-theme="dark"] .user-management {
+.user-management.dark-mode {
   --um-bg: #0b1220;
   --um-card: #111827;
   --um-text: #f9fafb;
@@ -251,6 +251,18 @@
   gap: 0.5rem;
 }
 
+.user-management .email-link {
+  color: var(--um-accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-management .email-link:hover {
+  text-decoration: underline;
+}
+
 .user-management .status-badge {
   display: inline-flex;
   align-items: center;
@@ -272,7 +284,11 @@
   gap: 0.5rem;
 }
 
-.user-management .btn-view, .user-management .btn-edit, .user-management .btn-warning, .user-management .btn-success, .user-management .btn-delete {
+.user-management .btn-view, 
+.user-management .btn-edit, 
+.user-management .btn-warning, 
+.user-management .btn-success, 
+.user-management .btn-delete {
   width: 32px;
   height: 32px;
   border: none;
@@ -284,17 +300,69 @@
   transition: var(--um-transition);
   color: white;
 }
-.user-management .btn-view { background: var(--um-info); }
-.user-management .btn-edit { background: var(--um-warning); color: #333; }
-.user-management .btn-warning { background: var(--um-warning); color: #333; }
-.user-management .btn-success { background: var(--um-success); }
-.user-management .btn-delete { background: var(--um-danger); }
+
+.user-management .btn-view { 
+  background: var(--um-info); 
+  color: white;
+}
+.user-management .btn-view:hover {
+  filter: brightness(1.1);
+  transform: scale(1.05);
+}
+
+.user-management .btn-edit { 
+  background: var(--um-warning); 
+  color: #333;
+}
+.user-management .btn-edit:hover {
+  filter: brightness(1.1);
+  transform: scale(1.05);
+}
+
+.user-management .btn-warning { 
+  background: var(--um-warning); 
+  color: #333;
+}
+.user-management .btn-warning:hover {
+  filter: brightness(1.1);
+  transform: scale(1.05);
+}
+
+.user-management .btn-success { 
+  background: var(--um-success); 
+  color: white;
+}
+.user-management .btn-success:hover {
+  filter: brightness(1.1);
+  transform: scale(1.05);
+}
+
+.user-management .btn-delete { 
+  background: var(--um-danger); 
+  color: white;
+}
+.user-management .btn-delete:hover {
+  filter: brightness(1.1);
+  transform: scale(1.05);
+}
 
 .user-management .btn-expand {
   background: none;
   border: none;
   color: var(--um-text-soft);
   cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--um-radius-md);
+  transition: var(--um-transition);
+}
+
+.user-management .btn-expand:hover {
+  background: var(--um-hover);
+  color: var(--um-accent);
 }
 
 .user-management .expanded-row td {
@@ -339,6 +407,7 @@
   color: var(--um-text);
   border-radius: var(--um-radius-md);
   cursor: pointer;
+  transition: var(--um-transition);
 }
 
 .user-management .pagination button:hover:not(:disabled) {
@@ -390,6 +459,7 @@
 }
 
 .user-management .modal-content.small { max-width: 400px; }
+
 .user-management .modal-header {
   padding: 1rem 1.5rem;
   background: var(--um-accent);
@@ -398,15 +468,28 @@
   justify-content: space-between;
   align-items: center;
 }
+
 .user-management .modal-header.danger { background: var(--um-danger); }
+
 .user-management .modal-close {
   background: none;
   border: none;
   color: white;
   font-size: 1.25rem;
   cursor: pointer;
+  transition: var(--um-transition);
 }
-.user-management .modal-body { padding: 1.5rem; overflow-y: auto; color: var(--um-text); }
+
+.user-management .modal-close:hover {
+  transform: scale(1.1);
+}
+
+.user-management .modal-body { 
+  padding: 1.5rem; 
+  overflow-y: auto; 
+  color: var(--um-text);
+}
+
 .user-management .modal-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--um-border);
@@ -428,22 +511,47 @@
   gap: 0.25rem;
 }
 
-.user-management .form-group label { font-weight: 500; color: var(--um-text); font-size: 0.9rem; }
-.user-management .form-group input, .user-management .form-group select {
+.user-management .form-group label { 
+  font-weight: 500; 
+  color: var(--um-text); 
+  font-size: 0.9rem;
+}
+
+.user-management .form-group input, 
+.user-management .form-group select {
   padding: 0.75rem;
   border: 1px solid var(--um-border);
   border-radius: var(--um-radius-md);
   background: var(--um-input-bg);
   color: var(--um-text);
 }
-.user-management .form-group input:focus, .user-management .form-group select:focus {
+
+.user-management .form-group input:focus, 
+.user-management .form-group select:focus {
   outline: none;
   border-color: var(--um-accent);
   box-shadow: 0 0 0 3px var(--um-accent-soft);
 }
-.user-management .form-group input.error, .user-management .form-group select.error { border-color: var(--um-danger); }
-.user-management .error-text { color: var(--um-danger); font-size: 0.75rem; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.25rem; }
-.user-management .hint-text { color: var(--um-text-soft); font-size: 0.7rem; margin-top: 0.25rem; }
+
+.user-management .form-group input.error, 
+.user-management .form-group select.error { 
+  border-color: var(--um-danger); 
+}
+
+.user-management .error-text { 
+  color: var(--um-danger); 
+  font-size: 0.75rem; 
+  margin-top: 0.25rem; 
+  display: flex; 
+  align-items: center; 
+  gap: 0.25rem; 
+}
+
+.user-management .hint-text { 
+  color: var(--um-text-soft); 
+  font-size: 0.7rem; 
+  margin-top: 0.25rem; 
+}
 
 .user-management .form-actions {
   display: flex;
@@ -461,6 +569,25 @@
   padding: 0.5rem 1rem;
   border-radius: var(--um-radius-md);
   cursor: pointer;
+  transition: var(--um-transition);
+}
+
+.user-management .btn-secondary:hover {
+  filter: brightness(1.1);
+}
+
+.user-management .btn-danger {
+  background: var(--um-danger);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: var(--um-radius-md);
+  cursor: pointer;
+  transition: var(--um-transition);
+}
+
+.user-management .btn-danger:hover {
+  filter: brightness(1.1);
 }
 
 .user-management .user-profile .profile-header {
@@ -471,9 +598,24 @@
   border-bottom: 1px solid var(--um-border);
 }
 
-.user-management .profile-icon { color: var(--um-accent); }
-.user-management .profile-title h2 { margin: 0 0 0.5rem; color: var(--um-accent); }
-.user-management .detail-section { margin-bottom: 2rem; }
+.user-management .profile-icon { 
+  color: var(--um-accent); 
+}
+
+.user-management .profile-title h2 { 
+  margin: 0 0 0.5rem; 
+  color: var(--um-accent); 
+}
+
+.user-management .profile-title .username {
+  color: var(--um-text-soft);
+  margin-bottom: 0.5rem;
+}
+
+.user-management .detail-section { 
+  margin-bottom: 2rem; 
+}
+
 .user-management .detail-section h3 {
   color: var(--um-accent);
   margin-bottom: 1rem;
@@ -481,9 +623,24 @@
   border-bottom: 2px solid var(--um-border);
   padding-bottom: 0.5rem;
 }
-.user-management .detail-grid label { display: block; font-weight: 500; color: var(--um-text-soft); font-size: 0.85rem; margin-bottom: 0.25rem; }
-.user-management .detail-grid span { color: var(--um-text); }
-.user-management .empty-state { text-align: center; padding: 3rem; color: var(--um-text-soft); }
+
+.user-management .detail-grid label { 
+  display: block; 
+  font-weight: 500; 
+  color: var(--um-text-soft); 
+  font-size: 0.85rem; 
+  margin-bottom: 0.25rem; 
+}
+
+.user-management .detail-grid span { 
+  color: var(--um-text); 
+}
+
+.user-management .empty-state { 
+  text-align: center; 
+  padding: 3rem; 
+  color: var(--um-text-soft); 
+}
 
 @media (max-width: 768px) {
   .user-management { padding: 1rem; }
@@ -496,4 +653,5 @@
   .user-management .profile-header { flex-direction: column; align-items: center; text-align: center; gap: 1rem; }
   .user-management .modal-content { width: 95%; }
   .user-management .detail-grid { grid-template-columns: 1fr; }
+  .user-management .action-buttons { flex-wrap: wrap; justify-content: center; }
 }
