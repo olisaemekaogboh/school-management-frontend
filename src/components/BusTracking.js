@@ -12,11 +12,15 @@ import {
   FaPhone,
   FaClock,
   FaMoneyBill,
+  FaSpinner,
 } from "react-icons/fa";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useDarkMode } from "../contexts/DarkModeContext";
+import "./BusTracking.css";
 
 function BusTracking() {
   const { t } = useLanguage();
+  const { darkMode } = useDarkMode();
 
   const [user, setUser] = useState(null);
   const [route, setRoute] = useState(null);
@@ -24,6 +28,7 @@ function BusTracking() {
   const [wards, setWards] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const ui = {
     loadFailed:
@@ -68,6 +73,8 @@ function BusTracking() {
   const loadInitial = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const meRes = await authAPI.getCurrentUser();
       const currentUser = meRes.data;
       setUser(currentUser);
@@ -87,9 +94,13 @@ function BusTracking() {
           const firstWardId = wardList[0].id;
           setSelectedStudentId(String(firstWardId));
           await loadStudentRoute(firstWardId);
+        } else {
+          setError("No wards found");
         }
       }
     } catch (error) {
+      console.error("Error loading initial data:", error);
+      setError(ui.loadFailed);
       toast.error(ui.loadFailed);
     } finally {
       setLoading(false);
@@ -98,23 +109,51 @@ function BusTracking() {
 
   const loadStudentRoute = async (studentId) => {
     try {
-      const routeRes =
-        (await transportAPI.getRouteByStudent?.(studentId)) ||
-        (await transportAPI.getStudentRoute?.(studentId)) ||
-        (await transportAPI.getAssignedRoute?.(studentId)) ||
-        (await transportAPI.getStudentAssignedRoute?.(studentId));
+      setError(null);
+      
+      // Try multiple API methods with better error handling
+      let routeRes = null;
+      const apiMethods = [
+        () => transportAPI.getRouteByStudent?.(studentId),
+        () => transportAPI.getStudentRoute?.(studentId),
+        () => transportAPI.getAssignedRoute?.(studentId),
+        () => transportAPI.getStudentAssignedRoute?.(studentId),
+      ];
+
+      for (const method of apiMethods) {
+        try {
+          const res = await method();
+          if (res?.data) {
+            routeRes = res;
+            break;
+          }
+        } catch (err) {
+          continue;
+        }
+      }
 
       const routeData = routeRes?.data;
-      if (!routeData) return;
+      if (!routeData) {
+        setRoute(null);
+        setLocation(null);
+        return;
+      }
 
       setRoute(routeData);
 
-      const locationRes = await transportAPI.getBusLocation(routeData.id);
-      setLocation(locationRes.data || null);
+      // Load bus location if route has an ID
+      if (routeData.id) {
+        try {
+          const locationRes = await transportAPI.getBusLocation(routeData.id);
+          setLocation(locationRes.data || null);
+        } catch (err) {
+          setLocation(null);
+        }
+      }
     } catch (error) {
+      console.error("Error loading student route:", error);
       setRoute(null);
       setLocation(null);
-      toast.info(ui.noRouteAssigned);
     }
   };
 
@@ -122,20 +161,23 @@ function BusTracking() {
     const studentId = e.target.value;
     setSelectedStudentId(studentId);
     if (studentId) {
+      setLoading(true);
       await loadStudentRoute(studentId);
+      setLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="container py-4">
-        <div className="alert alert-info">{ui.loading}</div>
+      <div className="bus-tracking text-center py-5">
+        <FaSpinner className="spin" size={40} />
+        <p className="mt-3">{ui.loading}</p>
       </div>
     );
   }
 
   return (
-    <div className="container py-4">
+    <div className="bus-tracking container py-4">
       <div className="mb-4">
         <h2 className="mb-1">
           <FaBus className="me-2" />
@@ -144,8 +186,14 @@ function BusTracking() {
         <p className="text-muted mb-0">{ui.subtitle}</p>
       </div>
 
-      {user?.role === "PARENT" && (
-        <div className="card shadow-sm border-0 mb-4">
+      {error && (
+        <div className="alert alert-danger" role="alert">
+          {error}
+        </div>
+      )}
+
+      {user?.role === "PARENT" && wards.length > 0 && (
+        <div className="card shadow-sm mb-4">
           <div className="card-body">
             <label className="form-label fw-bold">{ui.selectWard}</label>
             <select
@@ -165,74 +213,98 @@ function BusTracking() {
       )}
 
       {!route ? (
-        <div className="alert alert-warning">{ui.noTransportRoute}</div>
+        <div className="alert alert-warning">
+          <FaBus className="me-2" />
+          {ui.noTransportRoute}
+        </div>
       ) : (
         <div className="row g-4">
           <div className="col-lg-7">
-            <div className="card shadow-sm border-0 h-100">
-              <div className="card-header bg-white">
+            <div className="card shadow-sm h-100">
+              <div className="card-header border-bottom">
                 <h5 className="mb-0">{ui.assignedRoute}</h5>
               </div>
               <div className="card-body">
-                <h4>{route.routeName}</h4>
-                <p className="text-muted">{route.routeCode}</p>
+                <h4 className="mb-2">{route.routeName}</h4>
+                {route.routeCode && (
+                  <p className="text-muted mb-3">{route.routeCode}</p>
+                )}
 
-                <p>
-                  <FaMapMarkerAlt className="me-2 text-primary" />
-                  <strong>{ui.pickup}:</strong> {route.pickupLocation}
-                </p>
-                <p>
-                  <FaMapMarkerAlt className="me-2 text-success" />
-                  <strong>{ui.dropOff}:</strong> {route.dropoffLocation}
-                </p>
-                <p>
-                  <FaClock className="me-2 text-warning" />
-                  <strong>{ui.pickupTime}:</strong> {route.pickupTime}
-                </p>
-                <p>
-                  <FaClock className="me-2 text-warning" />
-                  <strong>{ui.dropOffTime}:</strong> {route.dropoffTime}
-                </p>
-                <p>
-                  <FaPhone className="me-2 text-info" />
-                  <strong>{ui.driver}:</strong> {route.driverName} (
-                  {route.driverPhone})
-                </p>
-                <p>
-                  <FaPhone className="me-2 text-info" />
-                  <strong>{ui.assistant}:</strong>{" "}
-                  {route.assistantName
-                    ? `${route.assistantName} (${route.assistantPhone || ui.noPhone})`
-                    : ui.notAssigned}
-                </p>
-                <p className="mb-0">
-                  <FaMoneyBill className="me-2 text-success" />
-                  <strong>{ui.monthlyFee}:</strong> ₦{route.monthlyFee}
-                </p>
+                <div className="route-details">
+                  <p className="mb-2">
+                    <FaMapMarkerAlt className="me-2 text-primary" />
+                    <strong>{ui.pickup}:</strong> {route.pickupLocation || "N/A"}
+                  </p>
+                  <p className="mb-2">
+                    <FaMapMarkerAlt className="me-2 text-success" />
+                    <strong>{ui.dropOff}:</strong> {route.dropoffLocation || "N/A"}
+                  </p>
+                  <p className="mb-2">
+                    <FaClock className="me-2 text-warning" />
+                    <strong>{ui.pickupTime}:</strong> {route.pickupTime || "N/A"}
+                  </p>
+                  <p className="mb-2">
+                    <FaClock className="me-2 text-warning" />
+                    <strong>{ui.dropOffTime}:</strong> {route.dropoffTime || "N/A"}
+                  </p>
+                  <p className="mb-2">
+                    <FaPhone className="me-2 text-info" />
+                    <strong>{ui.driver}:</strong> {route.driverName || "N/A"} 
+                    {route.driverPhone && ` (${route.driverPhone})`}
+                  </p>
+                  <p className="mb-2">
+                    <FaPhone className="me-2 text-info" />
+                    <strong>{ui.assistant}:</strong>{" "}
+                    {route.assistantName
+                      ? `${route.assistantName}${route.assistantPhone ? ` (${route.assistantPhone})` : ` (${ui.noPhone})`}`
+                      : ui.notAssigned}
+                  </p>
+                  {route.monthlyFee && (
+                    <p className="mb-0">
+                      <FaMoneyBill className="me-2 text-success" />
+                      <strong>{ui.monthlyFee}:</strong> ₦
+                      {typeof route.monthlyFee === 'number' 
+                        ? route.monthlyFee.toLocaleString() 
+                        : route.monthlyFee}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
           <div className="col-lg-5">
-            <div className="card shadow-sm border-0 h-100">
-              <div className="card-header bg-white">
+            <div className="card shadow-sm h-100">
+              <div className="card-header border-bottom">
                 <h5 className="mb-0">{ui.currentBusLocation}</h5>
               </div>
               <div className="card-body">
                 {location?.latitude != null && location?.longitude != null ? (
                   <>
-                    <p>
-                      <strong>{ui.latitude}:</strong> {location.latitude}
-                    </p>
-                    <p>
-                      <strong>{ui.longitude}:</strong> {location.longitude}
-                    </p>
-                    <div className="alert alert-success mb-0">
+                    <div className="location-coordinates">
+                      <p className="mb-2">
+                        <strong>{ui.latitude}:</strong>{" "}
+                        <code>{location.latitude}</code>
+                      </p>
+                      <p className="mb-2">
+                        <strong>{ui.longitude}:</strong>{" "}
+                        <code>{location.longitude}</code>
+                      </p>
+                      {location.lastUpdated && (
+                        <p className="mb-2">
+                          <strong>Last Updated:</strong>{" "}
+                          {new Date(location.lastUpdated).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    <div className="alert alert-success mt-3 mb-0">
+                      <FaBus className="me-2" />
                       {ui.latestLocationRecorded}
                     </div>
                   </>
                 ) : (
                   <div className="alert alert-secondary mb-0">
+                    <FaMapMarkerAlt className="me-2" />
                     {ui.locationNotUpdated}
                   </div>
                 )}
@@ -241,6 +313,16 @@ function BusTracking() {
           </div>
         </div>
       )}
+
+      <style>{`
+        .spin {
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   FaTrash,
   FaCheck,
   FaTimes,
+  FaBriefcase,
 } from "react-icons/fa";
 import SignatureCanvas from "react-signature-canvas";
 
@@ -90,6 +91,21 @@ function Profile() {
 
   const labels = t?.profilePage || {};
   const common = t?.common || {};
+
+  const dashboardPath = useMemo(() => {
+    switch (user?.role) {
+      case "ADMIN":
+        return "/dashboard";
+      case "TEACHER":
+        return "/teacher-dashboard";
+      case "STUDENT":
+        return "/student-dashboard";
+      case "PARENT":
+        return "/parent-dashboard";
+      default:
+        return "/";
+    }
+  }, [user?.role]);
 
   const roleLabel = useMemo(() => {
     switch (user?.role) {
@@ -159,6 +175,7 @@ function Profile() {
 
   const mergedProfile = useMemo(() => {
     const raw = profileData || {};
+    const nestedUser = raw.user || {};
 
     const profilePictureCandidate =
       raw.profilePictureUrl ||
@@ -166,7 +183,9 @@ function Profile() {
       raw.photoUrl ||
       raw.imageUrl ||
       raw.passport ||
-      raw.user?.profilePictureUrl ||
+      raw.avatar ||
+      nestedUser.profilePictureUrl ||
+      nestedUser.profileImageUrl ||
       user?.profilePictureUrl ||
       "";
 
@@ -177,34 +196,65 @@ function Profile() {
       user?.signatureUrl ||
       "";
 
+    const firstName =
+      raw.firstName ||
+      nestedUser.firstName ||
+      user?.firstName ||
+      raw.parentFirstName ||
+      "";
+
+    const middleName =
+      raw.middleName || nestedUser.middleName || user?.middleName || "";
+
+    const lastName =
+      raw.lastName ||
+      nestedUser.lastName ||
+      user?.lastName ||
+      raw.parentLastName ||
+      "";
+
+    const fullName =
+      raw.fullName ||
+      nestedUser.fullName ||
+      user?.fullName ||
+      [firstName, middleName, lastName]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+
     return {
-      firstName: raw.firstName || user?.firstName || "",
-      middleName: raw.middleName || user?.middleName || "",
-      lastName: raw.lastName || user?.lastName || "",
-      fullName:
-        raw.fullName ||
-        user?.fullName ||
-        [
-          raw.firstName || user?.firstName,
-          raw.middleName || user?.middleName,
-          raw.lastName || user?.lastName,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .replace(/\s+/g, " ")
-          .trim(),
-      email: raw.email || user?.email || "",
+      firstName,
+      middleName,
+      lastName,
+      fullName,
+      email:
+        raw.email || raw.parentEmail || nestedUser.email || user?.email || "",
       phone:
         raw.phone ||
         raw.phoneNumber ||
-        raw.user?.phoneNumber ||
+        raw.mobileNumber ||
+        raw.parentPhone ||
+        nestedUser.phone ||
+        nestedUser.phoneNumber ||
         user?.phone ||
         user?.phoneNumber ||
         "",
-      address: raw.address || raw.user?.address || user?.address || "",
-      dateOfBirth: raw.dateOfBirth || user?.dateOfBirth || "",
-      gender: raw.gender || user?.gender || "",
-      status: raw.status || user?.status || "",
+      alternatePhone:
+        raw.alternatePhone ||
+        raw.alternatePhoneNumber ||
+        raw.secondaryPhone ||
+        "",
+      address:
+        raw.address ||
+        raw.homeAddress ||
+        nestedUser.address ||
+        user?.address ||
+        "",
+      dateOfBirth:
+        raw.dateOfBirth || nestedUser.dateOfBirth || user?.dateOfBirth || "",
+      gender: raw.gender || nestedUser.gender || user?.gender || "",
+      status: raw.status || nestedUser.status || user?.status || "",
       admissionNumber:
         raw.admissionNumber || raw.admissionNo || user?.admissionNumber || "",
       employeeId: raw.employeeId || raw.staffId || raw.teacherId || "",
@@ -230,11 +280,27 @@ function Profile() {
         (Array.isArray(raw.qualifications)
           ? raw.qualifications.join(", ")
           : ""),
-      occupation: raw.occupation || "",
+      occupation:
+        raw.occupation ||
+        raw.jobTitle ||
+        raw.profession ||
+        nestedUser.occupation ||
+        "",
+      username: raw.username || nestedUser.username || user?.username || "",
       profilePictureUrl: buildImageUrl(profilePictureCandidate),
+
       signatureUrl: buildImageUrl(signatureCandidate),
       username: raw.username || user?.username || "",
       role: user?.role || raw.role || "",
+
+      role: user?.role || raw.role || nestedUser.role || "",
+      parentId: raw.parentId || raw.id || "",
+      wardCount:
+        raw.wardCount ||
+        raw.childrenCount ||
+        (Array.isArray(raw.children) ? raw.children.length : 0) ||
+        (Array.isArray(raw.students) ? raw.students.length : 0) ||
+        0,
     };
   }, [profileData, user]);
 
@@ -339,7 +405,9 @@ function Profile() {
             </div>
             <div>
               <div
-                className={`${darkMode ? "text-light-emphasis" : "text-muted"} small`}
+                className={`${
+                  darkMode ? "text-light-emphasis" : "text-muted"
+                } small`}
               >
                 {title}
               </div>
@@ -358,7 +426,10 @@ function Profile() {
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
           <div className="d-flex align-items-center gap-2 mb-2">
-            <Link to="/dashboard" className="btn btn-outline-secondary btn-sm">
+            <Link
+              to={dashboardPath}
+              className="btn btn-outline-secondary btn-sm"
+            >
               <FaArrowLeft className="me-2" />
               {common.back || "Back"}
             </Link>
@@ -425,33 +496,45 @@ function Profile() {
                 {profileIcon}
                 <span className="badge text-bg-light">{roleLabel}</span>
               </div>
+
               <h3 className="mb-1">
                 {mergedProfile.fullName || labels.noName || "No name available"}
               </h3>
+
               <p className="mb-2 opacity-75">
                 {mergedProfile.email || labels.noEmail || "No email available"}
               </p>
+
               <div className="d-flex flex-wrap gap-2">
                 {mergedProfile.status && (
                   <span className="badge text-bg-success">
                     {labels.status || "Status"}: {mergedProfile.status}
                   </span>
                 )}
+
                 {user?.role === "STUDENT" && classDisplay && (
                   <span className="badge text-bg-info">
                     {labels.classLabel || "Class"}: {classDisplay}
                   </span>
                 )}
+
                 {mergedProfile.admissionNumber && (
                   <span className="badge text-bg-warning">
                     {labels.admissionNumber || "Admission Number"}:{" "}
                     {mergedProfile.admissionNumber}
                   </span>
                 )}
+
                 {mergedProfile.employeeId && (
                   <span className="badge text-bg-secondary">
                     {labels.employeeId || "Employee ID"}:{" "}
                     {mergedProfile.employeeId}
+                  </span>
+                )}
+
+                {user?.role === "PARENT" && mergedProfile.wardCount > 0 && (
+                  <span className="badge text-bg-primary">
+                    {labels.children || "Children"}: {mergedProfile.wardCount}
                   </span>
                 )}
               </div>
@@ -463,7 +546,9 @@ function Profile() {
       <div className="row g-4 mb-4">
         <div className="col-lg-8">
           <div
-            className={`card border-0 shadow-sm h-100 ${darkMode ? "bg-dark text-light" : ""}`}
+            className={`card border-0 shadow-sm h-100 ${
+              darkMode ? "bg-dark text-light" : ""
+            }`}
           >
             <div className="card-body p-4">
               <h4 className="mb-3">
@@ -540,11 +625,27 @@ function Profile() {
                   )}
 
                   {user?.role === "PARENT" && (
-                    <DetailCard
-                      icon={<FaUsers />}
-                      title={labels.occupation || "Occupation"}
-                      value={mergedProfile.occupation}
-                    />
+                    <>
+                      <DetailCard
+                        icon={<FaBriefcase />}
+                        title={labels.occupation || "Occupation"}
+                        value={mergedProfile.occupation}
+                      />
+                      <DetailCard
+                        icon={<FaPhone />}
+                        title={labels.alternatePhone || "Alternate Phone"}
+                        value={mergedProfile.alternatePhone}
+                      />
+                      <DetailCard
+                        icon={<FaUsers />}
+                        title={labels.children || "Children"}
+                        value={
+                          mergedProfile.wardCount
+                            ? String(mergedProfile.wardCount)
+                            : labels.notAvailable || "Not available"
+                        }
+                      />
+                    </>
                   )}
                 </div>
               )}
@@ -689,7 +790,9 @@ function Profile() {
 
           {/* Preferences Card */}
           <div
-            className={`card border-0 shadow-sm mb-4 ${darkMode ? "bg-dark text-light" : ""}`}
+            className={`card border-0 shadow-sm mb-4 ${
+              darkMode ? "bg-dark text-light" : ""
+            }`}
           >
             <div className="card-body p-4">
               <h4 className="mb-3">{labels.preferences || "Preferences"}</h4>
@@ -700,7 +803,9 @@ function Profile() {
                   {common.language || "Language"}
                 </label>
                 <select
-                  className={`form-select ${darkMode ? "bg-dark text-light border-secondary" : ""}`}
+                  className={`form-select ${
+                    darkMode ? "bg-dark text-light border-secondary" : ""
+                  }`}
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
                 >
@@ -711,7 +816,9 @@ function Profile() {
               </div>
 
               <div
-                className={`d-flex align-items-center justify-content-between border rounded p-3 ${darkMode ? "border-secondary" : ""}`}
+                className={`d-flex align-items-center justify-content-between border rounded p-3 ${
+                  darkMode ? "border-secondary" : ""
+                }`}
               >
                 <div>
                   <div className="fw-semibold">{labels.theme || "Theme"}</div>
@@ -750,7 +857,9 @@ function Profile() {
 
           {/* Account Summary Card */}
           <div
-            className={`card border-0 shadow-sm ${darkMode ? "bg-dark text-light" : ""}`}
+            className={`card border-0 shadow-sm ${
+              darkMode ? "bg-dark text-light" : ""
+            }`}
           >
             <div className="card-body p-4">
               <h4 className="mb-3">
@@ -790,9 +899,26 @@ function Profile() {
               >
                 {labels.fullName || "Full Name"}
               </div>
-              <div className="fw-semibold">
+              <div className="fw-semibold mb-3">
                 {mergedProfile.fullName || labels.noName || "No name available"}
               </div>
+
+              {user?.role === "PARENT" && (
+                <>
+                  <div
+                    className={
+                      darkMode
+                        ? "small text-light-emphasis mb-2"
+                        : "small text-muted mb-2"
+                    }
+                  >
+                    {labels.children || "Children"}
+                  </div>
+                  <div className="fw-semibold">
+                    {mergedProfile.wardCount || 0}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

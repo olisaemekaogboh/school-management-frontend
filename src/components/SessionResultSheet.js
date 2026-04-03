@@ -4,6 +4,7 @@ import { studentAPI, sessionResultAPI } from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
+import { useAuth } from "../contexts/AuthContext";
 import {
   FaPrint,
   FaDownload,
@@ -25,6 +26,7 @@ function SessionResultSheet() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { darkMode } = useDarkMode();
+  const { isStudent, isParent } = useAuth();
 
   const query = new URLSearchParams(location.search);
   const session = query.get("session") || "";
@@ -49,6 +51,13 @@ function SessionResultSheet() {
     const text = String(value).trim();
     return text ? text : fallback;
   };
+
+  const printableMessage =
+    sessionResult?.printLockMessage ||
+    "Printable result is locked. The admin will unlock it when it is ready.";
+
+  const canAccessPrintablePage = !isStudent && !isParent;
+  const canPrint = canAccessPrintablePage && sessionResult?.printable === true;
 
   const studentInfo = useMemo(() => {
     const fallback = student || {};
@@ -197,7 +206,8 @@ function SessionResultSheet() {
           );
         } else if (fetchError.response?.status === 403) {
           setError(
-            t?.sessionResultSheet?.accessDenied ||
+            fetchError.response?.data?.message ||
+              t?.sessionResultSheet?.accessDenied ||
               "You are not allowed to view this result",
           );
         } else {
@@ -215,6 +225,15 @@ function SessionResultSheet() {
     fetchData();
   }, [studentId, session, t]);
 
+  useEffect(() => {
+    if (!sessionResult) return;
+
+    if (!canAccessPrintablePage) {
+      toast.error(printableMessage);
+      navigate("/session-results", { replace: true });
+    }
+  }, [sessionResult, canAccessPrintablePage, printableMessage, navigate]);
+
   const getGradeFromAverage = (avg) => {
     const value = Number(avg) || 0;
     if (value >= 70) return { grade: "A", remark: "Excellent" };
@@ -231,6 +250,12 @@ function SessionResultSheet() {
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
     documentTitle: buildFileName(),
+    onBeforePrint: async () => {
+      if (!canPrint) {
+        toast.error(printableMessage);
+        throw new Error(printableMessage);
+      }
+    },
     onAfterPrint: () =>
       toast.success(
         t?.sessionResultSheet?.printSuccess ||
@@ -239,6 +264,11 @@ function SessionResultSheet() {
   });
 
   const handleDownloadPDF = async () => {
+    if (!canPrint) {
+      toast.error(printableMessage);
+      return;
+    }
+
     if (!componentRef.current) {
       toast.error(t?.sessionResultSheet?.notReady || "Result sheet not ready");
       return;
@@ -337,311 +367,328 @@ function SessionResultSheet() {
     <div
       className={`session-result-page result-sheet-page ${darkMode ? "dark-mode" : ""}`}
     >
-      <div className="container py-4">
-        <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
-          <button
-            className="btn btn-outline-secondary"
-            onClick={() => navigate(-1)}
-          >
-            <FaArrowLeft className="me-2" />
-            {t?.sessionResultSheet?.back || "Back"}
-          </button>
-
-          <div className="d-flex flex-wrap gap-2">
-            <button className="btn btn-primary" onClick={handlePrint}>
-              <FaPrint className="me-2" />
-              {t?.sessionResultSheet?.print || "Print"}
+      {!isStudent && !isParent && (
+        <>
+          <div className="result-sheet-actions">
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => navigate(-1)}
+            >
+              <FaArrowLeft />
+              <span>Back</span>
             </button>
 
             <button
-              className="btn btn-success"
-              onClick={handleDownloadPDF}
-              disabled={downloading}
+              type="button"
+              className={`btn ${canPrint ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => {
+                if (!canPrint) {
+                  toast.error(printableMessage);
+                  return;
+                }
+                handlePrint();
+              }}
+              disabled={loading || !canPrint}
+              title={!canPrint ? printableMessage : "Print result"}
             >
-              <FaDownload className="me-2" />
-              {downloading
-                ? t?.sessionResultSheet?.downloading || "Downloading..."
-                : t?.sessionResultSheet?.download || "Download PDF"}
+              <FaPrint />
+              <span>{canPrint ? "Print" : "Print Locked"}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`btn ${canPrint ? "btn-success" : "btn-secondary"}`}
+              onClick={handleDownloadPDF}
+              disabled={loading || downloading || !canPrint}
+              title={!canPrint ? printableMessage : "Download PDF"}
+            >
+              <FaDownload />
+              <span>
+                {canPrint
+                  ? downloading
+                    ? "Preparing..."
+                    : "Download PDF"
+                  : "Download Locked"}
+              </span>
             </button>
           </div>
-        </div>
 
-        <div className="card shadow-sm result-sheet-card" ref={componentRef}>
-          <div className="card-body p-4">
-            <div className="text-center mb-4">
-              <h2 className="mb-1">
-                {t?.sessionResultSheet?.title || "Session Result Sheet"}
-              </h2>
-              <p className="mb-0">
-                {t?.sessionResultSheet?.sessionLabel || "Academic Session"}:{" "}
-                <strong>{session}</strong>
-              </p>
+          {!canPrint && (
+            <div className="result-lock-banner" role="alert">
+              {printableMessage}
             </div>
+          )}
+        </>
+      )}
 
-            <div className="row g-4 align-items-center mb-4">
-              <div className="col-md-3 text-center">
-                {studentPhotoUrl ? (
-                  <img
-                    src={studentPhotoUrl}
-                    alt={studentInfo.fullName}
-                    className="img-fluid rounded-circle border session-student-photo"
-                  />
-                ) : (
-                  <div className="session-avatar-fallback">
-                    <FaUserCircle size={90} />
-                  </div>
-                )}
-              </div>
+      <div className="card shadow-sm result-sheet-card" ref={componentRef}>
+        <div className="card-body p-4">
+          <div className="text-center mb-4">
+            <h2 className="mb-1">
+              {t?.sessionResultSheet?.title || "Session Result Sheet"}
+            </h2>
+            <p className="mb-0">
+              {t?.sessionResultSheet?.sessionLabel || "Academic Session"}:{" "}
+              <strong>{session}</strong>
+            </p>
+          </div>
 
-              <div className="col-md-9">
-                <div className="row g-3">
-                  <div className="col-md-6">
-                    <strong>
-                      {t?.sessionResultSheet?.studentName || "Student Name"}:
-                    </strong>
-                    <div>{studentInfo.fullName}</div>
-                  </div>
-                  <div className="col-md-6">
-                    <strong>
-                      {t?.sessionResultSheet?.admissionNumber ||
-                        "Admission Number"}
-                      :
-                    </strong>
-                    <div>{studentInfo.admissionNumber}</div>
-                  </div>
-                  <div className="col-md-6">
-                    <strong>{t?.sessionResultSheet?.class || "Class"}:</strong>
-                    <div>
-                      {studentInfo.studentClass} {studentInfo.arm}
-                    </div>
-                  </div>
-                  <div className="col-md-6">
-                    <strong>
-                      {t?.sessionResultSheet?.dateOfBirth || "Date of Birth"}:
-                    </strong>
-                    <div>
-                      {studentInfo.dateOfBirth
-                        ? moment(studentInfo.dateOfBirth).format("DD/MM/YYYY")
-                        : "N/A"}
-                    </div>
-                  </div>
-                  <div className="col-md-6">
-                    <strong>
-                      {t?.sessionResultSheet?.parentName || "Parent/Guardian"}:
-                    </strong>
-                    <div>{safeText(studentInfo.parentName)}</div>
-                  </div>
-                  <div className="col-md-6">
-                    <strong>
-                      {t?.sessionResultSheet?.parentPhone || "Parent Phone"}:
-                    </strong>
-                    <div>{safeText(studentInfo.parentPhone)}</div>
-                  </div>
-                  <div className="col-12">
-                    <strong>
-                      {t?.sessionResultSheet?.address || "Address"}:
-                    </strong>
-                    <div>{safeText(studentInfo.address)}</div>
-                  </div>
+          <div className="row g-4 align-items-center mb-4">
+            <div className="col-md-3 text-center">
+              {studentPhotoUrl ? (
+                <img
+                  src={studentPhotoUrl}
+                  alt={studentInfo.fullName}
+                  className="img-fluid rounded-circle border session-student-photo"
+                />
+              ) : (
+                <div className="session-avatar-fallback">
+                  <FaUserCircle size={90} />
                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="table-responsive mb-4">
-              <table className="table table-bordered align-middle session-table">
-                <thead>
-                  <tr>
-                    <th>{t?.sessionResultSheet?.subject || "Subject"}</th>
-                    <th>{t?.sessionResultSheet?.firstTerm || "1st Term"}</th>
-                    <th>{t?.sessionResultSheet?.secondTerm || "2nd Term"}</th>
-                    <th>{t?.sessionResultSheet?.thirdTerm || "3rd Term"}</th>
-                    <th>
-                      {t?.sessionResultSheet?.annualAverage || "Annual Avg"}
-                    </th>
-                    <th>{t?.sessionResultSheet?.grade || "Grade"}</th>
-                    <th>{t?.sessionResultSheet?.remark || "Remark"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {subjectPerformance.length > 0 ? (
-                    subjectPerformance.map((item, index) => {
-                      const avg = safeNumber(item.annualAverage);
-                      const gradeInfo = getGradeFromAverage(avg);
-
-                      return (
-                        <tr key={`${item.subject}-${index}`}>
-                          <td>{item.subject}</td>
-                          <td>{safeFixed(item.firstTerm)}</td>
-                          <td>{safeFixed(item.secondTerm)}</td>
-                          <td>{safeFixed(item.thirdTerm)}</td>
-                          <td>{safeFixed(item.annualAverage)}</td>
-                          <td>{gradeInfo.grade}</td>
-                          <td>{gradeInfo.remark}</td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="7" className="text-center">
-                        {t?.sessionResultSheet?.noSubjects ||
-                          "No subject performance available"}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="row g-4 mb-4">
-              <div className="col-md-6">
-                <div className="card h-100 session-info-card">
-                  <div className="card-body">
-                    <h5 className="mb-3">
-                      <FaGraduationCap className="me-2" />
-                      {t?.sessionResultSheet?.annualSummary || "Annual Summary"}
-                    </h5>
-                    <p className="mb-2">
-                      <strong>
-                        {t?.sessionResultSheet?.annualTotal || "Annual Total"}:
-                      </strong>{" "}
-                      {safeFixed(annualSummary.annualTotal)}
-                    </p>
-                    <p className="mb-2">
-                      <strong>
-                        {t?.sessionResultSheet?.annualAverage ||
-                          "Annual Average"}
-                        :
-                      </strong>{" "}
-                      {safeFixed(annualSummary.annualAverage)}
-                    </p>
-                    <p className="mb-2">
-                      <strong>
-                        {t?.sessionResultSheet?.positionInClass ||
-                          "Position in Class"}
-                        :
-                      </strong>{" "}
-                      {annualSummary.positionInClass}
-                    </p>
-                    <p className="mb-2">
-                      <strong>
-                        {t?.sessionResultSheet?.positionInArm ||
-                          "Position in Arm"}
-                        :
-                      </strong>{" "}
-                      {annualSummary.positionInArm}
-                    </p>
-                    <p className="mb-0">
-                      <strong>
-                        {t?.sessionResultSheet?.positionInSchool ||
-                          "Position in School"}
-                        :
-                      </strong>{" "}
-                      {annualSummary.positionInSchool}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-md-6">
-                <div className="card h-100 session-info-card">
-                  <div className="card-body">
-                    <h5 className="mb-3">
-                      {t?.sessionResultSheet?.attendance || "Attendance"}
-                    </h5>
-                    <p className="mb-2">
-                      <strong>
-                        {t?.sessionResultSheet?.totalSchoolDays ||
-                          "Total School Days"}
-                        :
-                      </strong>{" "}
-                      {attendance.totalSchoolDays}
-                    </p>
-                    <p className="mb-2">
-                      <strong>
-                        {t?.sessionResultSheet?.daysPresent || "Days Present"}:
-                      </strong>{" "}
-                      {attendance.daysPresent}
-                    </p>
-                    <p className="mb-2">
-                      <strong>
-                        {t?.sessionResultSheet?.daysAbsent || "Days Absent"}:
-                      </strong>{" "}
-                      {attendance.daysAbsent}
-                    </p>
-                    <p className="mb-0">
-                      <strong>
-                        {t?.sessionResultSheet?.attendancePercentage ||
-                          "Attendance Percentage"}
-                        :
-                      </strong>{" "}
-                      {safeFixed(attendance.attendancePercentage)}%
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="row g-4 mb-4">
-              <div className="col-md-12">
-                <div className="card session-info-card">
-                  <div className="card-body">
-                    <h5 className="mb-3">
-                      {t?.sessionResultSheet?.termBreakdown || "Term Breakdown"}
-                    </h5>
-                    <div className="table-responsive">
-                      <table className="table table-bordered mb-0 session-table">
-                        <thead>
-                          <tr>
-                            <th>{t?.sessionResultSheet?.term || "Term"}</th>
-                            <th>{t?.sessionResultSheet?.total || "Total"}</th>
-                            <th>
-                              {t?.sessionResultSheet?.average || "Average"}
-                            </th>
-                            <th>
-                              {t?.sessionResultSheet?.position || "Position"}
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {termSummaryRows.map((row) => (
-                            <tr key={row.label}>
-                              <td>{row.label}</td>
-                              <td>{safeFixed(row.total)}</td>
-                              <td>{safeFixed(row.average)}</td>
-                              <td>{row.position}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card border-0 session-promotion-card">
-              <div className="card-body">
-                <h5 className="mb-3">
-                  {t?.sessionResultSheet?.promotionDecision ||
-                    "Promotion Decision"}
-                </h5>
-                <div className="d-flex align-items-center gap-2 mb-2">
-                  {promotion.promoted ? (
-                    <FaCheckCircle className="text-success" />
-                  ) : (
-                    <FaTimesCircle className="text-danger" />
-                  )}
+            <div className="col-md-9">
+              <div className="row g-3">
+                <div className="col-md-6">
                   <strong>
-                    {promotion.promoted
-                      ? t?.sessionResultSheet?.promoted || "Promoted"
-                      : t?.sessionResultSheet?.notPromoted || "Not Promoted"}
+                    {t?.sessionResultSheet?.studentName || "Student Name"}:
                   </strong>
+                  <div>{studentInfo.fullName}</div>
                 </div>
-                <p className="mb-0">
-                  <strong>{t?.sessionResultSheet?.remark || "Remark"}:</strong>{" "}
-                  {promotion.remark}
-                </p>
+                <div className="col-md-6">
+                  <strong>
+                    {t?.sessionResultSheet?.admissionNumber ||
+                      "Admission Number"}
+                    :
+                  </strong>
+                  <div>{studentInfo.admissionNumber}</div>
+                </div>
+                <div className="col-md-6">
+                  <strong>{t?.sessionResultSheet?.class || "Class"}:</strong>
+                  <div>
+                    {studentInfo.studentClass} {studentInfo.arm}
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <strong>
+                    {t?.sessionResultSheet?.dateOfBirth || "Date of Birth"}:
+                  </strong>
+                  <div>
+                    {studentInfo.dateOfBirth
+                      ? moment(studentInfo.dateOfBirth).format("DD/MM/YYYY")
+                      : "N/A"}
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <strong>
+                    {t?.sessionResultSheet?.parentName || "Parent/Guardian"}:
+                  </strong>
+                  <div>{safeText(studentInfo.parentName)}</div>
+                </div>
+                <div className="col-md-6">
+                  <strong>
+                    {t?.sessionResultSheet?.parentPhone || "Parent Phone"}:
+                  </strong>
+                  <div>{safeText(studentInfo.parentPhone)}</div>
+                </div>
+                <div className="col-12">
+                  <strong>
+                    {t?.sessionResultSheet?.address || "Address"}:
+                  </strong>
+                  <div>{safeText(studentInfo.address)}</div>
+                </div>
               </div>
+            </div>
+          </div>
+
+          <div className="table-responsive mb-4">
+            <table className="table table-bordered align-middle session-table">
+              <thead>
+                <tr>
+                  <th>{t?.sessionResultSheet?.subject || "Subject"}</th>
+                  <th>{t?.sessionResultSheet?.firstTerm || "1st Term"}</th>
+                  <th>{t?.sessionResultSheet?.secondTerm || "2nd Term"}</th>
+                  <th>{t?.sessionResultSheet?.thirdTerm || "3rd Term"}</th>
+                  <th>{t?.sessionResultSheet?.annualAverage || "Annual Avg"}</th>
+                  <th>{t?.sessionResultSheet?.grade || "Grade"}</th>
+                  <th>{t?.sessionResultSheet?.remark || "Remark"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subjectPerformance.length > 0 ? (
+                  subjectPerformance.map((item, index) => {
+                    const avg = safeNumber(item.annualAverage);
+                    const gradeInfo = getGradeFromAverage(avg);
+
+                    return (
+                      <tr key={`${item.subject}-${index}`}>
+                        <td>{item.subject}</td>
+                        <td>{safeFixed(item.firstTerm)}</td>
+                        <td>{safeFixed(item.secondTerm)}</td>
+                        <td>{safeFixed(item.thirdTerm)}</td>
+                        <td>{safeFixed(item.annualAverage)}</td>
+                        <td>{gradeInfo.grade}</td>
+                        <td>{gradeInfo.remark}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="7" className="text-center">
+                      {t?.sessionResultSheet?.noSubjects ||
+                        "No subject performance available"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="row g-4 mb-4">
+            <div className="col-md-6">
+              <div className="card h-100 session-info-card">
+                <div className="card-body">
+                  <h5 className="mb-3">
+                    <FaGraduationCap className="me-2" />
+                    {t?.sessionResultSheet?.annualSummary || "Annual Summary"}
+                  </h5>
+                  <p className="mb-2">
+                    <strong>
+                      {t?.sessionResultSheet?.annualTotal || "Annual Total"}:
+                    </strong>{" "}
+                    {safeFixed(annualSummary.annualTotal)}
+                  </p>
+                  <p className="mb-2">
+                    <strong>
+                      {t?.sessionResultSheet?.annualAverage || "Annual Average"}
+                      :
+                    </strong>{" "}
+                    {safeFixed(annualSummary.annualAverage)}
+                  </p>
+                  <p className="mb-2">
+                    <strong>
+                      {t?.sessionResultSheet?.positionInClass ||
+                        "Position in Class"}
+                      :
+                    </strong>{" "}
+                    {annualSummary.positionInClass}
+                  </p>
+                  <p className="mb-2">
+                    <strong>
+                      {t?.sessionResultSheet?.positionInArm || "Position in Arm"}
+                      :
+                    </strong>{" "}
+                    {annualSummary.positionInArm}
+                  </p>
+                  <p className="mb-0">
+                    <strong>
+                      {t?.sessionResultSheet?.positionInSchool ||
+                        "Position in School"}
+                      :
+                    </strong>{" "}
+                    {annualSummary.positionInSchool}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-md-6">
+              <div className="card h-100 session-info-card">
+                <div className="card-body">
+                  <h5 className="mb-3">
+                    {t?.sessionResultSheet?.attendance || "Attendance"}
+                  </h5>
+                  <p className="mb-2">
+                    <strong>
+                      {t?.sessionResultSheet?.totalSchoolDays ||
+                        "Total School Days"}
+                      :
+                    </strong>{" "}
+                    {attendance.totalSchoolDays}
+                  </p>
+                  <p className="mb-2">
+                    <strong>
+                      {t?.sessionResultSheet?.daysPresent || "Days Present"}:
+                    </strong>{" "}
+                    {attendance.daysPresent}
+                  </p>
+                  <p className="mb-2">
+                    <strong>
+                      {t?.sessionResultSheet?.daysAbsent || "Days Absent"}:
+                    </strong>{" "}
+                    {attendance.daysAbsent}
+                  </p>
+                  <p className="mb-0">
+                    <strong>
+                      {t?.sessionResultSheet?.attendancePercentage ||
+                        "Attendance Percentage"}
+                      :
+                    </strong>{" "}
+                    {safeFixed(attendance.attendancePercentage)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="row g-4 mb-4">
+            <div className="col-md-12">
+              <div className="card session-info-card">
+                <div className="card-body">
+                  <h5 className="mb-3">
+                    {t?.sessionResultSheet?.termBreakdown || "Term Breakdown"}
+                  </h5>
+                  <div className="table-responsive">
+                    <table className="table table-bordered mb-0 session-table">
+                      <thead>
+                        <tr>
+                          <th>{t?.sessionResultSheet?.term || "Term"}</th>
+                          <th>{t?.sessionResultSheet?.total || "Total"}</th>
+                          <th>{t?.sessionResultSheet?.average || "Average"}</th>
+                          <th>{t?.sessionResultSheet?.position || "Position"}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {termSummaryRows.map((row) => (
+                          <tr key={row.label}>
+                            <td>{row.label}</td>
+                            <td>{safeFixed(row.total)}</td>
+                            <td>{safeFixed(row.average)}</td>
+                            <td>{row.position}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card border-0 session-promotion-card">
+            <div className="card-body">
+              <h5 className="mb-3">
+                {t?.sessionResultSheet?.promotionDecision ||
+                  "Promotion Decision"}
+              </h5>
+              <div className="d-flex align-items-center gap-2 mb-2">
+                {promotion.promoted ? (
+                  <FaCheckCircle className="text-success" />
+                ) : (
+                  <FaTimesCircle className="text-danger" />
+                )}
+                <strong>
+                  {promotion.promoted
+                    ? t?.sessionResultSheet?.promoted || "Promoted"
+                    : t?.sessionResultSheet?.notPromoted || "Not Promoted"}
+                </strong>
+              </div>
+              <p className="mb-0">
+                <strong>{t?.sessionResultSheet?.remark || "Remark"}:</strong>{" "}
+                {promotion.remark}
+              </p>
             </div>
           </div>
         </div>

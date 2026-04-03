@@ -274,14 +274,26 @@ function RouteManagement() {
     );
   }
 
+  // Dynamic classes based on dark mode
+  const cardBgClass = darkMode ? "bg-dark text-white" : "";
+  const cardHeaderClass = darkMode ? "bg-dark border-secondary" : "bg-white";
+  const tableClass = darkMode ? "table-dark" : "";
+  const formControlClass = darkMode
+    ? "bg-dark text-white border-secondary"
+    : "";
+  const selectClass = darkMode ? "bg-dark text-white border-secondary" : "";
+  const alertClass = darkMode ? "alert-dark" : "";
+
   return (
-    <div className="container-fluid py-4">
+    <div
+      className={`container-fluid py-4 ${darkMode ? "bg-dark text-white" : ""}`}
+    >
       <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
         <div>
           <h2 className="mb-1">
             {t?.routeManagement?.title || "Route Management"}
           </h2>
-          <p className="text-muted mb-0">
+          <p className={`mb-0 ${darkMode ? "text-secondary" : "text-muted"}`}>
             {t?.routeManagement?.description ||
               "Create routes and assign students to transport routes."}
           </p>
@@ -295,8 +307,8 @@ function RouteManagement() {
 
       <div className="row g-4">
         <div className="col-lg-5">
-          <div className="card shadow-sm border-0">
-            <div className="card-header bg-white">
+          <div className={`card shadow-sm border-0 ${cardBgClass}`}>
+            <div className={`card-header ${cardHeaderClass} border-0`}>
               <h5 className="mb-0">
                 {editingId
                   ? t?.routeManagement?.editRoute || "Edit Route"
@@ -312,7 +324,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="text"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="routeName"
                       value={form.routeName}
                       onChange={handleChange}
@@ -326,7 +338,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="text"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="routeCode"
                       value={form.routeCode}
                       onChange={handleChange}
@@ -341,7 +353,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="text"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="pickupLocation"
                       value={form.pickupLocation}
                       onChange={handleChange}
@@ -357,7 +369,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="text"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="dropoffLocation"
                       value={form.dropoffLocation}
                       onChange={handleChange}
@@ -371,7 +383,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="time"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="pickupTime"
                       value={form.pickupTime}
                       onChange={handleChange}
@@ -385,7 +397,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="time"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="dropoffTime"
                       value={form.dropoffTime}
                       onChange={handleChange}
@@ -399,7 +411,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="text"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="driverName"
                       value={form.driverName}
                       onChange={handleChange}
@@ -413,7 +425,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="tel"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="driverPhone"
                       value={form.driverPhone}
                       onChange={handleChange}
@@ -427,7 +439,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="text"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="assistantName"
                       value={form.assistantName}
                       onChange={handleChange}
@@ -440,7 +452,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="tel"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="assistantPhone"
                       value={form.assistantPhone}
                       onChange={handleChange}
@@ -453,7 +465,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="number"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="monthlyFee"
                       value={form.monthlyFee}
                       onChange={handleChange}
@@ -468,7 +480,7 @@ function RouteManagement() {
                     </label>
                     <input
                       type="number"
-                      className="form-control"
+                      className={`form-control ${formControlClass}`}
                       name="capacity"
                       value={form.capacity}
                       onChange={handleChange}
@@ -529,8 +541,8 @@ function RouteManagement() {
             </div>
           </div>
 
-          <div className="card shadow-sm border-0 mt-4">
-            <div className="card-header bg-white">
+          <div className={`card shadow-sm border-0 mt-4 ${cardBgClass}`}>
+            <div className={`card-header ${cardHeaderClass} border-0`}>
               <h5 className="mb-0">
                 {t?.routeManagement?.assignStudent || "Assign Student to Route"}
               </h5>
@@ -541,7 +553,7 @@ function RouteManagement() {
                   {t?.routeManagement?.selectRoute || "Select Route"}
                 </label>
                 <select
-                  className="form-select"
+                  className={`form-select ${selectClass}`}
                   value={selectedRouteId}
                   onChange={(e) => setSelectedRouteId(e.target.value)}
                 >
@@ -563,7 +575,7 @@ function RouteManagement() {
                   {t?.routeManagement?.selectStudent || "Select Student"}
                 </label>
                 <select
-                  className="form-select"
+                  className={`form-select ${selectClass}`}
                   value={selectedStudentId}
                   onChange={(e) => setSelectedStudentId(e.target.value)}
                 >
@@ -588,12 +600,14 @@ function RouteManagement() {
         </div>
 
         <div className="col-lg-7">
-          <div className="card shadow-sm border-0">
-            <div className="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div className={`card shadow-sm border-0 ${cardBgClass}`}>
+            <div
+              className={`card-header ${cardHeaderClass} border-0 d-flex flex-wrap justify-content-between align-items-center gap-2`}
+            >
               <h5 className="mb-0">{t?.routeManagement?.routes || "Routes"}</h5>
               <input
                 type="text"
-                className="form-control"
+                className={`form-control ${formControlClass}`}
                 style={{ maxWidth: "280px" }}
                 placeholder={t?.common?.search || "Search routes..."}
                 value={search}
@@ -603,14 +617,18 @@ function RouteManagement() {
 
             <div className="card-body">
               {filteredRoutes.length === 0 ? (
-                <div className="alert alert-warning mb-0">
+                <div
+                  className={`alert alert-warning mb-0 ${darkMode ? "alert-dark" : ""}`}
+                >
                   {t?.routeManagement?.noRoutes || "No routes found."}
                 </div>
               ) : (
                 <div className="table-responsive">
-                  <table className="table table-hover align-middle">
+                  <table
+                    className={`table ${tableClass} table-hover align-middle`}
+                  >
                     <thead>
-                      <tr>
+                      <tr className={darkMode ? "table-dark" : ""}>
                         <th>{t?.routeManagement?.route || "Route"}</th>
                         <th>{t?.routeManagement?.driver || "Driver"}</th>
                         <th>{t?.routeManagement?.students || "Students"}</th>
@@ -623,14 +641,22 @@ function RouteManagement() {
                         <tr key={route.id}>
                           <td>
                             <div className="fw-bold">{route.routeName}</div>
-                            <small className="text-muted">
+                            <small
+                              className={
+                                darkMode ? "text-secondary" : "text-muted"
+                              }
+                            >
                               <FaMapMarkerAlt className="me-1" />{" "}
                               {route.pickupLocation} → {route.dropoffLocation}
                             </small>
                           </td>
                           <td>
                             <div>{route.driverName}</div>
-                            <small className="text-muted">
+                            <small
+                              className={
+                                darkMode ? "text-secondary" : "text-muted"
+                              }
+                            >
                               <FaPhone className="me-1" /> {route.driverPhone}
                             </small>
                           </td>
@@ -679,8 +705,8 @@ function RouteManagement() {
             </div>
           </div>
 
-          <div className="card shadow-sm border-0 mt-4">
-            <div className="card-header bg-white">
+          <div className={`card shadow-sm border-0 mt-4 ${cardBgClass}`}>
+            <div className={`card-header ${cardHeaderClass} border-0`}>
               <h5 className="mb-0">
                 {t?.routeManagement?.studentsOnRoute ||
                   "Students on Selected Route"}
@@ -688,20 +714,26 @@ function RouteManagement() {
             </div>
             <div className="card-body">
               {!selectedRouteId ? (
-                <div className="alert alert-secondary mb-0">
+                <div
+                  className={`alert alert-secondary mb-0 ${darkMode ? "alert-dark" : ""}`}
+                >
                   {t?.routeManagement?.selectRouteToView ||
                     "Select a route to see assigned students."}
                 </div>
               ) : routeStudents.length === 0 ? (
-                <div className="alert alert-warning mb-0">
+                <div
+                  className={`alert alert-warning mb-0 ${darkMode ? "alert-dark" : ""}`}
+                >
                   {t?.routeManagement?.noStudentsAssigned ||
                     "No students assigned to this route yet."}
                 </div>
               ) : (
                 <div className="table-responsive">
-                  <table className="table table-striped align-middle">
+                  <table
+                    className={`table ${tableClass} table-striped align-middle`}
+                  >
                     <thead>
-                      <tr>
+                      <tr className={darkMode ? "table-dark" : ""}>
                         <th>{t?.studentManagement?.studentName || "Name"}</th>
                         <th>
                           {t?.studentManagement?.admissionNo || "Admission No."}
@@ -725,7 +757,11 @@ function RouteManagement() {
                           </td>
                           <td>
                             <div>{student.parentName || "-"}</div>
-                            <small className="text-muted">
+                            <small
+                              className={
+                                darkMode ? "text-secondary" : "text-muted"
+                              }
+                            >
                               {student.parentPhone || "-"}
                             </small>
                           </td>

@@ -1,4 +1,3 @@
-// src/components/Dashboard.js
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -9,7 +8,6 @@ import {
   attendanceAPI,
   feeAPI,
   sessionAPI,
-  classAPI,
 } from "../services/api";
 import {
   FaUsers,
@@ -83,7 +81,6 @@ function Dashboard() {
     pendingCount: 0,
     overdueCount: 0,
   });
-  const [todayAttendance, setTodayAttendance] = useState([]);
   const [showDailyPreview, setShowDailyPreview] = useState(false);
   const [attendanceError, setAttendanceError] = useState(null);
   const [activeSession, setActiveSession] = useState("");
@@ -103,154 +100,84 @@ function Dashboard() {
     return Number.isFinite(num) ? num : fallback;
   };
 
-  const getStudentDisplayName = (student) => {
-    if (!student) return "N/A";
-    if (student.fullName && student.fullName.trim()) return student.fullName;
-
-    const firstName = student.firstName || "";
-    const lastName = student.lastName || "";
-    const otherName = student.otherName || student.middleName || "";
-
-    const combined = `${firstName} ${otherName} ${lastName}`
-      .replace(/\s+/g, " ")
-      .trim();
-
-    return combined || student.admissionNumber || "N/A";
-  };
-
-  const normalizeAttendanceList = (responseData) => {
-    if (!responseData) return [];
-
-    if (Array.isArray(responseData)) return responseData;
-    if (Array.isArray(responseData.attendance)) return responseData.attendance;
-    if (Array.isArray(responseData.data)) return responseData.data;
-
-    return [];
-  };
-
   const buildTodayDate = () => moment().format("YYYY-MM-DD");
 
-  const sanitizeDailyCounts = (records, totalStudentsHint = 0) => {
-    const totalStudents = Math.max(0, toNumber(totalStudentsHint, 0));
+  const normalizeDailyStats = (data, totalStudentsHint = 0) => {
+    const present = toNumber(
+      data?.presentCount ?? data?.totalPresent ?? data?.present,
+      0,
+    );
+    const absent = toNumber(
+      data?.absentCount ?? data?.totalAbsent ?? data?.absent,
+      0,
+    );
+    const late = toNumber(data?.lateCount ?? data?.totalLate ?? data?.late, 0);
+    const excused = toNumber(
+      data?.excusedCount ?? data?.totalExcused ?? data?.excused,
+      0,
+    );
 
-    const totals = {
-      totalPresent: 0,
-      totalAbsent: 0,
-      totalLate: 0,
-      totalExcused: 0,
-      averageAttendance: 0,
-      totalStudents,
-    };
+    const totalStudents = Math.max(
+      0,
+      toNumber(
+        data?.totalStudentsMarked ??
+          data?.totalStudents ??
+          data?.studentCount ??
+          totalStudentsHint,
+        totalStudentsHint,
+      ),
+    );
 
-    records.forEach((record) => {
-      const status = String(record?.status || "").toUpperCase();
+    const attended = present + late + excused;
 
-      if (status === "PRESENT") totals.totalPresent += 1;
-      else if (status === "ABSENT") totals.totalAbsent += 1;
-      else if (status === "LATE") totals.totalLate += 1;
-      else if (status === "EXCUSED") totals.totalExcused += 1;
-    });
-
-    const attendedCount =
-      totals.totalPresent + totals.totalLate + totals.totalExcused;
-
-    totals.averageAttendance =
+    const averageAttendance =
       totalStudents > 0
-        ? Number(((attendedCount / totalStudents) * 100).toFixed(1))
+        ? Number(((attended / totalStudents) * 100).toFixed(1))
         : 0;
 
-    return totals;
+    return {
+      totalPresent: present,
+      totalAbsent: absent,
+      totalLate: late,
+      totalExcused: excused,
+      averageAttendance,
+      totalStudents,
+    };
   };
 
-  const fetchAccurateDailyAttendance = async (
+  const fetchDailyAttendanceStats = async (
     sessionName,
     termName,
     totalStudentsHint = 0,
   ) => {
-    const today = buildTodayDate();
-
     try {
-      const classesResponse = await classAPI.getAllClasses();
-      const classList = Array.isArray(classesResponse?.data)
-        ? classesResponse.data
-        : [];
-
-      const classIds = classList
-        .map((item) => item?.id)
-        .filter((id) => id !== undefined && id !== null);
-
-      if (!classIds.length) {
-        if (!isMounted.current) return;
-
-        setTodayAttendance([]);
-        setAttendanceStats({
-          totalPresent: 0,
-          totalAbsent: 0,
-          totalLate: 0,
-          totalExcused: 0,
-          averageAttendance: 0,
-          totalStudents: Math.max(0, toNumber(totalStudentsHint, 0)),
-        });
-        setAttendanceError(null);
-        return;
-      }
-
-      const responses = await Promise.all(
-        classIds.map((classId) =>
-          attendanceAPI
-            .getClassAttendance(classId, today, sessionName, termName)
-            .catch(() => null),
-        ),
+      const today = buildTodayDate();
+      const response = await attendanceAPI.getSchoolDailyStatistics(
+        today,
+        sessionName,
+        termName,
       );
 
       if (!isMounted.current) return;
 
-      const uniqueByStudent = new Map();
-
-      responses.forEach((response) => {
-        const records = normalizeAttendanceList(response?.data);
-
-        records.forEach((record) => {
-          const studentId =
-            record?.student?.id ||
-            record?.studentId ||
-            record?.student?.studentId ||
-            null;
-
-          if (!studentId) return;
-
-          uniqueByStudent.set(String(studentId), record);
-        });
-      });
-
-      const uniqueRecords = Array.from(uniqueByStudent.values()).sort(
-        (a, b) => {
-          const aName = getStudentDisplayName(a?.student || a).toLowerCase();
-          const bName = getStudentDisplayName(b?.student || b).toLowerCase();
-          return aName.localeCompare(bName);
-        },
+      setAttendanceStats(
+        normalizeDailyStats(response?.data, totalStudentsHint),
       );
-
-      const totals = sanitizeDailyCounts(uniqueRecords, totalStudentsHint);
-
-      setTodayAttendance(uniqueRecords);
-      setAttendanceStats(totals);
       setAttendanceError(null);
     } catch (error) {
-      console.error("Error fetching accurate daily attendance:", error);
+      console.error("Error fetching school daily attendance stats:", error);
 
-      if (isMounted.current) {
-        setTodayAttendance([]);
-        setAttendanceStats({
-          totalPresent: 0,
-          totalAbsent: 0,
-          totalLate: 0,
-          totalExcused: 0,
-          averageAttendance: 0,
-          totalStudents: Math.max(0, toNumber(totalStudentsHint, 0)),
-        });
-        setAttendanceError("Could not fetch today's attendance.");
-      }
+      if (!isMounted.current) return;
+
+      setAttendanceStats({
+        totalPresent: 0,
+        totalAbsent: 0,
+        totalLate: 0,
+        totalExcused: 0,
+        averageAttendance: 0,
+        totalStudents: Math.max(0, toNumber(totalStudentsHint, 0)),
+      });
+      setAttendanceError("Could not fetch today's attendance.");
     }
   };
 
@@ -291,7 +218,7 @@ function Dashboard() {
         studentsResponse?.data?.content || studentsResponse?.data || [];
       setRecentStudents(Array.isArray(students) ? students : []);
 
-      await fetchAccurateDailyAttendance(
+      await fetchDailyAttendanceStats(
         sessionName,
         termName,
         toNumber(stats?.totalStudents, 0),
@@ -347,6 +274,21 @@ function Dashboard() {
       </div>
     );
   }
+
+  const getStudentDisplayName = (student) => {
+    if (!student) return "N/A";
+    if (student.fullName && student.fullName.trim()) return student.fullName;
+
+    const firstName = student.firstName || "";
+    const lastName = student.lastName || "";
+    const otherName = student.otherName || student.middleName || "";
+
+    const combined = `${firstName} ${otherName} ${lastName}`
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return combined || student.admissionNumber || "N/A";
+  };
 
   const classDistributionData = {
     labels: statistics?.studentsByClass
@@ -630,87 +572,12 @@ function Dashboard() {
         <FaInfoCircle />
         <span>
           {t?.dashboard?.attendanceCardHint ||
-            "These cards now use actual records for today, not cumulative term totals."}
+            "These cards now use actual daily backend totals, not cumulative term totals."}
         </span>
         <Link to="/attendance" className="info-link">
           {t?.dashboard?.goToAttendance || "Go to Attendance Management"}
         </Link>
       </div>
-
-      {todayAttendance.length > 0 && (
-        <div className="row mb-4">
-          <div className="col-12">
-            <div className="school-card">
-              <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">
-                  <FaChartBar className="me-2" />
-                  {t?.dashboard?.todaysAttendancePreview ||
-                    "Today's Attendance Preview"}
-                </h5>
-                <button
-                  className="btn-toggle-preview"
-                  onClick={() => setShowDailyPreview(!showDailyPreview)}
-                >
-                  {showDailyPreview ? "Hide" : "Show"} Preview
-                </button>
-              </div>
-              {showDailyPreview && (
-                <div className="card-body">
-                  <div className="table-responsive">
-                    <table className="attendance-table">
-                      <thead>
-                        <tr>
-                          <th>
-                            {t?.studentManagement?.studentName || "Student"}
-                          </th>
-                          <th>{t?.studentManagement?.class || "Class"}</th>
-                          <th>{t?.attendanceManager?.status || "Status"}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {todayAttendance.slice(0, 10).map((record, index) => (
-                          <tr
-                            key={
-                              record?.id ||
-                              `${record?.student?.id || record?.studentId || index}`
-                            }
-                          >
-                            <td>
-                              {getStudentDisplayName(record?.student || record)}
-                            </td>
-                            <td>
-                              {record?.student?.studentClass ||
-                                record?.studentClass ||
-                                record?.className ||
-                                "N/A"}{" "}
-                              {record?.student?.classArm ||
-                                record?.classArm ||
-                                record?.arm ||
-                                ""}
-                            </td>
-                            <td>
-                              <span
-                                className={`status-badge status-${String(record?.status || "unknown").toLowerCase()}`}
-                              >
-                                {record?.status || "Unknown"}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {todayAttendance.length > 10 && (
-                      <p className="text-muted mt-2">
-                        Showing 10 of {todayAttendance.length} records
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="row">
         <div className="col-md-6 mb-4">

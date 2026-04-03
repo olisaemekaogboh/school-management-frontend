@@ -20,9 +20,16 @@
 .email-queue-container.dark-mode .card-header {
   background-color: #25253a;
   border-bottom-color: #3d3d5c;
+  color: #e4e6eb;
 }
 
 .email-queue-container.dark-mode .table {
+  color: #e4e6eb;
+}
+
+.email-queue-container.dark-mode .table thead th {
+  background-color: #25253a;
+  border-bottom-color: #3d3d5c;
   color: #e4e6eb;
 }
 
@@ -42,6 +49,11 @@
   background-color: #2d2d44;
   border-color: #0d6efd;
   color: #e4e6eb;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.email-queue-container.dark-mode .form-control::placeholder {
+  color: #9ca3af;
 }
 
 /* Stat Cards */
@@ -61,6 +73,7 @@
 .dark-mode .stat-card {
   background: #2d2d44;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  color: #e4e6eb;
 }
 
 .stat-card-body {
@@ -160,6 +173,7 @@
 .dark-mode .table th {
   background-color: #25253a;
   border-bottom-color: #3d3d5c;
+  color: #e4e6eb;
 }
 
 .table td {
@@ -183,7 +197,42 @@
   color: #ffc107;
 }
 
+.dark-mode .btn-outline-warning:hover {
+  background-color: #ffc107;
+  color: #212529;
+}
+
 /* Alert Styles */
 .alert {
   border-radius: 10px;
+}
+
+.dark-mode .alert-info {
+  background-color: #0c5460;
+  border-color: #0c5460;
+  color: #d1ecf1;
+}
+
+.dark-mode .alert-dark {
+  background-color: #2d2d44;
+  border-color: #3d3d5c;
+  color: #e4e6eb;
+}
+
+/* Additional dark mode improvements */
+.dark-mode .text-muted {
+  color: #9ca3af !important;
+}
+
+.dark-mode .text-secondary {
+  color: #9ca3af !important;
+}
+
+.dark-mode .border-0 {
+  border: none !important;
+}
+
+/* Card header dark mode improvements */
+.dark-mode .card-header {
+  border-bottom: 1px solid #3d3d5c;
 }

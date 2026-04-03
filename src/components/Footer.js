@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { teacherAPI } from "../services/api";
 import {
   FaFacebook,
   FaTwitter,
@@ -31,7 +32,10 @@ import {
   FaBullhorn,
   FaLayerGroup,
   FaSchool,
-  FaComments, // Added for Support Center
+  FaComments,
+  FaUserTie,
+  FaUserShield,
+  FaFileAlt,
 } from "react-icons/fa";
 import "./Footer.css";
 
@@ -41,15 +45,98 @@ function Footer() {
   const currentYear = new Date().getFullYear();
 
   const role = user?.role;
+  const [teacherClasses, setTeacherClasses] = useState([]);
 
-  const getHomePath = () => {
-    if (!isAuthenticated) return "/";
-    if (role === "TEACHER") return "/teacher-dashboard";
-    if (role === "PARENT") return "/parent-dashboard";
-    if (role === "STUDENT") return "/student-dashboard";
-    if (role === "ADMIN") return "/dashboard";
-    return "/";
+  const schoolAddress =
+    "11 Bishop Shanahan Street, Fegge, Onitsha, Anambra State, Nigeria";
+  const schoolPhone = "+234 903 017 5230";
+  const schoolEmail = "info@faithfoundation.edu.ng";
+  const officeHours = t.footer.officeHours || "Mon-Fri: 8:00 AM - 5:00 PM";
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadTeacherClasses = async () => {
+      if (!isAuthenticated || role !== "TEACHER") {
+        if (mounted) setTeacherClasses([]);
+        return;
+      }
+
+      try {
+        const response = await teacherAPI.getMyClasses();
+        if (!mounted) return;
+        setTeacherClasses(Array.isArray(response?.data) ? response.data : []);
+      } catch (error) {
+        console.error("Failed to load teacher classes for footer:", error);
+        if (mounted) setTeacherClasses([]);
+      }
+    };
+
+    loadTeacherClasses();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthenticated, role]);
+
+  const normalizedTeacherClasses = useMemo(() => {
+    return teacherClasses.map((cls) => ({
+      ...cls,
+      normalizedClassName: String(cls.className || "")
+        .trim()
+        .toLowerCase(),
+      normalizedArm: String(cls.arm || "")
+        .trim()
+        .toLowerCase(),
+    }));
+  }, [teacherClasses]);
+
+  const teacherFormClass = useMemo(() => {
+    const flagged = normalizedTeacherClasses.find(
+      (cls) => cls.isFormTeacher === true,
+    );
+    if (flagged) return flagged;
+    return normalizedTeacherClasses.length > 0
+      ? normalizedTeacherClasses[0]
+      : null;
+  }, [normalizedTeacherClasses]);
+
+  const buildTeacherScopedPath = (
+    basePath,
+    classId = null,
+    extraParams = {},
+  ) => {
+    const params = new URLSearchParams();
+    params.set("mine", "true");
+
+    if (classId) {
+      params.set("classId", String(classId));
+    }
+
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        params.set(key, String(value));
+      }
+    });
+
+    return `${basePath}?${params.toString()}`;
   };
+
+  const teacherStudentsPath = teacherFormClass
+    ? buildTeacherScopedPath("/students", teacherFormClass.id)
+    : "/students?mine=true";
+
+  const teacherResultsPath = teacherFormClass
+    ? buildTeacherScopedPath("/results", teacherFormClass.id)
+    : "/results?mine=true";
+
+  const teacherAttendancePath = teacherFormClass
+    ? buildTeacherScopedPath("/attendance", teacherFormClass.id)
+    : "/attendance?mine=true";
+
+  const teacherSessionResultsPath = teacherFormClass
+    ? buildTeacherScopedPath("/session-results", teacherFormClass.id)
+    : "/session-results?mine=true";
 
   const publicQuickLinks = [
     { to: "/", icon: <FaHome className="link-icon" />, label: t.common.home },
@@ -110,7 +197,6 @@ function Footer() {
       icon: <FaArrowRight className="link-icon" />,
       label: t.common.contact,
     },
-    // Support Center link for admin
     {
       to: "/support",
       icon: <FaComments className="link-icon" />,
@@ -122,46 +208,46 @@ function Footer() {
     {
       to: "/students",
       icon: <FaUserGraduate className="link-icon" />,
-      label: "Students",
+      label: t.navbar.students || "Students",
     },
     {
       to: "/teachers",
       icon: <FaChalkboardTeacher className="link-icon" />,
-      label: "Teachers",
+      label: t.navbar.teachers || "Teachers",
+    },
+    {
+      to: "/parents",
+      icon: <FaUserTie className="link-icon" />,
+      label: t.navbar.parents || "Parents",
+    },
+    {
+      to: "/users",
+      icon: <FaUserShield className="link-icon" />,
+      label: t.navbar.users || "Users",
     },
     {
       to: "/classes",
       icon: <FaLayerGroup className="link-icon" />,
-      label: "Classes",
+      label: t.navbar.classes || "Classes",
     },
     {
       to: "/subjects",
       icon: <FaBook className="link-icon" />,
-      label: "Subjects",
+      label: t.navbar.subjects || "Subjects",
     },
     {
       to: "/results",
       icon: <FaChartBar className="link-icon" />,
-      label: "Results",
+      label: t.navbar.results || "Results",
     },
     {
       to: "/session-results",
       icon: <FaGraduationCap className="link-icon" />,
       label: t.navbar.sessionResults || "Session Results",
     },
-    {
-      to: "/timetable",
-      icon: <FaCalendarAlt className="link-icon" />,
-      label: "Timetable",
-    },
   ];
 
   const adminResourceLinks = [
-    {
-      to: "/users",
-      icon: <FaUsers className="link-icon" />,
-      label: t.navbar.users || "Users",
-    },
     {
       to: "/fees",
       icon: <FaMoneyBill className="link-icon" />,
@@ -171,6 +257,16 @@ function Footer() {
       to: "/announcements",
       icon: <FaBullhorn className="link-icon" />,
       label: t.navbar.announcements || "Announcements",
+    },
+    {
+      to: "/events",
+      icon: <FaCalendarAlt className="link-icon" />,
+      label: t.navbar.events || "Events",
+    },
+    {
+      to: "/reports",
+      icon: <FaFileAlt className="link-icon" />,
+      label: t.navbar.reports || "Reports",
     },
     {
       to: "/email-queue",
@@ -216,7 +312,6 @@ function Footer() {
       icon: <FaArrowRight className="link-icon" />,
       label: t.common.contact,
     },
-    // Support Center link for teacher
     {
       to: "/support",
       icon: <FaComments className="link-icon" />,
@@ -226,22 +321,22 @@ function Footer() {
 
   const teacherAcademicLinks = [
     {
-      to: "/students",
+      to: teacherStudentsPath,
       icon: <FaUsers className="link-icon" />,
       label: t.navbar.myStudents || "My Students",
     },
     {
-      to: "/results",
+      to: teacherResultsPath,
       icon: <FaChartBar className="link-icon" />,
       label: t.navbar.results || "Results",
     },
     {
-      to: "/attendance",
+      to: teacherAttendancePath,
       icon: <FaClipboardList className="link-icon" />,
       label: t.navbar.attendance || "Attendance",
     },
     {
-      to: "/session-results",
+      to: teacherSessionResultsPath,
       icon: <FaGraduationCap className="link-icon" />,
       label: t.navbar.sessionResults || "Session Results",
     },
@@ -254,7 +349,7 @@ function Footer() {
 
   const teacherResourceLinks = [
     {
-      to: getHomePath(),
+      to: "/teacher-dashboard",
       icon: <FaChalkboardTeacher className="link-icon" />,
       label: t.footer.teacherPortal || "Teacher Portal",
     },
@@ -287,7 +382,6 @@ function Footer() {
       icon: <FaArrowRight className="link-icon" />,
       label: t.common.contact,
     },
-    // Support Center link for parent
     {
       to: "/support",
       icon: <FaComments className="link-icon" />,
@@ -358,7 +452,6 @@ function Footer() {
       icon: <FaArrowRight className="link-icon" />,
       label: t.common.contact,
     },
-    // Support Center link for student
     {
       to: "/support",
       icon: <FaComments className="link-icon" />,
@@ -431,6 +524,7 @@ function Footer() {
         },
       ];
     }
+
     if (role === "ADMIN") return adminAcademicLinks;
     if (role === "TEACHER") return teacherAcademicLinks;
     if (role === "PARENT") return parentAcademicLinks;
@@ -468,6 +562,7 @@ function Footer() {
             <h5>{t.footer.schoolName}</h5>
             <p className="footer-description">{t.footer.slogan}</p>
             <p className="footer-text">{t.footer.description}</p>
+
             <div className="social-links">
               <a href="#" className="social-link" aria-label="Facebook">
                 <FaFacebook size={14} />
@@ -524,26 +619,23 @@ function Footer() {
           </div>
 
           <div className="footer-col">
-            <h5>{t.footer.contact}</h5>
+            <h5>{t.footer.contact || "Contact"}</h5>
             <ul className="contact-info">
               <li>
                 <FaMapMarkerAlt size={12} className="contact-icon" />
-                <span>
-                  11 Bishop Shanahan Street, Fegge, Onitsha, Anambra State,
-                  Nigeria
-                </span>
+                <span>{schoolAddress}</span>
               </li>
               <li>
                 <FaPhone size={12} className="contact-icon" />
-                <span>+234 903 017 5230</span>
+                <span>{schoolPhone}</span>
               </li>
               <li>
                 <FaEnvelope size={12} className="contact-icon" />
-                <span>info@faithfoundation.edu.ng</span>
+                <span>{schoolEmail}</span>
               </li>
               <li>
                 <FaClock size={12} className="contact-icon" />
-                <span>{t.footer.officeHours}</span>
+                <span>{officeHours}</span>
               </li>
             </ul>
           </div>
@@ -552,19 +644,28 @@ function Footer() {
         <div className="footer-bottom">
           <div className="footer-bottom-content">
             <p className="copyright">
-              &copy; {currentYear} Faith Foundation International School.{" "}
-              {t.footer.rightsReserved}
+              &copy; {currentYear}{" "}
+              {t.footer.schoolName || "Faith Foundation International School"}.
+              {" "}
+              {t.footer.rightsReserved || t.footer.allRightsReserved}
             </p>
+
             <div className="footer-legal">
-              <Link to="/privacy-policy">{t.footer.privacyPolicy}</Link>
+              <Link to="/privacy-policy">
+                {t.footer.privacyPolicy || "Privacy Policy"}
+              </Link>
               <span className="separator">|</span>
-              <Link to="/terms-of-service">{t.footer.termsOfService}</Link>
+              <Link to="/terms-of-service">
+                {t.footer.termsOfService || "Terms of Service"}
+              </Link>
               <span className="separator">|</span>
-              <Link to="/faq">{t.footer.faq}</Link>
+              <Link to="/faq">{t.footer.faq || "FAQ"}</Link>
             </div>
+
             <p className="credit">
-              {t.footer.madeWith} <FaHeart size={10} className="heart" />{" "}
-              {t.footer.inNigeria}
+              {t.footer.madeWith || "Made with"}{" "}
+              <FaHeart size={10} className="heart" />{" "}
+              {t.footer.inNigeria || t.footer.forEducation || "in Nigeria"}
             </p>
           </div>
         </div>
