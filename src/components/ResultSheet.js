@@ -1,4 +1,3 @@
-// src/components/ResultSheet.js
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { studentAPI, resultAPI, parentPortalAPI } from "../services/api";
@@ -11,6 +10,8 @@ import {
   FaArrowLeft,
   FaUserCircle,
   FaSpinner,
+  FaSignature,
+  FaCheckDouble,
 } from "react-icons/fa";
 import moment from "moment";
 import { useReactToPrint } from "react-to-print";
@@ -39,6 +40,18 @@ function ResultSheet() {
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  const [editableCharacterTraits, setEditableCharacterTraits] = useState([]);
+  const [editablePsychomotorTraits, setEditablePsychomotorTraits] = useState(
+    [],
+  );
+  const [editableSummary, setEditableSummary] = useState({
+    teacherComment: "",
+    principalComment: "",
+    nextTermBegins: "",
+  });
+  const [savingAssessment, setSavingAssessment] = useState(false);
+  const [signingInProgress, setSigningInProgress] = useState(false);
 
   const componentRef = useRef(null);
 
@@ -69,6 +82,7 @@ function ResultSheet() {
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
+
   const normalizeStudent = (rawStudent, rawResultData) => {
     const studentInfo = rawResultData?.studentInfo || {};
     const source = rawStudent || studentInfo || {};
@@ -82,8 +96,8 @@ function ResultSheet() {
         source.fullName ||
         buildName(source.firstName, source.middleName, source.lastName),
       admissionNumber: source.admissionNumber ?? "",
-      studentClass: source.studentClass ?? "",
-      classArm: source.classArm ?? "",
+      studentClass: source.studentClass ?? source.class ?? "",
+      classArm: source.classArm ?? source.arm ?? "",
       parentName: source.parentName ?? "",
       parentPhone: source.parentPhone ?? "",
       address: source.address ?? "",
@@ -91,6 +105,7 @@ function ResultSheet() {
       profilePictureUrl: source.profilePictureUrl ?? "",
     };
   };
+
   const normalizeSubjects = (rawResultData) => {
     const rawSubjects = Array.isArray(rawResultData?.subjects)
       ? rawResultData.subjects
@@ -112,6 +127,7 @@ function ResultSheet() {
       raw: subject,
     }));
   };
+
   const normalizeSummary = (rawResultData) => {
     const summary = rawResultData?.summary || {};
     return {
@@ -131,7 +147,140 @@ function ResultSheet() {
       daysPresent: safeNumber(summary.daysPresent),
       daysAbsent: safeNumber(summary.daysAbsent),
       attendancePercentage: safeNumber(summary.attendancePercentage),
+      teacherComment: getFirstDefined(
+        summary.teacherComment,
+        rawResultData?.teacherComment,
+        "Good performance. Keep improving.",
+      ),
+      principalComment: getFirstDefined(
+        summary.principalComment,
+        rawResultData?.principalComment,
+        "Promoted to the next class.",
+      ),
+      nextTermBegins: getFirstDefined(
+        summary.nextTermBegins,
+        rawResultData?.nextTermBegins,
+        null,
+      ),
     };
+  };
+
+  const normalizeRatingItems = (rawResultData) => {
+    const defaultCharacterTraits = [
+      "Punctuality",
+      "Attendance",
+      "Neatness",
+      "Politeness",
+      "Honesty",
+      "Relationship With Others",
+      "Leadership",
+      "Emotional Stability",
+    ];
+
+    const defaultPsychomotorTraits = [
+      "Handwriting",
+      "Verbal Fluency",
+      "Sports",
+      "Drawing / Creativity",
+      "Craft",
+      "Musical Skills",
+    ];
+
+    const possibleCharacterSources = [
+      rawResultData?.characterTraits,
+      rawResultData?.gradeCharacter,
+      rawResultData?.characterAssessment,
+      rawResultData?.affectiveDomain,
+      rawResultData?.traits,
+    ];
+
+    const possiblePsychomotorSources = [
+      rawResultData?.psychomotorTraits,
+      rawResultData?.psychomotor,
+      rawResultData?.psychomotorDomain,
+      rawResultData?.skillsAssessment,
+    ];
+
+    const toArray = (source, defaults) => {
+      if (Array.isArray(source) && source.length > 0) {
+        return source.map((item, index) => ({
+          id: item.id ?? index,
+          label:
+            item.label ||
+            item.name ||
+            item.trait ||
+            item.title ||
+            defaults[index] ||
+            `Item ${index + 1}`,
+          score: safeNumber(
+            getFirstDefined(item.score, item.value, item.rating),
+            0,
+          ),
+        }));
+      }
+
+      if (source && typeof source === "object") {
+        return Object.entries(source).map(([key, value], index) => ({
+          id: index,
+          label: key,
+          score: safeNumber(
+            typeof value === "object"
+              ? getFirstDefined(value.score, value.value, value.rating)
+              : value,
+            0,
+          ),
+        }));
+      }
+
+      return defaults.map((label, index) => ({
+        id: index,
+        label,
+        score: 0,
+      }));
+    };
+
+    const characterSource = possibleCharacterSources.find(
+      (item) =>
+        (Array.isArray(item) && item.length > 0) ||
+        (item && typeof item === "object" && Object.keys(item).length > 0),
+    );
+
+    const psychomotorSource = possiblePsychomotorSources.find(
+      (item) =>
+        (Array.isArray(item) && item.length > 0) ||
+        (item && typeof item === "object" && Object.keys(item).length > 0),
+    );
+
+    return {
+      characterTraits: toArray(characterSource, defaultCharacterTraits),
+      psychomotorTraits: toArray(psychomotorSource, defaultPsychomotorTraits),
+    };
+  };
+
+  const normalizeGradingScale = (rawResultData) => {
+    const incomingScale =
+      rawResultData?.gradingScale || rawResultData?.gradeScale;
+
+    const defaultScale = [
+      { grade: "A", min: 70, max: 100, remark: "Excellent" },
+      { grade: "B", min: 60, max: 69, remark: "Very Good" },
+      { grade: "C", min: 50, max: 59, remark: "Good" },
+      { grade: "D", min: 45, max: 49, remark: "Fair" },
+      { grade: "E", min: 40, max: 44, remark: "Pass" },
+      { grade: "F", min: 0, max: 39, remark: "Fail" },
+    ];
+
+    if (!Array.isArray(incomingScale) || incomingScale.length === 0) {
+      return defaultScale;
+    }
+
+    return incomingScale.map((item, index) => ({
+      id: item.id ?? index,
+      grade: item.grade ?? "-",
+      min: safeNumber(getFirstDefined(item.min, item.from, item.start), 0),
+      max: safeNumber(getFirstDefined(item.max, item.to, item.end), 0),
+      remark: item.remark ?? item.description ?? "-",
+    }));
   };
 
   const normalizedSubjects = useMemo(
@@ -143,6 +292,23 @@ function ResultSheet() {
     () => normalizeSummary(resultData),
     [resultData],
   );
+
+  const normalizedRatings = useMemo(
+    () => normalizeRatingItems(resultData),
+    [resultData],
+  );
+
+  const gradingScale = useMemo(
+    () => normalizeGradingScale(resultData),
+    [resultData],
+  );
+
+  const role = user?.role?.name || user?.role || "";
+
+  const canEditTeacherSection =
+    role === "TEACHER" || role === "FORM_TEACHER" || role === "ADMIN";
+
+  const canEditAdminSection = role === "ADMIN";
 
   const getStudentName = () => {
     return (
@@ -162,7 +328,30 @@ function ResultSheet() {
       setError(t?.resultSheet?.missingParams || "Missing required parameters");
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, session, term]);
+
+  useEffect(() => {
+    if (!resultData) return;
+
+    setEditableCharacterTraits(
+      Array.isArray(normalizedRatings.characterTraits)
+        ? normalizedRatings.characterTraits
+        : [],
+    );
+
+    setEditablePsychomotorTraits(
+      Array.isArray(normalizedRatings.psychomotorTraits)
+        ? normalizedRatings.psychomotorTraits
+        : [],
+    );
+
+    setEditableSummary({
+      teacherComment: normalizedSummary.teacherComment || "",
+      principalComment: normalizedSummary.principalComment || "",
+      nextTermBegins: normalizedSummary.nextTermBegins || "",
+    });
+  }, [resultData, normalizedRatings, normalizedSummary]);
 
   const fetchStudentRecord = async (rawResult) => {
     const resultStudentInfo = rawResult?.studentInfo || {};
@@ -304,6 +493,104 @@ function ResultSheet() {
     return `${cleanName}_${term}_${cleanSession}`;
   };
 
+  const updateTraitScore = (setter, id, value) => {
+    const score = Math.max(1, Math.min(5, Number(value) || 1));
+
+    setter((prev) =>
+      prev.map((item, index) =>
+        (item.id ?? index) === id ? { ...item, score } : item,
+      ),
+    );
+  };
+
+  const handleSaveAssessment = async () => {
+    try {
+      setSavingAssessment(true);
+
+      const targetStudentId =
+        studentId || resultData?.studentInfo?.id || student?.id;
+
+      if (!targetStudentId) {
+        throw new Error("Missing student id");
+      }
+
+      const payload = {
+        characterTraits: editableCharacterTraits.map((item) => ({
+          label: item.label,
+          score: Math.max(1, Math.min(5, Number(item.score) || 1)),
+        })),
+        psychomotorTraits: editablePsychomotorTraits.map((item) => ({
+          label: item.label,
+          score: Math.max(1, Math.min(5, Number(item.score) || 1)),
+        })),
+        classTeacherComment: editableSummary.teacherComment || "",
+        principalComment: editableSummary.principalComment || "",
+        nextTermBegins: editableSummary.nextTermBegins || null,
+      };
+
+      await resultAPI.updateTermAssessment(
+        targetStudentId,
+        session,
+        term,
+        payload,
+      );
+
+      toast.success("Assessment saved successfully");
+      await fetchResultData();
+    } catch (error) {
+      console.error("Failed to save term assessment:", error);
+      toast.error(
+        error?.response?.data?.message || "Failed to save assessment",
+      );
+    } finally {
+      setSavingAssessment(false);
+    }
+  };
+
+  const handleSignAsClassTeacher = async () => {
+    const targetStudentId =
+      studentId || resultData?.studentInfo?.id || student?.id;
+    if (!targetStudentId) {
+      toast.error("Missing student information");
+      return;
+    }
+
+    setSigningInProgress(true);
+    try {
+      await resultAPI.signAsClassTeacher(targetStudentId, session, term);
+      toast.success("Signed as Class Teacher successfully");
+      await fetchResultData();
+    } catch (error) {
+      console.error("Error signing as class teacher:", error);
+      toast.error(
+        error?.response?.data?.message || "Failed to sign as Class Teacher",
+      );
+    } finally {
+      setSigningInProgress(false);
+    }
+  };
+
+  const handleSignAsAdmin = async () => {
+    const targetStudentId =
+      studentId || resultData?.studentInfo?.id || student?.id;
+    if (!targetStudentId) {
+      toast.error("Missing student information");
+      return;
+    }
+
+    setSigningInProgress(true);
+    try {
+      await resultAPI.signAsAdmin(targetStudentId, session, term);
+      toast.success("Result approved by Admin successfully");
+      await fetchResultData();
+    } catch (error) {
+      console.error("Error approving result:", error);
+      toast.error(error?.response?.data?.message || "Failed to approve result");
+    } finally {
+      setSigningInProgress(false);
+    }
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
     documentTitle: buildFileName(),
@@ -374,7 +661,7 @@ function ResultSheet() {
       resultData?.studentInfo?.profilePictureUrl || student?.profilePictureUrl;
 
     if (!rawUrl) return null;
-    if (rawUrl.startsWith("https://") || rawUrl.startsWith("https://")) {
+    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
       return rawUrl;
     }
     return `https://localhost:8443${rawUrl}`;
@@ -453,6 +740,14 @@ function ResultSheet() {
     }, 0);
   };
 
+  const ratingLegend = [
+    { value: 5, label: "Excellent" },
+    { value: 4, label: "Very Good" },
+    { value: 3, label: "Good" },
+    { value: 2, label: "Fair" },
+    { value: 1, label: "Poor" },
+  ];
+
   if (loading || resultLoading || studentLoading) {
     return (
       <div
@@ -509,7 +804,9 @@ function ResultSheet() {
   }
 
   return (
-    <div className="result-sheet-wrapper">
+    <div
+      className={`result-sheet-wrapper ${darkMode ? "dark-mode" : "light-mode"}`}
+    >
       <div className="d-flex justify-content-between align-items-center mb-4 no-print">
         <button
           className="btn btn-outline-secondary"
@@ -518,11 +815,72 @@ function ResultSheet() {
           <FaArrowLeft className="me-2" /> {t?.common?.back || "Back"}
         </button>
 
-        <div>
+        <div className="d-flex flex-wrap gap-2">
+          {/* Signature Buttons Section */}
+          {(canEditTeacherSection || canEditAdminSection) && (
+            <div className="btn-group me-2">
+              {canEditTeacherSection &&
+                !resultData?.signatures?.classTeacherSigned && (
+                  <button
+                    className="btn btn-outline-dark"
+                    onClick={handleSignAsClassTeacher}
+                    disabled={
+                      signingInProgress || savingAssessment || downloading
+                    }
+                  >
+                    {signingInProgress ? (
+                      <FaSpinner className="spinner me-2" />
+                    ) : (
+                      <FaSignature className="me-2" />
+                    )}
+                    Sign as Class Teacher
+                  </button>
+                )}
+
+              {canEditAdminSection && !resultData?.signatures?.adminSigned && (
+                <button
+                  className="btn btn-dark"
+                  onClick={handleSignAsAdmin}
+                  disabled={
+                    signingInProgress || savingAssessment || downloading
+                  }
+                >
+                  {signingInProgress ? (
+                    <FaSpinner className="spinner me-2" />
+                  ) : (
+                    <FaCheckDouble className="me-2" />
+                  )}
+                  Approve Result
+                </button>
+              )}
+            </div>
+          )}
+
+          {(canEditTeacherSection || canEditAdminSection) && (
+            <button
+              className="btn btn-primary"
+              onClick={handleSaveAssessment}
+              disabled={savingAssessment || downloading || signingInProgress}
+            >
+              {savingAssessment ? (
+                <>
+                  <FaSpinner className="spinner me-2" /> Saving...
+                </>
+              ) : (
+                "Save Assessment"
+              )}
+            </button>
+          )}
+
           <button
-            className="btn btn-outline-success me-2"
+            className="btn btn-outline-success"
             onClick={handlePrint}
-            disabled={downloading}
+            disabled={
+              !resultData?.completed ||
+              downloading ||
+              savingAssessment ||
+              signingInProgress
+            }
           >
             <FaPrint className="me-2" /> {t?.common?.print || "Print"}
           </button>
@@ -530,7 +888,12 @@ function ResultSheet() {
           <button
             className="btn btn-outline-primary"
             onClick={handleDownloadPDF}
-            disabled={downloading}
+            disabled={
+              !resultData?.completed ||
+              downloading ||
+              savingAssessment ||
+              signingInProgress
+            }
           >
             {downloading ? (
               <>
@@ -560,6 +923,13 @@ function ResultSheet() {
               Tel: +234 903 017 5230 | Email: info@faithfoundation.edu.ng
             </div>
           </div>
+          <div className="text-end mb-2">
+            {resultData?.completed ? (
+              <span className="badge bg-success">RESULT COMPLETE</span>
+            ) : (
+              <span className="badge bg-danger">RESULT INCOMPLETE</span>
+            )}
+          </div>
 
           <div className="result-title">
             {term} {t?.resultSheet?.termResult || "TERM RESULT SHEET"} -{" "}
@@ -588,8 +958,10 @@ function ResultSheet() {
                     {t?.studentDetails?.class || "Class"}:
                   </td>
                   <td className="value">
-                    {student?.studentClass || "N/A"} {student?.classArm || ""}
-                    {resultData?.studentInfo?.arm || student?.classArm || ""}
+                    {student?.studentClass ||
+                      resultData?.studentInfo?.class ||
+                      "N/A"}{" "}
+                    {student?.classArm || resultData?.studentInfo?.arm || ""}
                   </td>
                   <td className="label">
                     {t?.studentDetails?.dob || "Date of Birth"}:
@@ -789,33 +1161,264 @@ function ResultSheet() {
             </div>
           </div>
 
-          <div className="signatures-section">
-            <div className="signature-item">
-              <div className="signature-line"></div>
-              <div className="signature-label">
-                {t?.sessionResultSheet?.classTeacherSignature ||
-                  "Class Teacher's Signature"}
+          <div className="extra-result-sections">
+            <div className="rating-card">
+              <div className="section-subtitle">
+                GRADE CHARACTER / AFFECTIVE TRAITS (1 - 5)
               </div>
+              <table className="mini-table">
+                <thead>
+                  <tr>
+                    <th>Trait</th>
+                    <th>Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editableCharacterTraits.map((item, index) => (
+                    <tr key={`character-${item.id ?? index}`}>
+                      <td>{item.label}</td>
+                      <td>
+                        {canEditTeacherSection ? (
+                          <input
+                            type="number"
+                            min="1"
+                            max="5"
+                            className="form-control form-control-sm"
+                            value={item.score ?? 1}
+                            onChange={(e) =>
+                              updateTraitScore(
+                                setEditableCharacterTraits,
+                                item.id ?? index,
+                                e.target.value,
+                              )
+                            }
+                          />
+                        ) : (
+                          item.score || "-"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="signature-item">
-              <div className="signature-line"></div>
-              <div className="signature-label">
-                {t?.sessionResultSheet?.principalSignature ||
-                  "Principal's Signature"}
+
+            <div className="rating-card">
+              <div className="section-subtitle">
+                PSYCHOMOTOR / SKILLS ASSESSMENT (1 - 5)
               </div>
-            </div>
-            <div className="signature-item">
-              <div className="signature-line"></div>
-              <div className="signature-label">
-                {t?.sessionResultSheet?.parentSignature || "Parent's Signature"}
-              </div>
+              <table className="mini-table">
+                <thead>
+                  <tr>
+                    <th>Skill</th>
+                    <th>Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editablePsychomotorTraits.map((item, index) => (
+                    <tr key={`psychomotor-${item.id ?? index}`}>
+                      <td>{item.label}</td>
+                      <td>
+                        {canEditTeacherSection ? (
+                          <input
+                            type="number"
+                            min="1"
+                            max="5"
+                            className="form-control form-control-sm"
+                            value={item.score ?? 1}
+                            onChange={(e) =>
+                              updateTraitScore(
+                                setEditablePsychomotorTraits,
+                                item.id ?? index,
+                                e.target.value,
+                              )
+                            }
+                          />
+                        ) : (
+                          item.score || "-"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
+          <div className="grading-reference-section">
+            <div className="rating-card">
+              <div className="section-subtitle">GRADING SCALE</div>
+              <table className="mini-table">
+                <thead>
+                  <tr>
+                    <th>Grade</th>
+                    <th>Range</th>
+                    <th>Remark</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gradingScale.map((item, index) => (
+                    <tr key={`grade-scale-${item.id ?? index}`}>
+                      <td>{item.grade}</td>
+                      <td>
+                        {item.min} - {item.max}
+                      </td>
+                      <td>{item.remark}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="rating-card">
+              <div className="section-subtitle">CHARACTER RATING KEY</div>
+              <table className="mini-table">
+                <thead>
+                  <tr>
+                    <th>Value</th>
+                    <th>Meaning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ratingLegend.map((item) => (
+                    <tr key={`legend-${item.value}`}>
+                      <td>{item.value}</td>
+                      <td>{item.label}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="comments-section">
+            <div className="comment-box">
+              <div className="comment-title">Class Teacher's Comment</div>
+              {canEditTeacherSection ? (
+                <textarea
+                  className="form-control"
+                  rows="4"
+                  value={editableSummary.teacherComment}
+                  onChange={(e) =>
+                    setEditableSummary((prev) => ({
+                      ...prev,
+                      teacherComment: e.target.value,
+                    }))
+                  }
+                />
+              ) : (
+                <div className="comment-body">
+                  {editableSummary.teacherComment || "No comment available."}
+                </div>
+              )}
+            </div>
+
+            <div className="comment-box">
+              <div className="comment-title">Principal's Comment</div>
+              {canEditAdminSection ? (
+                <textarea
+                  className="form-control"
+                  rows="4"
+                  value={editableSummary.principalComment}
+                  onChange={(e) =>
+                    setEditableSummary((prev) => ({
+                      ...prev,
+                      principalComment: e.target.value,
+                    }))
+                  }
+                />
+              ) : (
+                <div className="comment-body">
+                  {editableSummary.principalComment || "No comment available."}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="next-term-section">
+            <span className="summary-label">Next Term Begins:</span>{" "}
+            {canEditAdminSection ? (
+              <input
+                type="date"
+                className="form-control mt-2"
+                value={editableSummary.nextTermBegins || ""}
+                onChange={(e) =>
+                  setEditableSummary((prev) => ({
+                    ...prev,
+                    nextTermBegins: e.target.value,
+                  }))
+                }
+              />
+            ) : (
+              <span className="summary-value">
+                {editableSummary.nextTermBegins
+                  ? formatDate(editableSummary.nextTermBegins)
+                  : "To be announced"}
+              </span>
+            )}
+          </div>
+          {resultData?.completed && (
+            <div className="approval-stamp">APPROVED</div>
+          )}
+          <div className="signatures-section">
+            {/* CLASS TEACHER */}
+            <div className="signature-item">
+              <div className="signature-sign">
+                {resultData?.signatures?.classTeacherSigned &&
+                resultData?.signatures?.classTeacherSignature ? (
+                  <img
+                    src={`https://localhost:8443${resultData.signatures.classTeacherSignature}`}
+                    alt="Class Teacher Signature"
+                    className="signature-image"
+                  />
+                ) : (
+                  <div className="signature-line"></div>
+                )}
+              </div>
+              <div className="signature-label">Class Teacher's Signature</div>
+              {resultData?.signatures?.classTeacherSigned && (
+                <div className="signature-date">
+                  {resultData.signatures.classTeacherSignedDate &&
+                    formatDate(resultData.signatures.classTeacherSignedDate)}
+                </div>
+              )}
+            </div>
+
+            {/* ADMIN / PRINCIPAL */}
+            <div className="signature-item">
+              <div className="signature-sign">
+                {resultData?.signatures?.adminSigned &&
+                resultData?.signatures?.adminSignature ? (
+                  <img
+                    src={`https://localhost:8443${resultData.signatures.adminSignature}`}
+                    alt="Principal Signature"
+                    className="signature-image"
+                  />
+                ) : (
+                  <div className="signature-line"></div>
+                )}
+              </div>
+              <div className="signature-label">Principal / Admin Signature</div>
+              {resultData?.signatures?.adminSigned && (
+                <div className="signature-date">
+                  {resultData.signatures.adminSignedDate &&
+                    formatDate(resultData.signatures.adminSignedDate)}
+                </div>
+              )}
+            </div>
+
+            {/* PARENT */}
+            <div className="signature-item">
+              <div className="signature-sign">
+                <div className="signature-line"></div>
+              </div>
+              <div className="signature-label">Parent / Guardian Signature</div>
+            </div>
+          </div>
           <div className="result-footer">
             <div className="footer-note">
-              {t?.resultSheet?.footerNote ||
-                "This is a computer-generated result. Valid without signature."}
+              This result is not valid unless signed by the Class Teacher and
+              the Principal.
             </div>
             <div className="footer-date">
               {t?.resultSheet?.generatedOn || "Generated on"}:{" "}

@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
@@ -18,7 +24,13 @@ import {
   FaSyncAlt,
   FaCog,
   FaArrowLeft,
+  FaPen,
+  FaUpload,
+  FaTrash,
+  FaCheck,
+  FaTimes,
 } from "react-icons/fa";
+import SignatureCanvas from "react-signature-canvas";
 
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -70,6 +82,12 @@ function Profile() {
   const [imageError, setImageError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Signature states
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
+  const [signatureImageError, setSignatureImageError] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+  const sigPadRef = useRef(null);
+
   const labels = t?.profilePage || {};
   const common = t?.common || {};
 
@@ -106,6 +124,7 @@ function Profile() {
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setImageError(false);
+    setSignatureImageError(false);
 
     try {
       let response;
@@ -149,6 +168,13 @@ function Profile() {
       raw.passport ||
       raw.user?.profilePictureUrl ||
       user?.profilePictureUrl ||
+      "";
+
+    const signatureCandidate =
+      raw.signatureUrl ||
+      raw.signature ||
+      raw.user?.signatureUrl ||
+      user?.signatureUrl ||
       "";
 
     return {
@@ -206,10 +232,76 @@ function Profile() {
           : ""),
       occupation: raw.occupation || "",
       profilePictureUrl: buildImageUrl(profilePictureCandidate),
+      signatureUrl: buildImageUrl(signatureCandidate),
       username: raw.username || user?.username || "",
       role: user?.role || raw.role || "",
     };
   }, [profileData, user]);
+
+  // ================= SIGNATURE HANDLERS =================
+
+  const handleSaveDrawnSignature = async () => {
+    try {
+      if (!sigPadRef.current || sigPadRef.current.isEmpty()) {
+        toast.error(
+          labels.drawSignatureFirst || "Please draw your signature first",
+        );
+        return;
+      }
+
+      setUploadingSignature(true);
+      const dataUrl = sigPadRef.current.toDataURL("image/png");
+
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], "signature.png", {
+        type: "image/png",
+      });
+
+      await userAPI.uploadSignature(file);
+
+      toast.success(labels.signatureSaved || "Signature saved successfully");
+      sigPadRef.current.clear();
+      setShowSignaturePad(false);
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.error(err);
+      toast.error(labels.signatureSaveFailed || "Failed to save signature");
+    } finally {
+      setUploadingSignature(false);
+    }
+  };
+
+  const handleUploadSignature = async (file) => {
+    if (!file) return;
+
+    try {
+      setUploadingSignature(true);
+      await userAPI.uploadSignature(file);
+      toast.success(
+        labels.signatureUploaded || "Signature uploaded successfully",
+      );
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.error(err);
+      toast.error(labels.signatureUploadFailed || "Upload failed");
+    } finally {
+      setUploadingSignature(false);
+    }
+  };
+
+  const handleClearSignature = () => {
+    if (sigPadRef.current) {
+      sigPadRef.current.clear();
+    }
+  };
+
+  const handleCancelDrawing = () => {
+    setShowSignaturePad(false);
+    if (sigPadRef.current) {
+      sigPadRef.current.clear();
+    }
+  };
 
   const classDisplay =
     mergedProfile.classCode ||
@@ -461,6 +553,141 @@ function Profile() {
         </div>
 
         <div className="col-lg-4">
+          {/* Signature Card */}
+          <div
+            className={`card border-0 shadow-sm mb-4 ${darkMode ? "bg-dark text-light" : ""}`}
+          >
+            <div className="card-body p-4">
+              <h4 className="mb-3 d-flex align-items-center gap-2">
+                <FaPen />
+                {labels.signature || "Signature"}
+              </h4>
+
+              {/* Current Signature Display */}
+              <div className="text-center mb-3">
+                {mergedProfile.signatureUrl && !signatureImageError ? (
+                  <div className="border rounded p-2 bg-light">
+                    <img
+                      src={mergedProfile.signatureUrl}
+                      alt="Signature"
+                      style={{
+                        maxHeight: "80px",
+                        objectFit: "contain",
+                      }}
+                      onError={() => setSignatureImageError(true)}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className={`border rounded p-3 text-center ${darkMode ? "border-secondary" : ""}`}
+                  >
+                    <div className="text-muted small">
+                      {labels.noSignature || "No signature uploaded"}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Signature Buttons */}
+              <div className="d-flex gap-2 mb-3 flex-wrap">
+                <button
+                  type="button"
+                  className="btn btn-outline-primary btn-sm"
+                  onClick={() => setShowSignaturePad(!showSignaturePad)}
+                  disabled={uploadingSignature}
+                >
+                  <FaPen className="me-1" />
+                  {showSignaturePad
+                    ? labels.cancelDrawing || "Cancel Drawing"
+                    : labels.drawSignature || "Draw Signature"}
+                </button>
+
+                <label
+                  className={`btn btn-outline-secondary btn-sm mb-0 ${uploadingSignature ? "disabled" : ""}`}
+                >
+                  <FaUpload className="me-1" />
+                  {labels.uploadSignature || "Upload"}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/png,image/jpeg"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadSignature(file);
+                    }}
+                    disabled={uploadingSignature}
+                  />
+                </label>
+              </div>
+
+              {/* Signature Drawing Pad */}
+              {showSignaturePad && (
+                <div
+                  className={`border rounded p-2 ${darkMode ? "border-secondary" : ""}`}
+                >
+                  <SignatureCanvas
+                    ref={sigPadRef}
+                    penColor={darkMode ? "#ffffff" : "#000000"}
+                    backgroundColor={darkMode ? "#1f2937" : "#ffffff"}
+                    canvasProps={{
+                      width: "100%",
+                      height: 150,
+                      className: "signature-canvas w-100",
+                      style: {
+                        border: `1px solid ${darkMode ? "#374151" : "#dee2e6"}`,
+                        borderRadius: "4px",
+                        background: darkMode ? "#1f2937" : "#ffffff",
+                      },
+                    }}
+                  />
+                  <div className="d-flex justify-content-between gap-2 mt-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-warning"
+                      onClick={handleClearSignature}
+                      disabled={uploadingSignature}
+                    >
+                      <FaTrash className="me-1" />
+                      {labels.clear || "Clear"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      onClick={handleCancelDrawing}
+                      disabled={uploadingSignature}
+                    >
+                      <FaTimes className="me-1" />
+                      {labels.cancel || "Cancel"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-success"
+                      onClick={handleSaveDrawnSignature}
+                      disabled={uploadingSignature}
+                    >
+                      {uploadingSignature ? (
+                        <span className="spinner-border spinner-border-sm me-1" />
+                      ) : (
+                        <FaCheck className="me-1" />
+                      )}
+                      {labels.save || "Save"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {uploadingSignature && (
+                <div className="text-center mt-2">
+                  <div className="spinner-border spinner-border-sm text-primary me-2" />
+                  <span className="small">
+                    {common.uploading || "Uploading..."}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Preferences Card */}
           <div
             className={`card border-0 shadow-sm mb-4 ${darkMode ? "bg-dark text-light" : ""}`}
           >
@@ -521,6 +748,7 @@ function Profile() {
             </div>
           </div>
 
+          {/* Account Summary Card */}
           <div
             className={`card border-0 shadow-sm ${darkMode ? "bg-dark text-light" : ""}`}
           >

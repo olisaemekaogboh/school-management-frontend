@@ -459,7 +459,10 @@ export const resultAPI = {
     api.get(`/results/me/annual`, {
       params: { session },
     }),
-
+  updateTermAssessment: (studentId, session, term, payload) =>
+    api.put(`/results/student/${studentId}/term/assessment`, payload, {
+      params: { session, term },
+    }),
   // =========================
   // RANKINGS
   // =========================
@@ -908,6 +911,17 @@ export const userAPI = {
     api.patch(`/users/${id}/toggle-status`, null, {
       params: { active },
     }),
+  uploadSignature: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return api.post("/users/upload-signature", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
+  refreshMe: () => api.get("/users/me"),
   searchUsers: (term) => api.get("/users/search", { params: { term } }),
   getUsersByRole: (role) => api.get(`/users/role/${role}`),
   getUserStatistics: () => api.get("/users/statistics"),

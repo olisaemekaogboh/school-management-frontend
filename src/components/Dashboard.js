@@ -863,19 +863,7 @@ function Dashboard() {
                 <span className="quick-label">All Students</span>
                 <small>View student list</small>
               </Link>
-              <Link to="/search" className="quick-action">
-                <FaSearch className="quick-icon" />
-                <span className="quick-label">Search</span>
-                <small>Find students</small>
-              </Link>
-              <button
-                className="quick-action"
-                onClick={() => setShowReportModal(true)}
-              >
-                <FaFileAlt className="quick-icon" />
-                <span className="quick-label">Generate Report</span>
-                <small>Export data</small>
-              </button>
+
               <Link to="/announcements" className="quick-action">
                 <FaBell className="quick-icon" />
                 <span className="quick-label">All Announcements</span>

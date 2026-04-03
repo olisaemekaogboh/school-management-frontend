@@ -96,6 +96,11 @@ function Footer() {
       label: t.common.settings,
     },
     {
+      to: "/reports",
+      icon: <FaChartBar className="link-icon" />,
+      label: "reports",
+    },
+    {
       to: "/about",
       icon: <FaArrowRight className="link-icon" />,
       label: t.footer.aboutUs,
