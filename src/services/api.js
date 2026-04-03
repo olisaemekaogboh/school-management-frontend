@@ -654,6 +654,9 @@ export const resultAPI = {
       params: { session },
     }),
 
+  addOrUpdateResultDTO: (payload) =>
+    api.post(`/results/student/${payload.studentId}`, payload),
+
   updateTermAssessment: (studentId, session, term, payload) =>
     api.put(`/results/student/${studentId}/term/assessment`, payload, {
       params: { session, term },
@@ -673,8 +676,40 @@ export const resultAPI = {
     api.patch(`/results/student/${studentId}/term/printable`, payload, {
       params: { session, term },
     }),
-};
 
+  setTermPrintableStatus: (
+    studentId,
+    session,
+    term,
+    printable,
+    printLockMessage = null,
+  ) =>
+    api.patch(
+      `/results/student/${studentId}/term/printable`,
+      {
+        printable,
+        printLockMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  getSchoolRankings: (session, term) =>
+    api.get("/results/rankings/school", {
+      params: { session, term },
+    }),
+
+  getClassRankings: (classId, session, term) =>
+    api.get(`/results/rankings/class/${classId}`, {
+      params: { session, term },
+    }),
+
+  getArmRankings: (classId, arm, session, term) =>
+    api.get(`/results/rankings/class/${classId}`, {
+      params: { session, term, arm },
+    }),
+};
 export const sessionResultAPI = {
   calculateSessionResult: (studentId, session) =>
     api.post(`/session-results/calculate/student/${studentId}`, null, {

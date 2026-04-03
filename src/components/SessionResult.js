@@ -266,104 +266,6 @@ function SessionResult() {
     lockedAssignment,
   ]);
 
-  const printableMessage =
-    sessionResult?.printLockMessage ||
-    "Printable result is locked. The admin will unlock it when it is ready.";
-
-  const canOpenPrintableSessionResult =
-    !isStudent &&
-    !isParent &&
-    !!selectedStudent?.id &&
-    !!session &&
-    sessionResult?.printable === true;
-
-  const handleViewPrintableSessionResult = () => {
-    if (!selectedStudent?.id || !session) {
-      toast.error("Please select a student and session first");
-      return;
-    }
-
-    if (isStudent || isParent) {
-      toast.error(printableMessage);
-      return;
-    }
-
-    if (sessionResult?.printable !== true) {
-      toast.error(printableMessage);
-      return;
-    }
-
-    navigate(
-      `/session-results/${selectedStudent.id}?session=${encodeURIComponent(session)}`,
-    );
-  };
-  const [sessionPrintableBusy, setSessionPrintableBusy] = useState(false);
-  const [sessionLockMessageInput, setSessionLockMessageInput] = useState("");
-
-  const effectiveSessionLockMessage =
-    sessionLockMessageInput.trim() ||
-    sessionResult?.printLockMessage ||
-    "Printable result is locked. The admin will unlock it when it is ready.";
-
-  const syncSessionLockMessageFromResult = (data) => {
-    setSessionLockMessageInput(
-      data?.printLockMessage ||
-        "Printable result is locked. The admin will unlock it when it is ready.",
-    );
-  };
-
-  const updateSessionPrintableStatus = async (printable) => {
-    if (!isAdmin) {
-      toast.error("Only admin can change printable status");
-      return;
-    }
-
-    if (!selectedStudent?.id || !session) {
-      toast.error("Please select a student and session first");
-      return;
-    }
-
-    setSessionPrintableBusy(true);
-    try {
-      const response = await sessionResultAPI.setSessionPrintableStatus(
-        selectedStudent.id,
-        session,
-        printable,
-        printable ? null : effectiveSessionLockMessage,
-      );
-
-      const updated =
-        response?.data && typeof response.data === "object"
-          ? {
-              ...sessionResult,
-              printable: response.data.printable,
-              printLockMessage:
-                response.data.printLockMessage || effectiveSessionLockMessage,
-            }
-          : {
-              ...sessionResult,
-              printable,
-              printLockMessage: printable ? null : effectiveSessionLockMessage,
-            };
-
-      setSessionResult(updated);
-      syncSessionLockMessageFromResult(updated);
-
-      toast.success(
-        printable
-          ? "Session printable result unlocked successfully"
-          : "Session printable result locked successfully",
-      );
-    } catch (error) {
-      console.error("Error updating session printable status:", error);
-      toast.error(
-        error?.response?.data?.message ||
-          "Failed to update session printable status",
-      );
-    } finally {
-      setSessionPrintableBusy(false);
-    }
-  };
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
@@ -703,11 +605,6 @@ function SessionResult() {
       promoted: annual.promoted ?? false,
       promotionRemark: annual.remark ?? "",
       subjectAverages: annual.subjectAverages || data.subjectAverages || {},
-      printable: annual.printable ?? data.printable ?? false,
-      printLockMessage:
-        annual.printLockMessage ||
-        data.printLockMessage ||
-        "Printable result is locked. The admin will unlock it when it is ready.",
     };
   };
 
@@ -743,7 +640,6 @@ function SessionResult() {
       }
 
       setSessionResult(resultData);
-      syncSessionLockMessageFromResult(resultData);
     } catch (error) {
       console.error("Error fetching session result:", error);
       setSessionResult(null);
@@ -1112,6 +1008,33 @@ function SessionResult() {
         <FaTimesCircle className="me-1" />{" "}
         {t?.sessionResult?.retained || "Retained"}
       </span>
+    );
+  };
+
+  const viewPrintableSessionResult = () => {
+    const targetStudent = isStudent
+      ? selectedStudent || students[0] || normalizeStudentLike(user)
+      : selectedStudent;
+
+    if (!sessionResult) {
+      toast.error(
+        t?.sessionResult?.loadResultFirst || "Load a session result first",
+      );
+      return;
+    }
+
+    if (!targetStudent?.id) {
+      toast.error(t?.sessionResult?.selectStudent || "Please select a student");
+      return;
+    }
+
+    if (!session) {
+      toast.error(t?.sessionResult?.noSessionSelected || "No session selected");
+      return;
+    }
+
+    navigate(
+      `/session-results/${targetStudent.id}?session=${encodeURIComponent(session)}`,
     );
   };
 
@@ -1591,117 +1514,30 @@ function SessionResult() {
                     : {session}
                   </h5>
 
-                  {!isStudent && !isParent && (
-                    <div className="result-print-actions">
-                      <button
-                        type="button"
-                        className={`btn ${
-                          canOpenPrintableSessionResult
-                            ? "btn-light btn-sm"
-                            : "btn-secondary btn-sm"
-                        }`}
-                        onClick={handleViewPrintableSessionResult}
-                        disabled={
-                          !selectedStudent ||
-                          !session ||
-                          loading ||
-                          !canOpenPrintableSessionResult
-                        }
-                        title={
-                          canOpenPrintableSessionResult
-                            ? "Open printable session result"
-                            : printableMessage
-                        }
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          padding: "6px 12px",
-                          fontSize: "13px",
-                          fontWeight: "500",
-                          borderRadius: "4px",
-                          border: "none",
-                          cursor: canOpenPrintableSessionResult
-                            ? "pointer"
-                            : "not-allowed",
-                          backgroundColor: "#fff",
-                          color: canOpenPrintableSessionResult
-                            ? "#28a745"
-                            : "#6c757d",
-                        }}
-                      >
-                        <FaPrint size={14} />
-                        <span>
-                          {canOpenPrintableSessionResult
-                            ? t?.sessionResult?.printableResult ||
-                              "Printable Session Result"
-                            : "Printable Locked"}
-                        </span>
-                      </button>
-
-                      {isAdmin && (
-                        <>
-                          <button
-                            type="button"
-                            className="btn btn-warning btn-sm"
-                            onClick={() => updateSessionPrintableStatus(false)}
-                            disabled={
-                              sessionPrintableBusy ||
-                              sessionResult?.printable !== true
-                            }
-                          >
-                            {sessionPrintableBusy ? (
-                              <FaSpinner className="spinner me-1" />
-                            ) : null}
-                            Lock Print
-                          </button>
-
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            onClick={() => updateSessionPrintableStatus(true)}
-                            disabled={
-                              sessionPrintableBusy ||
-                              sessionResult?.printable === true
-                            }
-                          >
-                            {sessionPrintableBusy ? (
-                              <FaSpinner className="spinner me-1" />
-                            ) : null}
-                            Unlock Print
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
+                  <button
+                    className="btn btn-light btn-sm"
+                    onClick={viewPrintableSessionResult}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "6px 12px",
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      borderRadius: "4px",
+                      border: "none",
+                      cursor: "pointer",
+                      backgroundColor: "#fff",
+                      color: "#28a745",
+                    }}
+                  >
+                    <FaPrint size={14} />
+                    <span>
+                      {t?.sessionResult?.printableResult ||
+                        "Printable Session Result"}
+                    </span>
+                  </button>
                 </div>
-                {sessionResult && isAdmin && (
-                  <div className="result-lock-admin-panel">
-                    <label className="form-label fw-bold">
-                      Print lock message
-                    </label>
-                    <textarea
-                      className="form-control"
-                      rows="2"
-                      value={sessionLockMessageInput}
-                      onChange={(e) =>
-                        setSessionLockMessageInput(e.target.value)
-                      }
-                      placeholder="Printable result is locked. The admin will unlock it when it is ready."
-                    />
-                    <div className="small text-muted mt-2">
-                      This message is shown when printable annual/session result
-                      is locked.
-                    </div>
-                  </div>
-                )}
-                {sessionResult?.printable !== true &&
-                  !isStudent &&
-                  !isParent && (
-                    <div className="result-lock-banner" role="alert">
-                      {printableMessage}
-                    </div>
-                  )}
 
                 <div className="card-body">
                   <div className="row mb-4">

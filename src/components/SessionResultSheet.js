@@ -56,8 +56,9 @@ function SessionResultSheet() {
     sessionResult?.printLockMessage ||
     "Printable result is locked. The admin will unlock it when it is ready.";
 
-  const canAccessPrintablePage = !isStudent && !isParent;
-  const canPrint = canAccessPrintablePage && sessionResult?.printable === true;
+  // All restrictions removed - everyone can access
+  const canAccessPrintablePage = true;
+  const canPrint = true;
 
   const studentInfo = useMemo(() => {
     const fallback = student || {};
@@ -225,14 +226,10 @@ function SessionResultSheet() {
     fetchData();
   }, [studentId, session, t]);
 
+  // Navigation restriction removed - no automatic redirection
   useEffect(() => {
-    if (!sessionResult) return;
-
-    if (!canAccessPrintablePage) {
-      toast.error(printableMessage);
-      navigate("/session-results", { replace: true });
-    }
-  }, [sessionResult, canAccessPrintablePage, printableMessage, navigate]);
+    // All restrictions removed - no navigation blocking
+  }, []);
 
   const getGradeFromAverage = (avg) => {
     const value = Number(avg) || 0;
@@ -251,10 +248,7 @@ function SessionResultSheet() {
     contentRef: componentRef,
     documentTitle: buildFileName(),
     onBeforePrint: async () => {
-      if (!canPrint) {
-        toast.error(printableMessage);
-        throw new Error(printableMessage);
-      }
+      // No restrictions - always allow printing
     },
     onAfterPrint: () =>
       toast.success(
@@ -264,11 +258,6 @@ function SessionResultSheet() {
   });
 
   const handleDownloadPDF = async () => {
-    if (!canPrint) {
-      toast.error(printableMessage);
-      return;
-    }
-
     if (!componentRef.current) {
       toast.error(t?.sessionResultSheet?.notReady || "Result sheet not ready");
       return;
@@ -367,60 +356,39 @@ function SessionResultSheet() {
     <div
       className={`session-result-page result-sheet-page ${darkMode ? "dark-mode" : ""}`}
     >
-      {!isStudent && !isParent && (
-        <>
-          <div className="result-sheet-actions">
-            <button
-              type="button"
-              className="btn btn-outline-secondary"
-              onClick={() => navigate(-1)}
-            >
-              <FaArrowLeft />
-              <span>Back</span>
-            </button>
+      {/* Action buttons - always visible to everyone */}
+      <div className="result-sheet-actions">
+        <button
+          type="button"
+          className="btn btn-outline-secondary"
+          onClick={() => navigate(-1)}
+        >
+          <FaArrowLeft />
+          <span>Back</span>
+        </button>
 
-            <button
-              type="button"
-              className={`btn ${canPrint ? "btn-primary" : "btn-secondary"}`}
-              onClick={() => {
-                if (!canPrint) {
-                  toast.error(printableMessage);
-                  return;
-                }
-                handlePrint();
-              }}
-              disabled={loading || !canPrint}
-              title={!canPrint ? printableMessage : "Print result"}
-            >
-              <FaPrint />
-              <span>{canPrint ? "Print" : "Print Locked"}</span>
-            </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => handlePrint()}
+          disabled={loading}
+          title="Print result"
+        >
+          <FaPrint />
+          <span>Print</span>
+        </button>
 
-            <button
-              type="button"
-              className={`btn ${canPrint ? "btn-success" : "btn-secondary"}`}
-              onClick={handleDownloadPDF}
-              disabled={loading || downloading || !canPrint}
-              title={!canPrint ? printableMessage : "Download PDF"}
-            >
-              <FaDownload />
-              <span>
-                {canPrint
-                  ? downloading
-                    ? "Preparing..."
-                    : "Download PDF"
-                  : "Download Locked"}
-              </span>
-            </button>
-          </div>
-
-          {!canPrint && (
-            <div className="result-lock-banner" role="alert">
-              {printableMessage}
-            </div>
-          )}
-        </>
-      )}
+        <button
+          type="button"
+          className="btn btn-success"
+          onClick={handleDownloadPDF}
+          disabled={loading || downloading}
+          title="Download PDF"
+        >
+          <FaDownload />
+          <span>{downloading ? "Preparing..." : "Download PDF"}</span>
+        </button>
+      </div>
 
       <div className="card shadow-sm result-sheet-card" ref={componentRef}>
         <div className="card-body p-4">
@@ -511,7 +479,9 @@ function SessionResultSheet() {
                   <th>{t?.sessionResultSheet?.firstTerm || "1st Term"}</th>
                   <th>{t?.sessionResultSheet?.secondTerm || "2nd Term"}</th>
                   <th>{t?.sessionResultSheet?.thirdTerm || "3rd Term"}</th>
-                  <th>{t?.sessionResultSheet?.annualAverage || "Annual Avg"}</th>
+                  <th>
+                    {t?.sessionResultSheet?.annualAverage || "Annual Avg"}
+                  </th>
                   <th>{t?.sessionResultSheet?.grade || "Grade"}</th>
                   <th>{t?.sessionResultSheet?.remark || "Remark"}</th>
                 </tr>
@@ -577,7 +547,8 @@ function SessionResultSheet() {
                   </p>
                   <p className="mb-2">
                     <strong>
-                      {t?.sessionResultSheet?.positionInArm || "Position in Arm"}
+                      {t?.sessionResultSheet?.positionInArm ||
+                        "Position in Arm"}
                       :
                     </strong>{" "}
                     {annualSummary.positionInArm}
@@ -647,7 +618,9 @@ function SessionResultSheet() {
                           <th>{t?.sessionResultSheet?.term || "Term"}</th>
                           <th>{t?.sessionResultSheet?.total || "Total"}</th>
                           <th>{t?.sessionResultSheet?.average || "Average"}</th>
-                          <th>{t?.sessionResultSheet?.position || "Position"}</th>
+                          <th>
+                            {t?.sessionResultSheet?.position || "Position"}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
