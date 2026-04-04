@@ -1,4 +1,3 @@
-// src/components/StudentDashboard.js
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -18,21 +17,14 @@ import {
   FaCalendarAlt,
   FaSpinner,
   FaSyncAlt,
+  FaLock,
+  FaCheckCircle,
+  FaInfoCircle,
 } from "react-icons/fa";
 import moment from "moment";
 import useActiveSession from "../hooks/useActiveSession";
 import "./StudentDashboard.css";
 
-const getFirstDefined = (...values) => {
-  for (const value of values) {
-    if (value !== undefined && value !== null && value !== "") {
-      return value;
-    }
-  }
-  return null;
-};
-
-const toArray = (value) => (Array.isArray(value) ? value : []);
 const toNumber = (value, fallback = 0) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
@@ -46,26 +38,34 @@ const buildFullName = (...parts) =>
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
-const normalizeStudentLike = (student) => {
-  if (!student) return null;
+
+const normalizeStudentLike = (...candidates) => {
+  const source = candidates.find(Boolean);
+  if (!source) return null;
 
   return {
-    id: student.id ?? null,
-    firstName: student.firstName ?? "",
-    middleName: student.middleName ?? "",
-    lastName: student.lastName ?? "",
+    id: source.id ?? null,
+    firstName: source.firstName ?? "",
+    middleName: source.middleName ?? "",
+    lastName: source.lastName ?? "",
     fullName:
-      student.fullName ??
-      buildFullName(student.firstName, student.middleName, student.lastName),
-    admissionNumber: student.admissionNumber ?? "",
-    studentClass: student.studentClass ?? "",
-    classArm: student.classArm ?? "",
-    status: student.status ?? "ACTIVE",
-    profilePictureUrl: student.profilePictureUrl ?? "",
-    email: student.email ?? "",
-    username: student.username ?? "",
+      source.fullName ??
+      buildFullName(source.firstName, source.middleName, source.lastName),
+    admissionNumber: source.admissionNumber ?? "",
+    studentClass:
+      source.studentClass ??
+      source.className ??
+      source.class ??
+      source.schoolClass?.className ??
+      "",
+    classArm: source.classArm ?? source.arm ?? source.schoolClass?.arm ?? "",
+    status: source.status ?? "ACTIVE",
+    profilePictureUrl: source.profilePictureUrl ?? "",
+    email: source.email ?? "",
+    username: source.username ?? "",
   };
 };
+
 const normalizeResults = (payload) => {
   const data = payload?.data ?? payload ?? {};
   const items = Array.isArray(data?.subjects)
@@ -77,8 +77,14 @@ const normalizeResults = (payload) => {
   return items.map((item, index) => ({
     id: item.id ?? index,
     subject: item.subject ?? "-",
-    continuousAssessment: toNumber(item.continuousAssessment, 0),
-    examination: toNumber(item.examination, 0),
+    continuousAssessment: toNumber(
+      item.continuousAssessment ??
+        item.ca ??
+        item.contAssessment ??
+        item.assessment,
+      0,
+    ),
+    examination: toNumber(item.examination ?? item.exam, 0),
     total: toNumber(item.total, 0),
     grade: item.grade ?? "-",
   }));
@@ -102,6 +108,7 @@ const normalizeAttendance = (payload) => {
     attendancePercentage: toNumber(data.attendancePercentage, 0),
   };
 };
+
 const normalizeFees = (payload) => {
   const data = payload?.data ?? payload ?? [];
   const items = Array.isArray(data)
@@ -112,12 +119,12 @@ const normalizeFees = (payload) => {
 
   return items.map((fee, index) => ({
     id: fee.id ?? index,
-    feeType: fee.feeType ?? "Fee",
+    feeType: fee.feeType ?? fee.name ?? "Fee",
     amount: toNumber(fee.amount, 0),
     paidAmount: toNumber(fee.paidAmount, 0),
     balance: toNumber(fee.balance, 0),
     dueDate: fee.dueDate ?? null,
-    paymentStatus: fee.status ?? "PENDING",
+    paymentStatus: fee.paymentStatus ?? fee.status ?? "PENDING",
   }));
 };
 
@@ -143,6 +150,12 @@ const getStatusBadgeClass = (status) => {
   return "secondary";
 };
 
+const extractApiMessage = (error, fallback) =>
+  error?.response?.data?.message ||
+  error?.response?.data?.error ||
+  error?.message ||
+  fallback;
+
 function StudentDashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -157,6 +170,11 @@ function StudentDashboard() {
   });
   const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [resultAccess, setResultAccess] = useState({
+    canView: false,
+    locked: false,
+    message: "",
+  });
 
   const { session, term, loadingSession, refreshActiveSession } =
     useActiveSession("FIRST");
@@ -171,6 +189,11 @@ function StudentDashboard() {
         attendancePercentage: 0,
       });
       setFees([]);
+      setResultAccess({
+        canView: false,
+        locked: false,
+        message: "",
+      });
       setLoading(false);
       return;
     }
@@ -217,10 +240,42 @@ function StudentDashboard() {
 
       setStudentData(resolvedProfile);
 
-      const normalizedResults =
-        resultsRes.status === "fulfilled"
-          ? normalizeResults(resultsRes.value)
-          : [];
+      if (resultsRes.status === "fulfilled") {
+        const normalizedResults = normalizeResults(resultsRes.value);
+        setRecentResults(normalizedResults.slice(0, 5));
+        setResultAccess({
+          canView: true,
+          locked: false,
+          message: "",
+        });
+      } else {
+        const resultError = resultsRes.reason;
+        const status = resultError?.response?.status;
+
+        if (status === 403) {
+          setRecentResults([]);
+          setResultAccess({
+            canView: false,
+            locked: true,
+            message: extractApiMessage(
+              resultError,
+              t?.studentDashboard?.resultLocked ||
+                "Your result is not yet available. The school will release it when authorized.",
+            ),
+          });
+        } else {
+          setRecentResults([]);
+          setResultAccess({
+            canView: false,
+            locked: false,
+            message: extractApiMessage(
+              resultError,
+              t?.studentDashboard?.resultUnavailable ||
+                "Result data could not be loaded right now.",
+            ),
+          });
+        }
+      }
 
       const normalizedAttendance =
         attendanceRes.status === "fulfilled"
@@ -234,7 +289,6 @@ function StudentDashboard() {
       const normalizedFees =
         feesRes.status === "fulfilled" ? normalizeFees(feesRes.value) : [];
 
-      setRecentResults(normalizedResults.slice(0, 5));
       setAttendance(normalizedAttendance);
       setFees(normalizedFees);
     } catch (error) {
@@ -255,10 +309,17 @@ function StudentDashboard() {
         attendancePercentage: 0,
       });
       setFees([]);
+      setResultAccess({
+        canView: false,
+        locked: false,
+        message:
+          t?.studentDashboard?.dashboardLoadError ||
+          "Some dashboard data could not be loaded.",
+      });
     } finally {
       setLoading(false);
     }
-  }, [user, session, term]);
+  }, [user, session, term, t]);
 
   useEffect(() => {
     if (!loadingSession) {
@@ -289,6 +350,10 @@ function StudentDashboard() {
     0,
     Math.min(100, toNumber(attendance?.attendancePercentage, 0)),
   );
+
+  const totalOutstandingFees = useMemo(() => {
+    return fees.reduce((sum, fee) => sum + toNumber(fee.balance, 0), 0);
+  }, [fees]);
 
   if (loading || loadingSession) {
     return (
@@ -322,8 +387,32 @@ function StudentDashboard() {
         <strong>
           {session || t?.common?.noActiveSession || "No active session"}
         </strong>{" "}
-        |{t?.feeManagement?.term || "Term"}: <strong>{term || "N/A"}</strong>
+        | {t?.feeManagement?.term || "Term"}: <strong>{term || "N/A"}</strong>
       </div>
+
+      {resultAccess.message ? (
+        <div
+          className={`alert ${
+            resultAccess.locked ? "alert-warning" : "alert-info"
+          } d-flex align-items-start gap-2`}
+          role="alert"
+        >
+          {resultAccess.locked ? (
+            <FaLock className="mt-1 flex-shrink-0" />
+          ) : (
+            <FaInfoCircle className="mt-1 flex-shrink-0" />
+          )}
+          <div>
+            <strong>
+              {resultAccess.locked
+                ? t?.studentDashboard?.resultAccessRestricted ||
+                  "Result Access Restricted"
+                : t?.studentDashboard?.resultInfo || "Result Information"}
+            </strong>
+            <div>{resultAccess.message}</div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="row">
         <div className="col-md-4 mb-4">
@@ -348,7 +437,7 @@ function StudentDashboard() {
                 <strong>{t?.studentDashboard?.class || "Class"}:</strong>{" "}
                 {classDisplay}
               </p>
-              <p>
+              <p className="mb-0">
                 <strong>{t?.studentDashboard?.status || "Status"}:</strong>{" "}
                 <span
                   className={`badge bg-${getStatusBadgeClass(studentData?.status)}`}
@@ -403,43 +492,54 @@ function StudentDashboard() {
                   {t?.studentDashboard?.noFeeRecords || "No fee records found."}
                 </p>
               ) : (
-                fees.map((fee) => {
-                  const paidPercent =
-                    fee.amount > 0
-                      ? Math.min((fee.paidAmount / fee.amount) * 100, 100)
-                      : 0;
+                <>
+                  <div className="mb-3">
+                    <strong>
+                      {t?.studentDashboard?.outstanding || "Outstanding"}:
+                    </strong>{" "}
+                    <span className="text-danger">
+                      ₦{totalOutstandingFees.toLocaleString()}
+                    </span>
+                  </div>
 
-                  return (
-                    <div key={fee.id} className="mb-3">
-                      <div className="d-flex justify-content-between">
-                        <span>{fee.feeType}</span>
-                        <span
-                          className={
-                            `${fee.paymentStatus}`.toUpperCase() === "PAID"
-                              ? "text-success"
-                              : "text-danger"
-                          }
-                        >
-                          ₦{toNumber(fee.balance, 0).toLocaleString()}
-                        </span>
+                  {fees.map((fee) => {
+                    const paidPercent =
+                      fee.amount > 0
+                        ? Math.min((fee.paidAmount / fee.amount) * 100, 100)
+                        : 0;
+
+                    return (
+                      <div key={fee.id} className="mb-3">
+                        <div className="d-flex justify-content-between">
+                          <span>{fee.feeType}</span>
+                          <span
+                            className={
+                              `${fee.paymentStatus}`.toUpperCase() === "PAID"
+                                ? "text-success"
+                                : "text-danger"
+                            }
+                          >
+                            ₦{toNumber(fee.balance, 0).toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="progress" style={{ height: "5px" }}>
+                          <div
+                            className="progress-bar bg-success"
+                            style={{ width: `${paidPercent}%` }}
+                          />
+                        </div>
+
+                        <small className="text-muted">
+                          {t?.studentDashboard?.due || "Due"}:{" "}
+                          {fee.dueDate
+                            ? moment(fee.dueDate).format("DD/MM/YYYY")
+                            : "-"}
+                        </small>
                       </div>
-
-                      <div className="progress" style={{ height: "5px" }}>
-                        <div
-                          className="progress-bar bg-success"
-                          style={{ width: `${paidPercent}%` }}
-                        />
-                      </div>
-
-                      <small className="text-muted">
-                        {t?.studentDashboard?.due || "Due"}:{" "}
-                        {fee.dueDate
-                          ? moment(fee.dueDate).format("DD/MM/YYYY")
-                          : "-"}
-                      </small>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </>
               )}
             </div>
           </div>
@@ -449,53 +549,81 @@ function StudentDashboard() {
       <div className="row mt-4">
         <div className="col-12">
           <div className="card shadow-sm">
-            <div className="card-header bg-info text-white">
+            <div className="card-header bg-info text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
               <h5 className="mb-0">
                 {t?.studentDashboard?.recentResults || "Recent Results"}
               </h5>
+
+              {resultAccess.canView ? (
+                <span className="badge bg-light text-dark d-inline-flex align-items-center gap-1">
+                  <FaCheckCircle />
+                  {t?.studentDashboard?.released || "Released"}
+                </span>
+              ) : resultAccess.locked ? (
+                <span className="badge bg-dark d-inline-flex align-items-center gap-1">
+                  <FaLock />
+                  {t?.studentDashboard?.locked || "Locked"}
+                </span>
+              ) : null}
             </div>
+
             <div className="card-body">
-              <div className="table-responsive">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>{t?.studentDashboard?.subject || "Subject"}</th>
-                      <th>{t?.studentDashboard?.ca || "CA"}</th>
-                      <th>{t?.studentDashboard?.exam || "Exam"}</th>
-                      <th>{t?.studentDashboard?.total || "Total"}</th>
-                      <th>{t?.studentDashboard?.grade || "Grade"}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentResults.length === 0 ? (
+              {!resultAccess.canView ? (
+                <div className="text-center py-3">
+                  <FaLock size={28} className="mb-3 text-warning" />
+                  <p className="mb-1 fw-semibold">
+                    {t?.studentDashboard?.resultsUnavailable ||
+                      "Results are not available for viewing right now."}
+                  </p>
+                  <small className="text-muted">
+                    {resultAccess.message ||
+                      t?.studentDashboard?.waitForRelease ||
+                      "Please wait until the school releases your result."}
+                  </small>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table">
+                    <thead>
                       <tr>
-                        <td colSpan="5" className="text-center text-muted">
-                          {t?.studentDashboard?.noResults ||
-                            "No result available yet."}
-                        </td>
+                        <th>{t?.studentDashboard?.subject || "Subject"}</th>
+                        <th>{t?.studentDashboard?.ca || "CA"}</th>
+                        <th>{t?.studentDashboard?.exam || "Exam"}</th>
+                        <th>{t?.studentDashboard?.total || "Total"}</th>
+                        <th>{t?.studentDashboard?.grade || "Grade"}</th>
                       </tr>
-                    ) : (
-                      recentResults.map((subject) => (
-                        <tr key={subject.id}>
-                          <td>{subject.subject || "-"}</td>
-                          <td>{toNumber(subject.continuousAssessment, 0)}</td>
-                          <td>{toNumber(subject.examination, 0)}</td>
-                          <td>
-                            <strong>{toNumber(subject.total, 0)}</strong>
-                          </td>
-                          <td>
-                            <span
-                              className={`badge bg-${getGradeBadgeClass(subject.grade)}`}
-                            >
-                              {subject.grade || "-"}
-                            </span>
+                    </thead>
+                    <tbody>
+                      {recentResults.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="text-center text-muted">
+                            {t?.studentDashboard?.noResults ||
+                              "No result available yet."}
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      ) : (
+                        recentResults.map((subject) => (
+                          <tr key={subject.id}>
+                            <td>{subject.subject || "-"}</td>
+                            <td>{toNumber(subject.continuousAssessment, 0)}</td>
+                            <td>{toNumber(subject.examination, 0)}</td>
+                            <td>
+                              <strong>{toNumber(subject.total, 0)}</strong>
+                            </td>
+                            <td>
+                              <span
+                                className={`badge bg-${getGradeBadgeClass(subject.grade)}`}
+                              >
+                                {subject.grade || "-"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -509,19 +637,35 @@ function StudentDashboard() {
                 {t?.studentDashboard?.quickLinks || "Quick Links"}
               </h5>
               <div className="d-flex gap-2 flex-wrap">
-                <Link to="/results" className="btn btn-outline-primary">
-                  <FaChartBar className="me-2" />{" "}
+                <Link
+                  to="/results"
+                  className={`btn ${
+                    resultAccess.canView
+                      ? "btn-outline-primary"
+                      : "btn-outline-secondary"
+                  }`}
+                >
+                  <FaChartBar className="me-2" />
                   {t?.studentDashboard?.viewResults || "View My Results"}
                 </Link>
+
                 <Link to="/attendance" className="btn btn-outline-success">
-                  <FaCalendarAlt className="me-2" />{" "}
+                  <FaCalendarAlt className="me-2" />
                   {t?.studentDashboard?.myAttendance || "My Attendance"}
                 </Link>
+
                 <Link to="/fees" className="btn btn-outline-warning">
-                  <FaMoneyBill className="me-2" />{" "}
+                  <FaMoneyBill className="me-2" />
                   {t?.studentDashboard?.feeDetails || "Fee Details"}
                 </Link>
               </div>
+
+              {!resultAccess.canView && resultAccess.locked ? (
+                <small className="text-muted d-block mt-3">
+                  {t?.studentDashboard?.resultReleasedBySchool ||
+                    "Your result link may still open the result page, but the backend will block access until the school releases it."}
+                </small>
+              ) : null}
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { studentAPI, sessionResultAPI } from "../services/api";
+import { studentAPI, sessionResultAPI, parentPortalAPI } from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useDarkMode } from "../contexts/DarkModeContext";
 import { toast } from "react-toastify";
@@ -13,6 +13,8 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaGraduationCap,
+  FaLock,
+  FaInfoCircle,
 } from "react-icons/fa";
 import moment from "moment";
 import { useReactToPrint } from "react-to-print";
@@ -51,6 +53,30 @@ function SessionResultSheet() {
     if (value === null || value === undefined) return fallback;
     const text = String(value).trim();
     return text ? text : fallback;
+  };
+
+  const getApiMessage = (fetchError, fallback) =>
+    fetchError?.response?.data?.message ||
+    fetchError?.response?.data?.error ||
+    fetchError?.message ||
+    fallback;
+
+  const normalizeSessionResult = (data) => {
+    if (!data) return null;
+
+    return {
+      ...data,
+      resultVisibilityStatus:
+        data.resultVisibilityStatus || data.visibilityStatus || null,
+      visibilityMessage: data.visibilityMessage || data.message || "",
+      printable: data.printable === true,
+      printLockMessage: data.printLockMessage || "",
+      completed: data.completed === true,
+      subjectAverages: data.subjectAverages || {},
+      firstTermSubjectScores: data.firstTermSubjectScores || {},
+      secondTermSubjectScores: data.secondTermSubjectScores || {},
+      thirdTermSubjectScores: data.thirdTermSubjectScores || {},
+    };
   };
 
   const studentInfo = useMemo(() => {
@@ -177,6 +203,19 @@ function SessionResultSheet() {
     return studentInfo.fullName || "Student";
   };
 
+  const visibilityStatus = sessionResult?.resultVisibilityStatus || null;
+  const familyCanView =
+    visibilityStatus === "PUBLISHED" || visibilityStatus === "PRINTABLE";
+  const familyCanPrint =
+    visibilityStatus === "PRINTABLE" && sessionResult?.printable === true;
+  const canPrintDocument = isStudent || isParent ? familyCanPrint : true;
+
+  const printBlockedReason =
+    sessionResult?.printLockMessage ||
+    sessionResult?.visibilityMessage ||
+    t?.sessionResultSheet?.printLocked ||
+    "Printing is not enabled for this session result.";
+
   useEffect(() => {
     if (!studentId || !session) {
       setError(
@@ -191,12 +230,20 @@ function SessionResultSheet() {
       setError(null);
 
       try {
+        const resultPromise = isParent
+          ? parentPortalAPI.getWardSessionResult(studentId, session)
+          : sessionResultAPI.getSessionResult(studentId, session);
+
+        const studentPromise = isStudent
+          ? studentAPI.getMyProfile().catch(() => ({ data: null }))
+          : studentAPI.getStudentById(studentId).catch(() => ({ data: null }));
+
         const [resultResponse, studentResponse] = await Promise.all([
-          sessionResultAPI.getSessionResult(studentId, session),
-          studentAPI.getStudentById(studentId).catch(() => ({ data: null })),
+          resultPromise,
+          studentPromise,
         ]);
 
-        setSessionResult(resultResponse?.data || null);
+        setSessionResult(normalizeSessionResult(resultResponse?.data || null));
         setStudent(studentResponse?.data || null);
       } catch (fetchError) {
         console.error("Error fetching session result sheet:", fetchError);
@@ -208,15 +255,19 @@ function SessionResultSheet() {
           );
         } else if (fetchError.response?.status === 403) {
           setError(
-            fetchError.response?.data?.message ||
+            getApiMessage(
+              fetchError,
               t?.sessionResultSheet?.accessDenied ||
-              "You are not allowed to view this result",
+                "You are not allowed to view this result",
+            ),
           );
         } else {
           setError(
-            fetchError.response?.data?.message ||
+            getApiMessage(
+              fetchError,
               t?.sessionResultSheet?.loadFailed ||
-              "Failed to load session result sheet",
+                "Failed to load session result sheet",
+            ),
           );
         }
       } finally {
@@ -225,7 +276,7 @@ function SessionResultSheet() {
     };
 
     fetchData();
-  }, [studentId, session, t]);
+  }, [studentId, session, t, isParent, isStudent]);
 
   const getGradeFromAverage = (avg) => {
     const value = Number(avg) || 0;
@@ -262,9 +313,22 @@ function SessionResultSheet() {
       ),
   });
 
+  const handlePrintClick = () => {
+    if (!canPrintDocument) {
+      toast.error(printBlockedReason);
+      return;
+    }
+    handlePrint();
+  };
+
   const handleDownloadPDF = async () => {
     if (!componentRef.current) {
       toast.error(t?.sessionResultSheet?.notReady || "Result sheet not ready");
+      return;
+    }
+
+    if (!canPrintDocument) {
+      toast.error(printBlockedReason);
       return;
     }
 
@@ -308,11 +372,32 @@ function SessionResultSheet() {
     }
   };
 
-  const studentPhotoUrl = studentInfo.profilePictureUrl
-    ? studentInfo.profilePictureUrl.startsWith("http")
-      ? studentInfo.profilePictureUrl
-      : `https://localhost:8443${studentInfo.profilePictureUrl}`
-    : null;
+  const buildMediaUrl = (rawUrl) => {
+    if (!rawUrl) return null;
+
+    const cleaned = String(rawUrl).trim();
+    if (!cleaned) return null;
+
+    if (
+      cleaned.startsWith("http://") ||
+      cleaned.startsWith("https://") ||
+      cleaned.startsWith("data:")
+    ) {
+      return cleaned;
+    }
+
+    const apiBase =
+      process.env.REACT_APP_API_BASE_URL || "https://localhost:8443/api";
+    const origin = apiBase.replace(/\/api\/?$/, "");
+
+    if (cleaned.startsWith("/")) {
+      return `${origin}${cleaned}`;
+    }
+
+    return `${origin}/${cleaned}`;
+  };
+
+  const studentPhotoUrl = buildMediaUrl(studentInfo.profilePictureUrl);
 
   if (loading) {
     return (
@@ -387,8 +472,9 @@ function SessionResultSheet() {
         <div className="d-flex flex-wrap gap-2">
           <button
             className="btn btn-outline-success"
-            onClick={handlePrint}
-            disabled={loading || downloading}
+            onClick={handlePrintClick}
+            disabled={loading || downloading || !canPrintDocument}
+            title={!canPrintDocument ? printBlockedReason : ""}
           >
             <FaPrint className="me-2" /> {t?.common?.print || "Print"}
           </button>
@@ -396,7 +482,8 @@ function SessionResultSheet() {
           <button
             className="btn btn-outline-primary"
             onClick={handleDownloadPDF}
-            disabled={loading || downloading}
+            disabled={loading || downloading || !canPrintDocument}
+            title={!canPrintDocument ? printBlockedReason : ""}
           >
             {downloading ? (
               <>
@@ -412,6 +499,32 @@ function SessionResultSheet() {
           </button>
         </div>
       </div>
+
+      {(sessionResult?.visibilityMessage || sessionResult?.printLockMessage) &&
+        (isStudent || isParent) && (
+          <div
+            className={`alert ${
+              familyCanView ? "alert-info" : "alert-warning"
+            } no-print d-flex align-items-start gap-2`}
+          >
+            {familyCanView ? (
+              <FaInfoCircle className="mt-1" />
+            ) : (
+              <FaLock className="mt-1" />
+            )}
+            <div>
+              <strong>
+                {familyCanView ? "Result Information" : "Access Restriction"}
+              </strong>
+              <div>
+                {familyCanPrint
+                  ? sessionResult.visibilityMessage
+                  : sessionResult.printLockMessage ||
+                    sessionResult.visibilityMessage}
+              </div>
+            </div>
+          </div>
+        )}
 
       <div className="result-sheet-container" ref={componentRef}>
         <div className="result-sheet-content">
@@ -432,14 +545,21 @@ function SessionResultSheet() {
               <span className="badge bg-success">SESSION RESULT COMPLETE</span>
             ) : (
               <span className="badge bg-danger">SESSION RESULT INCOMPLETE</span>
-            )}
+            )}{" "}
+            {sessionResult?.resultVisibilityStatus ? (
+              <span className="badge bg-secondary ms-2">
+                {String(sessionResult.resultVisibilityStatus).replace(
+                  /_/g,
+                  " ",
+                )}
+              </span>
+            ) : null}
           </div>
 
           <div className="result-title">
             ANNUAL SESSION RESULT SHEET - {session}
           </div>
 
-          {/* Student Information Section - Using Table layout like ResultSheet */}
           <div className="student-info-section">
             <table className="student-info-table">
               <tbody>
@@ -503,7 +623,6 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Subject Performance Table */}
           <div className="results-table-wrapper">
             <table className="results-table">
               <thead>
@@ -561,7 +680,6 @@ function SessionResultSheet() {
             </table>
           </div>
 
-          {/* Annual Summary and Attendance Section */}
           <div className="summary-row">
             <div className="summary-item">
               <span className="summary-label">
@@ -605,7 +723,6 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Attendance Section */}
           <div className="attendance-section">
             <div className="attendance-header">
               {t?.attendanceManager?.attendanceSummary || "ATTENDANCE SUMMARY"}
@@ -646,7 +763,6 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Term Breakdown Section */}
           <div className="extra-result-sections">
             <div className="rating-card">
               <div className="section-subtitle">
@@ -675,7 +791,6 @@ function SessionResultSheet() {
               </table>
             </div>
 
-            {/* Promotion Decision Card */}
             <div className="rating-card">
               <div className="section-subtitle">
                 {t?.sessionResultSheet?.promotionDecision ||
@@ -705,7 +820,6 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Grading Scale Reference */}
           <div className="grading-reference-section">
             <div className="rating-card">
               <div className="section-subtitle">GRADING SCALE</div>
@@ -753,7 +867,6 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Signatures Section */}
           <div className="signatures-section">
             <div className="signature-item">
               <div className="signature-sign">
@@ -777,7 +890,6 @@ function SessionResultSheet() {
             </div>
           </div>
 
-          {/* Footer */}
           <div className="result-footer">
             <div className="footer-note">
               This session result is a compilation of all term results for the

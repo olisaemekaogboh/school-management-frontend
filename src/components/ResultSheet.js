@@ -12,6 +12,8 @@ import {
   FaSpinner,
   FaSignature,
   FaCheckDouble,
+  FaLock,
+  FaInfoCircle,
 } from "react-icons/fa";
 import moment from "moment";
 import { useReactToPrint } from "react-to-print";
@@ -40,6 +42,13 @@ function ResultSheet() {
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [accessState, setAccessState] = useState({
+    visibilityStatus: null,
+    visibilityMessage: "",
+    printable: false,
+    printLockMessage: "",
+    completed: false,
+  });
 
   const [editableCharacterTraits, setEditableCharacterTraits] = useState([]);
   const [editablePsychomotorTraits, setEditablePsychomotorTraits] = useState(
@@ -83,6 +92,12 @@ function ResultSheet() {
       .replace(/\s+/g, " ")
       .trim();
 
+  const getApiMessage = (err, fallback) =>
+    err?.response?.data?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    fallback;
+
   const normalizeStudent = (rawStudent, rawResultData) => {
     const studentInfo = rawResultData?.studentInfo || {};
     const source = rawStudent || studentInfo || {};
@@ -96,8 +111,13 @@ function ResultSheet() {
         source.fullName ||
         buildName(source.firstName, source.middleName, source.lastName),
       admissionNumber: source.admissionNumber ?? "",
-      studentClass: source.studentClass ?? source.class ?? "",
-      classArm: source.classArm ?? source.arm ?? "",
+      studentClass:
+        source.studentClass ??
+        source.class ??
+        source.className ??
+        source.schoolClass?.className ??
+        "",
+      classArm: source.classArm ?? source.arm ?? source.schoolClass?.arm ?? "",
       parentName: source.parentName ?? "",
       parentPhone: source.parentPhone ?? "",
       address: source.address ?? "",
@@ -143,6 +163,11 @@ function ResultSheet() {
         summary.armPosition,
         t?.resultSheet?.na || "N/A",
       ),
+      positionInSchool: getFirstDefined(
+        summary.positionInSchool,
+        summary.schoolPosition,
+        t?.resultSheet?.na || "N/A",
+      ),
       totalSchoolDays: safeNumber(summary.totalSchoolDays),
       daysPresent: safeNumber(summary.daysPresent),
       daysAbsent: safeNumber(summary.daysAbsent),
@@ -150,12 +175,12 @@ function ResultSheet() {
       teacherComment: getFirstDefined(
         summary.teacherComment,
         rawResultData?.teacherComment,
-        "Good performance. Keep improving.",
+        "",
       ),
       principalComment: getFirstDefined(
         summary.principalComment,
         rawResultData?.principalComment,
-        "Promoted to the next class.",
+        "",
       ),
       nextTermBegins: getFirstDefined(
         summary.nextTermBegins,
@@ -212,9 +237,15 @@ function ResultSheet() {
             item.title ||
             defaults[index] ||
             `Item ${index + 1}`,
-          score: safeNumber(
-            getFirstDefined(item.score, item.value, item.rating),
-            0,
+          score: Math.max(
+            1,
+            Math.min(
+              5,
+              safeNumber(
+                getFirstDefined(item.score, item.value, item.rating),
+                1,
+              ),
+            ),
           ),
         }));
       }
@@ -223,11 +254,17 @@ function ResultSheet() {
         return Object.entries(source).map(([key, value], index) => ({
           id: index,
           label: key,
-          score: safeNumber(
-            typeof value === "object"
-              ? getFirstDefined(value.score, value.value, value.rating)
-              : value,
-            0,
+          score: Math.max(
+            1,
+            Math.min(
+              5,
+              safeNumber(
+                typeof value === "object"
+                  ? getFirstDefined(value.score, value.value, value.rating)
+                  : value,
+                1,
+              ),
+            ),
           ),
         }));
       }
@@ -235,7 +272,7 @@ function ResultSheet() {
       return defaults.map((label, index) => ({
         id: index,
         label,
-        score: 0,
+        score: 1,
       }));
     };
 
@@ -290,7 +327,7 @@ function ResultSheet() {
 
   const normalizedSummary = useMemo(
     () => normalizeSummary(resultData),
-    [resultData],
+    [resultData, t],
   );
 
   const normalizedRatings = useMemo(
@@ -304,14 +341,35 @@ function ResultSheet() {
   );
 
   const role = user?.role?.name || user?.role || "";
+  const isAdmin = role === "ADMIN";
+  const isTeacher = role === "TEACHER" || role === "FORM_TEACHER";
+  const canEditTeacherSection = isTeacher || isAdmin;
+  const canEditAdminSection = isAdmin;
 
-  const canEditTeacherSection =
-    role === "TEACHER" || role === "FORM_TEACHER" || role === "ADMIN";
+  const visibilityStatus = accessState.visibilityStatus;
+  const printable = accessState.printable === true;
+  const completed = accessState.completed === true;
 
-  const canEditAdminSection = role === "ADMIN";
+  const canFamilyView =
+    visibilityStatus === "PUBLISHED" || visibilityStatus === "PRINTABLE";
+  const canFamilyPrint = visibilityStatus === "PRINTABLE" && printable;
+  const isFamilyUser = isStudent || isParent;
+
+  const canPrintDocument = isFamilyUser
+    ? completed && canFamilyPrint
+    : completed;
+
+  const printDisabledReason = isFamilyUser
+    ? accessState.printLockMessage ||
+      accessState.visibilityMessage ||
+      "Printing is not enabled for this result."
+    : !completed
+      ? "Result is incomplete. Required signatures are missing."
+      : "";
 
   const getStudentName = () => {
     return (
+      resultData?.studentInfo?.fullName ||
       resultData?.studentInfo?.name ||
       student?.fullName ||
       buildName(student?.firstName, student?.middleName, student?.lastName) ||
@@ -361,8 +419,8 @@ function ResultSheet() {
       try {
         const response = await studentAPI.getMyProfile();
         fetchedStudent = response?.data || null;
-      } catch (error) {
-        console.warn("Failed to fetch current student profile:", error);
+      } catch (err) {
+        console.warn("Failed to fetch current student profile:", err);
       }
     }
 
@@ -370,8 +428,8 @@ function ResultSheet() {
       try {
         const response = await studentAPI.getStudentById(studentId);
         fetchedStudent = response?.data || null;
-      } catch (error) {
-        console.warn("Failed to fetch student by id:", error);
+      } catch (err) {
+        console.warn("Failed to fetch student by id:", err);
       }
     }
 
@@ -391,11 +449,18 @@ function ResultSheet() {
     if (!fetchedStudent && Object.keys(resultStudentInfo).length > 0) {
       fetchedStudent = {
         id: studentId,
-        fullName: resultStudentInfo.name,
+        fullName:
+          resultStudentInfo.fullName ||
+          resultStudentInfo.name ||
+          getStudentName(),
         admissionNumber: resultStudentInfo.admissionNumber,
-        studentClass: resultStudentInfo.class,
-        classArm: resultStudentInfo.arm,
+        studentClass: resultStudentInfo.studentClass || resultStudentInfo.class,
+        classArm: resultStudentInfo.classArm || resultStudentInfo.arm,
         profilePictureUrl: resultStudentInfo.profilePictureUrl,
+        parentName: resultStudentInfo.parentName,
+        parentPhone: resultStudentInfo.parentPhone,
+        address: resultStudentInfo.address,
+        dateOfBirth: resultStudentInfo.dateOfBirth,
       };
     }
 
@@ -428,6 +493,20 @@ function ResultSheet() {
     return response?.data || null;
   };
 
+  const extractAccessState = (rawResult) => {
+    return {
+      visibilityStatus:
+        rawResult?.visibilityStatus ||
+        rawResult?.resultVisibilityStatus ||
+        null,
+      visibilityMessage:
+        rawResult?.visibilityMessage || rawResult?.message || "",
+      printable: rawResult?.printable === true,
+      printLockMessage: rawResult?.printLockMessage || "",
+      completed: rawResult?.completed === true,
+    };
+  };
+
   const fetchResultData = async () => {
     setLoading(true);
     setStudentLoading(true);
@@ -438,30 +517,34 @@ function ResultSheet() {
     try {
       const rawResult = await fetchResultRecord();
       setResultData(rawResult);
+      setAccessState(extractAccessState(rawResult));
       setResultLoading(false);
 
       const fetchedStudent = await fetchStudentRecord(rawResult);
       setStudent(fetchedStudent);
       setStudentLoading(false);
-    } catch (error) {
-      console.error("Error fetching result sheet:", error);
+    } catch (err) {
+      console.error("Error fetching result sheet:", err);
 
-      if (error.response?.status === 404) {
+      if (err.response?.status === 404) {
         setError(
           t?.resultSheet?.noResultFound ||
             "No result found for this student in the selected term",
         );
-      } else if (error.response?.status === 403) {
+      } else if (err.response?.status === 403) {
         setError(
-          t?.resultSheet?.accessDenied ||
-            "You are not allowed to view this result",
+          getApiMessage(
+            err,
+            t?.resultSheet?.accessDenied ||
+              "You are not allowed to view this result",
+          ),
         );
       } else {
         setError(
-          error.response?.data?.message ||
-            error.message ||
-            t?.resultSheet?.loadFailed ||
-            "Failed to load result sheet",
+          getApiMessage(
+            err,
+            t?.resultSheet?.loadFailed || "Failed to load result sheet",
+          ),
         );
       }
     } finally {
@@ -484,7 +567,7 @@ function ResultSheet() {
       E: "bg-secondary",
       F: "bg-danger",
     };
-    return gradeMap[grade] || "bg-secondary";
+    return gradeMap[String(grade || "").toUpperCase()] || "bg-secondary";
   };
 
   const buildFileName = () => {
@@ -537,11 +620,9 @@ function ResultSheet() {
 
       toast.success("Assessment saved successfully");
       await fetchResultData();
-    } catch (error) {
-      console.error("Failed to save term assessment:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to save assessment",
-      );
+    } catch (err) {
+      console.error("Failed to save term assessment:", err);
+      toast.error(getApiMessage(err, "Failed to save assessment"));
     } finally {
       setSavingAssessment(false);
     }
@@ -560,11 +641,9 @@ function ResultSheet() {
       await resultAPI.signAsClassTeacher(targetStudentId, session, term);
       toast.success("Signed as Class Teacher successfully");
       await fetchResultData();
-    } catch (error) {
-      console.error("Error signing as class teacher:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to sign as Class Teacher",
-      );
+    } catch (err) {
+      console.error("Error signing as class teacher:", err);
+      toast.error(getApiMessage(err, "Failed to sign as Class Teacher"));
     } finally {
       setSigningInProgress(false);
     }
@@ -583,9 +662,9 @@ function ResultSheet() {
       await resultAPI.signAsAdmin(targetStudentId, session, term);
       toast.success("Result approved by Admin successfully");
       await fetchResultData();
-    } catch (error) {
-      console.error("Error approving result:", error);
-      toast.error(error?.response?.data?.message || "Failed to approve result");
+    } catch (err) {
+      console.error("Error approving result:", err);
+      toast.error(getApiMessage(err, "Failed to approve result"));
     } finally {
       setSigningInProgress(false);
     }
@@ -600,9 +679,22 @@ function ResultSheet() {
       ),
   });
 
+  const handlePrintClick = () => {
+    if (!canPrintDocument) {
+      toast.error(printDisabledReason);
+      return;
+    }
+    handlePrint();
+  };
+
   const handleDownloadPDF = async () => {
     if (!componentRef.current) {
       toast.error(t?.resultSheet?.notReady || "Result sheet not ready");
+      return;
+    }
+
+    if (!canPrintDocument) {
+      toast.error(printDisabledReason);
       return;
     }
 
@@ -648,24 +740,59 @@ function ResultSheet() {
       toast.success(
         t?.resultSheet?.downloadSuccess || "PDF downloaded successfully",
       );
-    } catch (error) {
-      console.error("Error generating PDF:", error);
+    } catch (err) {
+      console.error("Error generating PDF:", err);
       toast.error(t?.resultSheet?.downloadFailed || "Failed to download PDF");
     } finally {
       setDownloading(false);
     }
   };
 
+  const buildMediaUrl = (rawUrl) => {
+    if (!rawUrl) return null;
+
+    const cleaned = String(rawUrl).trim();
+    if (!cleaned) return null;
+
+    if (
+      cleaned.startsWith("http://") ||
+      cleaned.startsWith("https://") ||
+      cleaned.startsWith("data:")
+    ) {
+      return cleaned;
+    }
+
+    const apiBase =
+      process.env.REACT_APP_API_BASE_URL || "https://localhost:8443/api";
+    const origin = apiBase.replace(/\/api\/?$/, "");
+
+    if (cleaned.startsWith("/")) {
+      return `${origin}${cleaned}`;
+    }
+
+    return `${origin}/${cleaned}`;
+  };
+
   const studentPhotoUrl = useMemo(() => {
     const rawUrl =
       resultData?.studentInfo?.profilePictureUrl || student?.profilePictureUrl;
 
-    if (!rawUrl) return null;
-    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
-      return rawUrl;
-    }
-    return `https://localhost:8443${rawUrl}`;
+    return buildMediaUrl(rawUrl);
   }, [resultData, student]);
+
+  const classTeacherSignatureUrl = useMemo(() => {
+    return buildMediaUrl(
+      resultData?.signatures?.classTeacherSignature ||
+        resultData?.signatures?.classTeacherSignatureUrl,
+    );
+  }, [resultData]);
+
+  const adminSignatureUrl = useMemo(() => {
+    return buildMediaUrl(
+      resultData?.signatures?.adminSignature ||
+        resultData?.signatures?.adminSignatureUrl,
+    );
+  }, [resultData]);
 
   const totalSchoolDays = normalizedSummary.totalSchoolDays;
   const daysPresent = normalizedSummary.daysPresent;
@@ -748,6 +875,14 @@ function ResultSheet() {
     { value: 1, label: "Poor" },
   ];
 
+  const classTeacherSignedAt =
+    resultData?.signatures?.classTeacherSignedAt ||
+    resultData?.signatures?.classTeacherSignedDate;
+
+  const adminSignedAt =
+    resultData?.signatures?.adminSignedAt ||
+    resultData?.signatures?.adminSignedDate;
+
   if (loading || resultLoading || studentLoading) {
     return (
       <div
@@ -816,7 +951,6 @@ function ResultSheet() {
         </button>
 
         <div className="d-flex flex-wrap gap-2">
-          {/* Signature Buttons Section */}
           {(canEditTeacherSection || canEditAdminSection) && (
             <div className="btn-group me-2">
               {canEditTeacherSection &&
@@ -874,13 +1008,14 @@ function ResultSheet() {
 
           <button
             className="btn btn-outline-success"
-            onClick={handlePrint}
+            onClick={handlePrintClick}
             disabled={
-              !resultData?.completed ||
+              !canPrintDocument ||
               downloading ||
               savingAssessment ||
               signingInProgress
             }
+            title={!canPrintDocument ? printDisabledReason : ""}
           >
             <FaPrint className="me-2" /> {t?.common?.print || "Print"}
           </button>
@@ -889,11 +1024,12 @@ function ResultSheet() {
             className="btn btn-outline-primary"
             onClick={handleDownloadPDF}
             disabled={
-              !resultData?.completed ||
+              !canPrintDocument ||
               downloading ||
               savingAssessment ||
               signingInProgress
             }
+            title={!canPrintDocument ? printDisabledReason : ""}
           >
             {downloading ? (
               <>
@@ -910,6 +1046,28 @@ function ResultSheet() {
         </div>
       </div>
 
+      {(accessState.visibilityMessage || accessState.printLockMessage) && (
+        <div className="alert alert-info no-print d-flex align-items-start gap-2">
+          {canPrintDocument || canFamilyView || !isFamilyUser ? (
+            <FaInfoCircle className="mt-1" />
+          ) : (
+            <FaLock className="mt-1" />
+          )}
+          <div>
+            <strong>
+              {canPrintDocument || canFamilyView || !isFamilyUser
+                ? "Result Information"
+                : "Access Restriction"}
+            </strong>
+            <div>
+              {canPrintDocument || !isFamilyUser
+                ? accessState.visibilityMessage || accessState.printLockMessage
+                : accessState.printLockMessage || accessState.visibilityMessage}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="result-sheet-container" ref={componentRef}>
         <div className="result-sheet-content">
           <div className="school-header">
@@ -923,12 +1081,18 @@ function ResultSheet() {
               Tel: +234 903 017 5230 | Email: info@faithfoundation.edu.ng
             </div>
           </div>
+
           <div className="text-end mb-2">
-            {resultData?.completed ? (
+            {completed ? (
               <span className="badge bg-success">RESULT COMPLETE</span>
             ) : (
               <span className="badge bg-danger">RESULT INCOMPLETE</span>
-            )}
+            )}{" "}
+            {visibilityStatus ? (
+              <span className="badge bg-secondary ms-2">
+                {String(visibilityStatus).replace(/_/g, " ")}
+              </span>
+            ) : null}
           </div>
 
           <div className="result-title">
@@ -959,9 +1123,13 @@ function ResultSheet() {
                   </td>
                   <td className="value">
                     {student?.studentClass ||
+                      resultData?.studentInfo?.studentClass ||
                       resultData?.studentInfo?.class ||
                       "N/A"}{" "}
-                    {student?.classArm || resultData?.studentInfo?.arm || ""}
+                    {student?.classArm ||
+                      resultData?.studentInfo?.classArm ||
+                      resultData?.studentInfo?.arm ||
+                      ""}
                   </td>
                   <td className="label">
                     {t?.studentDetails?.dob || "Date of Birth"}:
@@ -1357,17 +1525,16 @@ function ResultSheet() {
               </span>
             )}
           </div>
-          {resultData?.completed && (
-            <div className="approval-stamp">APPROVED</div>
-          )}
+
+          {completed && <div className="approval-stamp">APPROVED</div>}
+
           <div className="signatures-section">
-            {/* CLASS TEACHER */}
             <div className="signature-item">
               <div className="signature-sign">
                 {resultData?.signatures?.classTeacherSigned &&
-                resultData?.signatures?.classTeacherSignature ? (
+                classTeacherSignatureUrl ? (
                   <img
-                    src={`https://localhost:8443${resultData.signatures.classTeacherSignature}`}
+                    src={classTeacherSignatureUrl}
                     alt="Class Teacher Signature"
                     className="signature-image"
                   />
@@ -1378,19 +1545,16 @@ function ResultSheet() {
               <div className="signature-label">Class Teacher's Signature</div>
               {resultData?.signatures?.classTeacherSigned && (
                 <div className="signature-date">
-                  {resultData.signatures.classTeacherSignedDate &&
-                    formatDate(resultData.signatures.classTeacherSignedDate)}
+                  {classTeacherSignedAt && formatDate(classTeacherSignedAt)}
                 </div>
               )}
             </div>
 
-            {/* ADMIN / PRINCIPAL */}
             <div className="signature-item">
               <div className="signature-sign">
-                {resultData?.signatures?.adminSigned &&
-                resultData?.signatures?.adminSignature ? (
+                {resultData?.signatures?.adminSigned && adminSignatureUrl ? (
                   <img
-                    src={`https://localhost:8443${resultData.signatures.adminSignature}`}
+                    src={adminSignatureUrl}
                     alt="Principal Signature"
                     className="signature-image"
                   />
@@ -1401,13 +1565,11 @@ function ResultSheet() {
               <div className="signature-label">Principal / Admin Signature</div>
               {resultData?.signatures?.adminSigned && (
                 <div className="signature-date">
-                  {resultData.signatures.adminSignedDate &&
-                    formatDate(resultData.signatures.adminSignedDate)}
+                  {adminSignedAt && formatDate(adminSignedAt)}
                 </div>
               )}
             </div>
 
-            {/* PARENT */}
             <div className="signature-item">
               <div className="signature-sign">
                 <div className="signature-line"></div>
@@ -1415,6 +1577,7 @@ function ResultSheet() {
               <div className="signature-label">Parent / Guardian Signature</div>
             </div>
           </div>
+
           <div className="result-footer">
             <div className="footer-note">
               This result is not valid unless signed by the Class Teacher and

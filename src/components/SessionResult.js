@@ -1,4 +1,3 @@
-// src/components/SessionResult.js
 import React, {
   useEffect,
   useMemo,
@@ -29,6 +28,8 @@ import {
   FaTimesCircle,
   FaSyncAlt,
   FaPrint,
+  FaLock,
+  FaInfoCircle,
 } from "react-icons/fa";
 import useActiveSession from "../hooks/useActiveSession";
 import "./SessionResult.css";
@@ -41,10 +42,11 @@ function SessionResult() {
   const { darkMode } = useDarkMode();
   const initializedRef = useRef(false);
 
-  const isAdmin = user?.role === "ADMIN";
-  const isTeacher = user?.role === "TEACHER";
-  const isParent = user?.role === "PARENT";
-  const isStudent = user?.role === "STUDENT";
+  const role = user?.role?.name || user?.role || "";
+  const isAdmin = role === "ADMIN";
+  const isTeacher = role === "TEACHER";
+  const isParent = role === "PARENT";
+  const isStudent = role === "STUDENT";
 
   const [students, setStudents] = useState([]);
   const [parentWards, setParentWards] = useState([]);
@@ -110,6 +112,12 @@ function SessionResult() {
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
+
+  const getApiMessage = (error, fallback) =>
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback;
 
   const normalizeStudentLike = (...candidates) => {
     const sources = candidates.filter(Boolean);
@@ -179,6 +187,62 @@ function SessionResult() {
       ),
     };
   };
+
+  const normalizeSessionResult = useCallback((data) => {
+    if (!data) return null;
+
+    if (
+      data.firstTermAverage !== undefined ||
+      data.annualAverage !== undefined ||
+      data.subjectAverages !== undefined ||
+      data.resultVisibilityStatus !== undefined ||
+      data.visibilityStatus !== undefined
+    ) {
+      return {
+        ...data,
+        resultVisibilityStatus:
+          data.resultVisibilityStatus || data.visibilityStatus || null,
+        visibilityMessage: data.visibilityMessage || data.message || "",
+        printable: data.printable === true,
+        printLockMessage: data.printLockMessage || "",
+      };
+    }
+
+    const firstTerm = data.termResults?.firstTerm || {};
+    const secondTerm = data.termResults?.secondTerm || {};
+    const thirdTerm = data.termResults?.thirdTerm || {};
+    const annual = data.annualSummary || {};
+
+    return {
+      firstTermTotal: firstTerm.total ?? 0,
+      secondTermTotal: secondTerm.total ?? 0,
+      thirdTermTotal: thirdTerm.total ?? 0,
+      firstTermAverage: firstTerm.average ?? 0,
+      secondTermAverage: secondTerm.average ?? 0,
+      thirdTermAverage: thirdTerm.average ?? 0,
+      firstTermPosition: firstTerm.position ?? null,
+      secondTermPosition: secondTerm.position ?? null,
+      thirdTermPosition: thirdTerm.position ?? null,
+      annualTotal: annual.annualTotal ?? 0,
+      annualAverage: annual.annualAverage ?? 0,
+      annualPositionInClass: annual.positionInClass ?? null,
+      annualPositionInArm: annual.positionInArm ?? null,
+      annualPositionInSchool: annual.positionInSchool ?? null,
+      attendancePercentage: annual.attendancePercentage ?? 0,
+      promoted: annual.promoted ?? false,
+      promotionRemark: annual.remark ?? "",
+      subjectAverages: annual.subjectAverages || data.subjectAverages || {},
+      resultVisibilityStatus:
+        annual.resultVisibilityStatus ||
+        data.resultVisibilityStatus ||
+        data.visibilityStatus ||
+        null,
+      visibilityMessage:
+        annual.visibilityMessage || data.visibilityMessage || "",
+      printable: annual.printable === true || data.printable === true,
+      printLockMessage: annual.printLockMessage || data.printLockMessage || "",
+    };
+  }, []);
 
   const normalizedSessions = useMemo(() => {
     return (availableSessions || []).map((item) => ({
@@ -265,6 +329,25 @@ function SessionResult() {
     lockedTeacherClassId,
     lockedAssignment,
   ]);
+
+  const selectedStudentLabel = useMemo(() => {
+    if (!selectedStudent) return "";
+    return (
+      selectedStudent?.fullName ||
+      `${selectedStudent?.firstName || ""} ${selectedStudent?.lastName || ""}`.trim()
+    );
+  }, [selectedStudent]);
+
+  const visibilityStatus = sessionResult?.resultVisibilityStatus || null;
+  const familyCanView =
+    visibilityStatus === "PUBLISHED" || visibilityStatus === "PRINTABLE";
+  const familyCanPrint =
+    visibilityStatus === "PRINTABLE" && sessionResult?.printable === true;
+  const printBlockedReason =
+    sessionResult?.printLockMessage ||
+    sessionResult?.visibilityMessage ||
+    t?.sessionResult?.printLocked ||
+    "Printing is not enabled for this session result.";
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -570,44 +653,6 @@ function SessionResult() {
     }
   };
 
-  const normalizeParentSessionResult = (data) => {
-    if (!data) return null;
-
-    if (
-      data.firstTermAverage !== undefined ||
-      data.annualAverage !== undefined ||
-      data.subjectAverages !== undefined
-    ) {
-      return data;
-    }
-
-    const firstTerm = data.termResults?.firstTerm || {};
-    const secondTerm = data.termResults?.secondTerm || {};
-    const thirdTerm = data.termResults?.thirdTerm || {};
-    const annual = data.annualSummary || {};
-
-    return {
-      firstTermTotal: firstTerm.total ?? 0,
-      secondTermTotal: secondTerm.total ?? 0,
-      thirdTermTotal: thirdTerm.total ?? 0,
-      firstTermAverage: firstTerm.average ?? 0,
-      secondTermAverage: secondTerm.average ?? 0,
-      thirdTermAverage: thirdTerm.average ?? 0,
-      firstTermPosition: firstTerm.position ?? null,
-      secondTermPosition: secondTerm.position ?? null,
-      thirdTermPosition: thirdTerm.position ?? null,
-      annualTotal: annual.annualTotal ?? 0,
-      annualAverage: annual.annualAverage ?? 0,
-      annualPositionInClass: annual.positionInClass ?? null,
-      annualPositionInArm: annual.positionInArm ?? null,
-      annualPositionInSchool: annual.positionInSchool ?? null,
-      attendancePercentage: annual.attendancePercentage ?? 0,
-      promoted: annual.promoted ?? false,
-      promotionRemark: annual.remark ?? "",
-      subjectAverages: annual.subjectAverages || data.subjectAverages || {},
-    };
-  };
-
   const fetchSessionResult = async () => {
     if (!selectedStudent || !session) return;
 
@@ -630,13 +675,13 @@ function SessionResult() {
           selectedStudent.id,
           session,
         );
-        resultData = normalizeParentSessionResult(response?.data);
+        resultData = normalizeSessionResult(response?.data);
       } else {
         response = await sessionResultAPI.getSessionResult(
           selectedStudent.id,
           session,
         );
-        resultData = response?.data || null;
+        resultData = normalizeSessionResult(response?.data);
       }
 
       setSessionResult(resultData);
@@ -644,9 +689,11 @@ function SessionResult() {
       console.error("Error fetching session result:", error);
       setSessionResult(null);
       toast.error(
-        error?.response?.data?.message ||
+        getApiMessage(
+          error,
           t?.sessionResult?.noResultFound ||
-          "No session result found for this student",
+            "No session result found for this student",
+        ),
       );
     } finally {
       setLoading(false);
@@ -721,9 +768,10 @@ function SessionResult() {
       console.error("Error fetching rankings:", error);
       setRankings(null);
       toast.error(
-        error?.response?.data?.message ||
-          t?.sessionResult?.rankingsFailed ||
-          "Failed to load rankings",
+        getApiMessage(
+          error,
+          t?.sessionResult?.rankingsFailed || "Failed to load rankings",
+        ),
       );
     } finally {
       setLoading(false);
@@ -754,9 +802,10 @@ function SessionResult() {
       console.error("Error fetching statistics:", error);
       setStatistics(null);
       toast.error(
-        error?.response?.data?.message ||
-          t?.sessionResult?.statisticsFailed ||
-          "Failed to load statistics",
+        getApiMessage(
+          error,
+          t?.sessionResult?.statisticsFailed || "Failed to load statistics",
+        ),
       );
     } finally {
       setLoading(false);
@@ -789,9 +838,10 @@ function SessionResult() {
       console.error("Error fetching graduates:", error);
       setGraduates([]);
       toast.error(
-        error?.response?.data?.message ||
-          t?.sessionResult?.graduatesFailed ||
-          "Failed to load graduation list",
+        getApiMessage(
+          error,
+          t?.sessionResult?.graduatesFailed || "Failed to load graduation list",
+        ),
       );
     } finally {
       setLoading(false);
@@ -838,9 +888,11 @@ function SessionResult() {
     } catch (error) {
       console.error("Error calculating results:", error);
       toast.error(
-        error?.response?.data?.message ||
+        getApiMessage(
+          error,
           t?.sessionResult?.calculateFailed ||
-          "Failed to calculate session results",
+            "Failed to calculate session results",
+        ),
       );
     } finally {
       setLoading(false);
@@ -906,9 +958,11 @@ function SessionResult() {
     } catch (error) {
       console.error("Error calculating teacher class session results:", error);
       toast.error(
-        error?.response?.data?.message ||
+        getApiMessage(
+          error,
           t?.sessionResult?.calculateClassFailed ||
-          "Failed to calculate class arm session results",
+            "Failed to calculate class arm session results",
+        ),
       );
     } finally {
       setLoading(false);
@@ -954,9 +1008,10 @@ function SessionResult() {
     } catch (error) {
       console.error("Error promoting students:", error);
       toast.error(
-        error?.response?.data?.message ||
-          t?.sessionResult?.promoteFailed ||
-          "Failed to promote students",
+        getApiMessage(
+          error,
+          t?.sessionResult?.promoteFailed || "Failed to promote students",
+        ),
       );
     } finally {
       setLoading(false);
@@ -1030,6 +1085,11 @@ function SessionResult() {
 
     if (!session) {
       toast.error(t?.sessionResult?.noSessionSelected || "No session selected");
+      return;
+    }
+
+    if ((isStudent || isParent) && !familyCanPrint) {
+      toast.error(printBlockedReason);
       return;
     }
 
@@ -1344,14 +1404,14 @@ function SessionResult() {
                   {isParent && (
                     <div className="mt-3 text-muted small">
                       {t?.sessionResult?.parentAccessMessage ||
-                        "Parents can only access session results for their linked wards."}
+                        "Parents can only access session results for their linked wards, and only after school release."}
                     </div>
                   )}
 
                   {isStudent && (
                     <div className="mt-3 text-muted small">
                       {t?.sessionResult?.studentAccessMessage ||
-                        "Students can view only their own session result."}
+                        "Students can view only their own session result, and only after school release."}
                     </div>
                   )}
                 </div>
@@ -1508,15 +1568,34 @@ function SessionResult() {
             {selectedStudent && sessionResult ? (
               <div className="card">
                 <div className="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <h5 className="mb-0">
-                    {t?.sessionResult?.annualSessionResult ||
-                      "Annual Session Result"}
-                    : {session}
-                  </h5>
+                  <div>
+                    <h5 className="mb-0">
+                      {t?.sessionResult?.annualSessionResult ||
+                        "Annual Session Result"}
+                      : {session}
+                    </h5>
+                    {sessionResult?.resultVisibilityStatus ? (
+                      <small className="d-block mt-1">
+                        Status:{" "}
+                        {String(sessionResult.resultVisibilityStatus).replace(
+                          /_/g,
+                          " ",
+                        )}
+                      </small>
+                    ) : null}
+                  </div>
 
                   <button
                     className="btn btn-light btn-sm"
                     onClick={viewPrintableSessionResult}
+                    disabled={
+                      loading || ((isStudent || isParent) && !familyCanPrint)
+                    }
+                    title={
+                      (isStudent || isParent) && !familyCanPrint
+                        ? printBlockedReason
+                        : ""
+                    }
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -1540,6 +1619,37 @@ function SessionResult() {
                 </div>
 
                 <div className="card-body">
+                  {(sessionResult.visibilityMessage ||
+                    sessionResult.printLockMessage) &&
+                  (isStudent || isParent) ? (
+                    <div
+                      className={`alert ${
+                        familyCanView ? "alert-info" : "alert-warning"
+                      } d-flex align-items-start gap-2`}
+                    >
+                      {familyCanView ? (
+                        <FaInfoCircle className="mt-1" />
+                      ) : (
+                        <FaLock className="mt-1" />
+                      )}
+                      <div>
+                        <strong>
+                          {familyCanView
+                            ? t?.sessionResult?.resultInfo ||
+                              "Result Information"
+                            : t?.sessionResult?.accessRestricted ||
+                              "Access Restricted"}
+                        </strong>
+                        <div>
+                          {familyCanPrint
+                            ? sessionResult.visibilityMessage
+                            : sessionResult.printLockMessage ||
+                              sessionResult.visibilityMessage}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="row mb-4">
                     <div className="col-md-6">
                       <h6>
@@ -1549,9 +1659,7 @@ function SessionResult() {
                         <strong>
                           {t?.studentDetails?.fullName || "Name"}:
                         </strong>{" "}
-                        {selectedStudent?.fullName ||
-                          `${selectedStudent?.firstName || ""} ${selectedStudent?.lastName || ""}`.trim() ||
-                          "N/A"}
+                        {selectedStudentLabel || "N/A"}
                       </p>
                       <p>
                         <strong>

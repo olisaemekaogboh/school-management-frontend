@@ -22,6 +22,8 @@ import {
   FaGraduationCap,
   FaBell,
   FaUserCircle,
+  FaLock,
+  FaInfoCircle,
 } from "react-icons/fa";
 import useActiveSession from "../hooks/useActiveSession";
 import "./ParentDashboard.css";
@@ -50,6 +52,58 @@ function ParentDashboard() {
     if (Array.isArray(data?.wards)) return data.wards;
     if (Array.isArray(data?.data)) return data.data;
     return [];
+  };
+
+  const getApiMessage = (error, fallback = "") =>
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback;
+
+  const normalizeVisibilityStatus = (value) => {
+    if (!value) return null;
+    return String(value).trim().toUpperCase();
+  };
+
+  const normalizeTermResultMeta = (data) => {
+    return {
+      visibilityStatus: normalizeVisibilityStatus(
+        data?.visibilityStatus || data?.resultVisibilityStatus,
+      ),
+      visibilityMessage: data?.visibilityMessage || data?.message || "",
+      printable: data?.printable === true,
+      printLockMessage: data?.printLockMessage || "",
+      completed: data?.completed === true,
+    };
+  };
+
+  const normalizeSessionResult = (data) => {
+    return {
+      annualAverage: Number(
+        data?.annualAverage ??
+          data?.annualSummary?.annualAverage ??
+          data?.average ??
+          0,
+      ),
+      annualTotal: Number(
+        data?.annualTotal ?? data?.annualSummary?.annualTotal ?? 0,
+      ),
+      attendancePercentage: Number(data?.attendancePercentage || 0),
+      promoted:
+        typeof data?.promoted === "boolean"
+          ? data.promoted
+          : data?.promotion?.promoted || false,
+      promotionRemark: data?.promotionRemark || data?.promotion?.remark || "",
+      firstTermAverage: Number(data?.firstTermAverage || 0),
+      secondTermAverage: Number(data?.secondTermAverage || 0),
+      thirdTermAverage: Number(data?.thirdTermAverage || 0),
+      visibilityStatus: normalizeVisibilityStatus(
+        data?.resultVisibilityStatus || data?.visibilityStatus,
+      ),
+      visibilityMessage: data?.visibilityMessage || data?.message || "",
+      printable: data?.printable === true,
+      printLockMessage: data?.printLockMessage || "",
+    };
   };
 
   const getWardFullName = (ward) => {
@@ -131,57 +185,6 @@ function ParentDashboard() {
     };
   };
 
-  const normalizeSessionResult = (data) => {
-    return {
-      annualAverage: Number(
-        data?.annualAverage ??
-          data?.annualSummary?.annualAverage ??
-          data?.average ??
-          0,
-      ),
-      annualTotal: Number(
-        data?.annualTotal ?? data?.annualSummary?.annualTotal ?? 0,
-      ),
-      attendancePercentage: Number(data?.attendancePercentage || 0),
-      promoted:
-        typeof data?.promoted === "boolean"
-          ? data.promoted
-          : data?.promotion?.promoted || false,
-      promotionRemark: data?.promotionRemark || data?.promotion?.remark || "",
-      firstTermAverage: Number(data?.firstTermAverage || 0),
-      secondTermAverage: Number(data?.secondTermAverage || 0),
-      thirdTermAverage: Number(data?.thirdTermAverage || 0),
-    };
-  };
-
-  const normalizeFees = (data) => {
-    const list = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.fees)
-        ? data.fees
-        : [];
-    const total = list.reduce(
-      (acc, item) => acc + Number(item?.amount || 0),
-      0,
-    );
-    const paid = list.reduce(
-      (acc, item) => acc + Number(item?.paidAmount || 0),
-      0,
-    );
-    const balance = list.reduce(
-      (acc, item) => acc + Number(item?.balance || 0),
-      0,
-    );
-
-    return {
-      total,
-      paid,
-      balance,
-      count: list.length,
-      fees: list,
-    };
-  };
-
   const fetchDashboardData = async () => {
     setLoading(true);
     setErrorMessage("");
@@ -228,6 +231,14 @@ function ParentDashboard() {
                 ward?.class ||
                 ward?.schoolClass?.className,
             ),
+            termResultVisibilityStatus: null,
+            termResultVisibilityMessage: "",
+            termResultPrintable: false,
+            termResultPrintLockMessage: "",
+            sessionResultVisibilityStatus: null,
+            sessionResultVisibilityMessage: "",
+            sessionResultPrintable: false,
+            sessionResultPrintLockMessage: "",
           };
 
           if (!wardId) {
@@ -253,15 +264,41 @@ function ParentDashboard() {
               wardId,
               session,
             );
-            Object.assign(
-              stats,
-              normalizeSessionResult(sessionResultRes?.data),
-            );
+            const normalized = normalizeSessionResult(sessionResultRes?.data);
+            Object.assign(stats, normalized);
           } catch (error) {
             console.error(
               `Session result load failed for ward ${wardId}`,
               error,
             );
+          }
+
+          try {
+            const termResultRes = await parentPortalAPI.getWardTermResult(
+              wardId,
+              session,
+              term,
+            );
+            const meta = normalizeTermResultMeta(termResultRes?.data);
+            stats.termResultVisibilityStatus = meta.visibilityStatus;
+            stats.termResultVisibilityMessage = meta.visibilityMessage;
+            stats.termResultPrintable = meta.printable;
+            stats.termResultPrintLockMessage = meta.printLockMessage;
+          } catch (error) {
+            const message = getApiMessage(error, "");
+            if (
+              error?.response?.status !== 403 &&
+              error?.response?.status !== 404
+            ) {
+              console.error(
+                `Term result load failed for ward ${wardId}`,
+                error,
+              );
+            }
+            if (message) {
+              stats.termResultVisibilityMessage = message;
+              stats.termResultPrintLockMessage = message;
+            }
           }
 
           try {
@@ -302,6 +339,34 @@ function ParentDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const normalizeFees = (data) => {
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.fees)
+        ? data.fees
+        : [];
+    const total = list.reduce(
+      (acc, item) => acc + Number(item?.amount || 0),
+      0,
+    );
+    const paid = list.reduce(
+      (acc, item) => acc + Number(item?.paidAmount || 0),
+      0,
+    );
+    const balance = list.reduce(
+      (acc, item) => acc + Number(item?.balance || 0),
+      0,
+    );
+
+    return {
+      total,
+      paid,
+      balance,
+      count: list.length,
+      fees: list,
+    };
   };
 
   const getNextClass = (currentClass) => {
@@ -368,6 +433,36 @@ function ParentDashboard() {
     if (percentage >= 70) return "#FFC107";
     if (percentage >= 60) return "#FF9800";
     return "#F44336";
+  };
+
+  const getResultStatusMeta = (stats) => {
+    const termStatus = stats?.termResultVisibilityStatus;
+    const sessionStatus = stats?.sessionResultVisibilityStatus;
+
+    const termVisible =
+      termStatus === "PUBLISHED" || termStatus === "PRINTABLE";
+    const sessionVisible =
+      sessionStatus === "PUBLISHED" || sessionStatus === "PRINTABLE";
+
+    const termPrintable =
+      termStatus === "PRINTABLE" && stats?.termResultPrintable === true;
+    const sessionPrintable =
+      sessionStatus === "PRINTABLE" && stats?.sessionResultPrintable === true;
+
+    return {
+      termVisible,
+      termPrintable,
+      sessionVisible,
+      sessionPrintable,
+      termMessage:
+        stats?.termResultPrintLockMessage ||
+        stats?.termResultVisibilityMessage ||
+        "Term result is not available yet.",
+      sessionMessage:
+        stats?.sessionResultPrintLockMessage ||
+        stats?.sessionResultVisibilityMessage ||
+        "Session result is not available yet.",
+    };
   };
 
   const overviewStats = useMemo(() => {
@@ -529,6 +624,7 @@ function ParentDashboard() {
           <div className="wards-grid">
             {wards.map((ward) => {
               const stats = wardStats[ward.id] || {};
+              const resultMeta = getResultStatusMeta(stats);
 
               return (
                 <div
@@ -632,10 +728,23 @@ function ParentDashboard() {
                   <div className="ward-actions">
                     <Link
                       to={`/results?student=${ward.id}&scope=parent`}
-                      className="action-btn results"
-                      onClick={(e) => e.stopPropagation()}
+                      className={`action-btn results ${
+                        resultMeta.termVisible ? "" : "disabled"
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!resultMeta.termVisible) {
+                          e.preventDefault();
+                        }
+                      }}
+                      title={
+                        resultMeta.termVisible
+                          ? "View term result"
+                          : resultMeta.termMessage
+                      }
+                      aria-disabled={!resultMeta.termVisible}
                     >
-                      <FaChartBar />
+                      {resultMeta.termVisible ? <FaChartBar /> : <FaLock />}
                       <span>Results</span>
                     </Link>
 
@@ -660,6 +769,47 @@ function ParentDashboard() {
 
                   {selectedWard === ward.id && (
                     <div className="ward-details">
+                      {(resultMeta.termMessage ||
+                        resultMeta.sessionMessage) && (
+                        <div className="recent-updates mb-3">
+                          <h4>Result Access Status</h4>
+
+                          <div className="update-item">
+                            {resultMeta.termVisible ? (
+                              <FaInfoCircle className="update-icon info" />
+                            ) : (
+                              <FaLock className="update-icon warning" />
+                            )}
+                            <span>
+                              Term Result:{" "}
+                              {resultMeta.termVisible
+                                ? resultMeta.termPrintable
+                                  ? "Available and printable"
+                                  : "Available for viewing"
+                                : "Locked"}
+                            </span>
+                            <small>{resultMeta.termMessage}</small>
+                          </div>
+
+                          <div className="update-item">
+                            {resultMeta.sessionVisible ? (
+                              <FaInfoCircle className="update-icon info" />
+                            ) : (
+                              <FaLock className="update-icon warning" />
+                            )}
+                            <span>
+                              Session Result:{" "}
+                              {resultMeta.sessionVisible
+                                ? resultMeta.sessionPrintable
+                                  ? "Available and printable"
+                                  : "Available for viewing"
+                                : "Locked"}
+                            </span>
+                            <small>{resultMeta.sessionMessage}</small>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="details-grid">
                         <div className="detail-item">
                           <FaPhone className="detail-icon" />

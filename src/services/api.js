@@ -8,11 +8,20 @@ const API_BASE_URL =
    TOKEN STORAGE
 ================================ */
 const ACCESS_TOKEN_KEY = "accessToken";
+const REFRESH_TOKEN_KEY = "refreshToken";
 const USER_KEY = "user";
 
 const getStoredAccessToken = () => {
   try {
     return localStorage.getItem(ACCESS_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const getStoredRefreshToken = () => {
+  try {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
   } catch {
     return null;
   }
@@ -24,6 +33,18 @@ const setStoredAccessToken = (token) => {
       localStorage.setItem(ACCESS_TOKEN_KEY, token);
     } else {
       localStorage.removeItem(ACCESS_TOKEN_KEY);
+    }
+  } catch {
+    // ignore storage issues
+  }
+};
+
+const setStoredRefreshToken = (token) => {
+  try {
+    if (token) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
     }
   } catch {
     // ignore storage issues
@@ -71,7 +92,7 @@ const clearClientSession = () => {
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem("token");
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem("refreshToken");
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     sessionStorage.clear();
   } catch {
     // ignore storage issues
@@ -177,10 +198,15 @@ api.interceptors.response.use(
     }
 
     const newAccessToken = response?.data?.accessToken;
+    const newRefreshToken = response?.data?.refreshToken;
     const user = response?.data?.user;
 
     if (newAccessToken) {
       setStoredAccessToken(newAccessToken);
+    }
+
+    if (newRefreshToken) {
+      setStoredRefreshToken(newRefreshToken);
     }
 
     if (user) {
@@ -199,7 +225,8 @@ api.interceptors.response.use(
     const refreshTokenInvalid =
       lowerMessage.includes("invalid refresh token") ||
       lowerMessage.includes("refresh token expired") ||
-      lowerMessage.includes("expired refresh token");
+      lowerMessage.includes("expired refresh token") ||
+      lowerMessage.includes("no refresh token");
 
     const isRefreshRequest =
       requestUrl.includes("/auth/refresh-token") ||
@@ -250,14 +277,33 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshResponse = await api.post("/auth/refresh-token", {});
+        const refreshToken = getStoredRefreshToken();
+
+        if (!refreshToken) {
+          throw new Error("No refresh token available");
+        }
+
+        const refreshResponse = await api.post("/auth/refresh-token", {
+          refreshToken,
+        });
+
         const newAccessToken = refreshResponse?.data?.accessToken;
+        const newRefreshToken = refreshResponse?.data?.refreshToken;
+        const refreshedUser = refreshResponse?.data?.user;
 
         if (!newAccessToken) {
           throw new Error("No access token returned during refresh");
         }
 
         setStoredAccessToken(newAccessToken);
+
+        if (newRefreshToken) {
+          setStoredRefreshToken(newRefreshToken);
+        }
+
+        if (refreshedUser) {
+          setStoredUser(refreshedUser);
+        }
 
         originalRequest.headers = originalRequest.headers || {};
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
@@ -334,8 +380,9 @@ export const supportAPI = {
 /* ================================
    AUTH HELPERS
 ================================ */
-export const setAuthToken = (accessToken, _refreshToken, user) => {
+export const setAuthToken = (accessToken, refreshToken, user) => {
   setStoredAccessToken(accessToken);
+  setStoredRefreshToken(refreshToken);
   setStoredUser(user);
   hasRedirectedToLogin = false;
 };
@@ -379,7 +426,11 @@ export const authAPI = {
     }
   },
 
-  refreshToken: () => api.post("/auth/refresh-token", {}),
+  refreshToken: () => {
+    const refreshToken = getStoredRefreshToken();
+    return api.post("/auth/refresh-token", { refreshToken });
+  },
+
   getCurrentUser: () => api.get("/auth/me"),
   changePassword: (data) => api.post("/auth/change-password", data),
   forgotPassword: (emailData) => api.post("/auth/forgot-password", emailData),
@@ -387,6 +438,7 @@ export const authAPI = {
     api.post("/auth/reset-password", { token, newPassword }),
   verifyEmail: (token) => api.post("/auth/verify-email", { token }),
 };
+
 /* ================================
    STUDENT API
 ================================ */
@@ -710,6 +762,7 @@ export const resultAPI = {
       params: { session, term, arm },
     }),
 };
+
 export const sessionResultAPI = {
   calculateSessionResult: (studentId, session) =>
     api.post(`/session-results/calculate/student/${studentId}`, null, {
@@ -742,15 +795,7 @@ export const sessionResultAPI = {
         ...(arm ? { arm } : {}),
       },
     }),
-  setSessionPrintableStatus: (studentId, session, printable, message) =>
-    api.patch(
-      `/session-results/student/${studentId}/printable`,
-      {
-        printable,
-        printLockMessage: message,
-      },
-      { params: { session } },
-    ),
+
   getArmSessionResults: (className, arm, session) =>
     api.get(`/session-results/class/${className}/arm/${arm}`, {
       params: { session },
@@ -811,6 +856,7 @@ export const sessionResultAPI = {
       },
     ),
 };
+
 export const announcementAPI = {
   createAnnouncement: (data) => api.post("/announcements", data),
   getSmsHistory: (id) => api.get(`/announcements/${id}/sms-history`),
@@ -859,6 +905,7 @@ export const eventAPI = {
       params: { startDate, endDate },
     }),
 };
+
 export const feeAPI = {
   createFee: (data) => api.post("/fees", data),
   updateFee: (id, data) => api.put(`/fees/${id}`, data),
@@ -1058,6 +1105,7 @@ export const parentPortalAPI = {
   // ===== TIMETABLE =====
   getWardTimetable: (studentId) => api.get(`/timetable/student/${studentId}`),
 };
+
 export const libraryAPI = {
   createBook: (data) => api.post("/library/books", data),
   updateBook: (id, data) => api.put(`/library/books/${id}`, data),

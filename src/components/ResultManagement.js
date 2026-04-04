@@ -1,4 +1,3 @@
-// src/components/ResultManagement.js
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -26,6 +25,8 @@ import {
   FaUsers,
   FaBookOpen,
   FaSyncAlt,
+  FaLock,
+  FaCheckCircle,
 } from "react-icons/fa";
 import moment from "moment";
 import "./ResultManagement.css";
@@ -61,17 +62,14 @@ function ResultManagement() {
   const [resultSheet, setResultSheet] = useState(null);
   const [rankings, setRankings] = useState(null);
 
-  // INPUT FLOW
   const [teachingClasses, setTeachingClasses] = useState([]);
   const [inputClass, setInputClass] = useState("");
   const [inputArm, setInputArm] = useState("");
   const [inputStudents, setInputStudents] = useState([]);
 
-  // VIEW / RANKINGS FLOW
   const [teacherFormClass, setTeacherFormClass] = useState(null);
   const [formStudents, setFormStudents] = useState([]);
 
-  // RAW BACKEND CLASS DATA
   const [teacherClassAssignments, setTeacherClassAssignments] = useState([]);
 
   const [activeTab, setActiveTab] = useState(() => {
@@ -134,6 +132,33 @@ function ResultManagement() {
       const bDate = new Date(b.startDate || 0).getTime();
       return bDate - aDate;
     });
+
+  const getApiMessage = (error, fallback) =>
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback;
+
+  const normalizeResultSheet = (data) => {
+    if (!data) return null;
+
+    return {
+      ...data,
+      visibilityStatus:
+        data.visibilityStatus || data.resultVisibilityStatus || null,
+      visibilityMessage: data.visibilityMessage || "",
+      printable: data.printable === true,
+      printLockMessage: data.printLockMessage || "",
+      completed: data.completed === true,
+      studentInfo: {
+        ...(data.studentInfo || {}),
+        fullName: data?.studentInfo?.fullName || data?.studentInfo?.name || "",
+        studentClass:
+          data?.studentInfo?.studentClass || data?.studentInfo?.class || "",
+        classArm: data?.studentInfo?.classArm || data?.studentInfo?.arm || "",
+      },
+    };
+  };
 
   const normalizedAvailableSessions = useMemo(() => {
     return (availableSessions || []).map((item) => ({
@@ -222,6 +247,19 @@ function ResultManagement() {
         s.studentClass?.toLowerCase().includes(q),
     );
   }, [displayedStudents, searchTerm]);
+
+  const resultVisibilityStatus = resultSheet?.visibilityStatus || null;
+  const familyCanViewResult =
+    resultVisibilityStatus === "PUBLISHED" ||
+    resultVisibilityStatus === "PRINTABLE";
+  const familyCanPrintResult =
+    resultVisibilityStatus === "PRINTABLE" && resultSheet?.printable === true;
+
+  const printableMessage =
+    resultSheet?.printLockMessage ||
+    resultSheet?.visibilityMessage ||
+    t?.resultManagement?.printLocked ||
+    "Printing is not enabled for this result.";
 
   useEffect(() => {
     loadInitialData();
@@ -431,9 +469,6 @@ function ResultManagement() {
         ? subjectsResponse.data
         : [];
 
-      console.log("GET /teachers/me/classes =>", classesData);
-      console.log("GET /teachers/me/subject-assignments =>", assignmentsData);
-
       setTeacherClassAssignments(classesData);
       setTeacherSubjectAssignments(assignmentsData);
 
@@ -473,9 +508,6 @@ function ResultManagement() {
       });
 
       const teachingClassesList = Array.from(teachingClassesMap.values());
-
-      console.log("Resolved teachingClassesList =>", teachingClassesList);
-
       setTeachingClasses(teachingClassesList);
 
       const formClass =
@@ -593,14 +625,6 @@ function ResultManagement() {
     );
 
     const classIdToLoad = teachingMatch?.id || fallbackMatch?.id || null;
-
-    console.log("loadTeacherStudentsForTeachingClass =>", {
-      className,
-      classArm,
-      teachingMatch,
-      fallbackMatch,
-      classIdToLoad,
-    });
 
     if (!classIdToLoad) {
       setInputStudents([]);
@@ -922,10 +946,7 @@ function ResultManagement() {
           remarks: "",
         };
 
-        console.log("Submitting resultData =>", resultData);
-        const response = await resultAPI.addOrUpdateResultDTO(resultData);
-        console.log("Save response =>", response?.data);
-
+        await resultAPI.addOrUpdateResultDTO(resultData);
         successCount++;
       }
 
@@ -935,6 +956,7 @@ function ResultManagement() {
         }`,
       );
       setSubjects([]);
+      setResultSheet(null);
     } catch (error) {
       console.error("Error saving results:", {
         status: error?.response?.status,
@@ -943,9 +965,10 @@ function ResultManagement() {
       });
 
       toast.error(
-        error?.response?.data?.message ||
-          t?.resultManagement?.saveFailed ||
-          "Failed to save results",
+        getApiMessage(
+          error,
+          t?.resultManagement?.saveFailed || "Failed to save results",
+        ),
       );
     } finally {
       setLoading(false);
@@ -959,7 +982,7 @@ function ResultManagement() {
     try {
       if (isStudent) {
         const response = await resultAPI.getMyTermResult(session, term);
-        setResultSheet(response.data);
+        setResultSheet(normalizeResultSheet(response.data));
         toast.success(
           t?.resultManagement?.resultLoaded || "Result loaded successfully",
         );
@@ -979,7 +1002,7 @@ function ResultManagement() {
           session,
           term,
         );
-        setResultSheet(response.data);
+        setResultSheet(normalizeResultSheet(response.data));
         toast.success(
           t?.resultManagement?.resultLoaded || "Result loaded successfully",
         );
@@ -1016,7 +1039,7 @@ function ResultManagement() {
         session,
         term,
       );
-      setResultSheet(response.data);
+      setResultSheet(normalizeResultSheet(response.data));
       toast.success(
         t?.resultManagement?.resultLoaded || "Result loaded successfully",
       );
@@ -1024,9 +1047,11 @@ function ResultManagement() {
       console.error("Error fetching result:", error);
       setResultSheet(null);
       toast.error(
-        error?.response?.data?.message ||
+        getApiMessage(
+          error,
           t?.resultManagement?.noResultsFound ||
-          "No results found for the selected term",
+            "No results found for the selected term",
+        ),
       );
     } finally {
       setLoading(false);
@@ -1112,9 +1137,10 @@ function ResultManagement() {
       console.error("Error fetching rankings:", error);
       setRankings(null);
       toast.error(
-        error?.response?.data?.message ||
-          t?.resultManagement?.rankingsLoadFailed ||
-          "Failed to load rankings",
+        getApiMessage(
+          error,
+          t?.resultManagement?.rankingsLoadFailed || "Failed to load rankings",
+        ),
       );
     } finally {
       setLoading(false);
@@ -1126,6 +1152,11 @@ function ResultManagement() {
       toast.error(
         t?.resultManagement?.loadResultFirst || "Load a result first",
       );
+      return;
+    }
+
+    if ((isStudent || isParent) && !familyCanPrintResult) {
+      toast.error(printableMessage);
       return;
     }
 
@@ -1359,12 +1390,6 @@ function ResultManagement() {
                           setInputArm(matchingArms[0] || "");
                           setSelectedStudent(null);
                           setSubjects([]);
-
-                          console.log("Changed input class =>", {
-                            newClass,
-                            matchingArms,
-                            teachingClasses,
-                          });
                         }}
                         disabled={false}
                       >
@@ -1395,11 +1420,6 @@ function ResultManagement() {
                           setInputArm(newArm);
                           setSelectedStudent(null);
                           setSubjects([]);
-
-                          console.log("Changed input arm =>", {
-                            inputClass,
-                            newArm,
-                          });
                         }}
                         disabled={!inputClass}
                       >
@@ -1732,7 +1752,16 @@ function ResultManagement() {
               </button>
 
               {resultSheet && (
-                <button className="btn btn-success" onClick={viewResultSheet}>
+                <button
+                  className="btn btn-success"
+                  onClick={viewResultSheet}
+                  disabled={(isStudent || isParent) && !familyCanPrintResult}
+                  title={
+                    (isStudent || isParent) && !familyCanPrintResult
+                      ? printableMessage
+                      : ""
+                  }
+                >
                   <FaPrint size={14} /> <span>Printable Result</span>
                 </button>
               )}
@@ -1740,167 +1769,220 @@ function ResultManagement() {
           </div>
 
           {resultSheet && (
-            <div className="result-card print-area">
-              <div className="result-header">
-                <h4 className="mb-0">Term Result Summary</h4>
-              </div>
-
-              <div className="result-body">
-                <div className="student-info">
-                  <div>
-                    <p>
-                      <strong>Student:</strong>{" "}
-                      {resultSheet.studentInfo?.name ||
-                        selectedStudent?.fullName ||
-                        `${selectedStudent?.firstName || ""} ${selectedStudent?.lastName || ""}`.trim() ||
-                        "-"}
-                    </p>
-                    <p>
-                      <strong>Admission:</strong>{" "}
-                      {resultSheet.studentInfo?.admissionNumber ||
-                        selectedStudent?.admissionNumber ||
-                        "-"}
-                    </p>
-                    <p>
-                      <strong>Class:</strong>{" "}
-                      {resultSheet.studentInfo?.class ||
-                        selectedStudent?.studentClass ||
-                        "-"}{" "}
-                      {resultSheet.studentInfo?.arm ||
-                        selectedStudent?.classArm ||
-                        ""}
-                    </p>
+            <>
+              {(resultSheet.visibilityMessage ||
+                resultSheet.printLockMessage) &&
+                (isStudent || isParent) && (
+                  <div
+                    className={`alert ${
+                      familyCanViewResult ? "alert-info" : "alert-warning"
+                    } no-print d-flex align-items-start gap-2`}
+                  >
+                    {familyCanViewResult ? (
+                      <FaInfoCircle className="mt-1" />
+                    ) : (
+                      <FaLock className="mt-1" />
+                    )}
+                    <div>
+                      <strong>
+                        {familyCanViewResult
+                          ? "Result Information"
+                          : "Access Restriction"}
+                      </strong>
+                      <div>
+                        {familyCanPrintResult
+                          ? resultSheet.visibilityMessage
+                          : resultSheet.printLockMessage ||
+                            resultSheet.visibilityMessage}
+                      </div>
+                    </div>
                   </div>
+                )}
 
-                  <div>
-                    <p>
-                      <strong>Session:</strong> {session}
-                    </p>
-                    <p>
-                      <strong>Term:</strong> {term}
-                    </p>
-                    <p>
-                      <strong>Date:</strong> {moment().format("DD/MM/YYYY")}
-                    </p>
+              <div className="result-card print-area">
+                <div className="result-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <h4 className="mb-0">Term Result Summary</h4>
+                  <div className="d-flex gap-2 flex-wrap">
+                    {resultSheet.completed ? (
+                      <span className="badge bg-success d-inline-flex align-items-center gap-1">
+                        <FaCheckCircle />
+                        RESULT COMPLETE
+                      </span>
+                    ) : (
+                      <span className="badge bg-danger">RESULT INCOMPLETE</span>
+                    )}
+
+                    {resultSheet.visibilityStatus ? (
+                      <span className="badge bg-secondary">
+                        {String(resultSheet.visibilityStatus).replace(
+                          /_/g,
+                          " ",
+                        )}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="table-responsive">
-                  <table className="table table-bordered table-hover">
-                    <thead className="table-dark">
-                      <tr>
-                        <th>Subject</th>
-                        <th>RT (5)</th>
-                        <th>Ass (10)</th>
-                        <th>Proj (10)</th>
-                        <th>MT (10)</th>
-                        <th>2nd (5)</th>
-                        <th>CA Total</th>
-                        <th>Exam (60)</th>
-                        <th>Total (100)</th>
-                        <th>Grade</th>
-                        <th>Remark</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resultSheet.subjects?.map((subject, index) => (
-                        <tr key={index}>
-                          <td className="fw-bold">
-                            {subject.subjectName || subject.subject}
-                          </td>
-                          <td className="text-center">
-                            {safeNumber(subject.resumptionTest)}
-                          </td>
-                          <td className="text-center">
-                            {safeNumber(subject.assignments)}
-                          </td>
-                          <td className="text-center">
-                            {safeNumber(subject.project)}
-                          </td>
-                          <td className="text-center">
-                            {safeNumber(subject.midtermTest)}
-                          </td>
-                          <td className="text-center">
-                            {safeNumber(subject.secondTest)}
-                          </td>
-                          <td className="text-center fw-bold text-primary">
-                            {safeNumber(subject.continuousAssessment)}
-                          </td>
-                          <td className="text-center">
-                            {safeNumber(subject.examination)}
-                          </td>
-                          <td className="text-center fw-bold">
-                            {safeNumber(subject.total)}
-                          </td>
-                          <td className="text-center">
-                            <span
-                              className={`badge ${getGradeBadge(subject.grade)}`}
-                            >
-                              {subject.grade}
-                            </span>
-                          </td>
-                          <td className="text-center">{subject.remarks}</td>
+                <div className="result-body">
+                  <div className="student-info">
+                    <div>
+                      <p>
+                        <strong>Student:</strong>{" "}
+                        {resultSheet.studentInfo?.fullName ||
+                          resultSheet.studentInfo?.name ||
+                          selectedStudent?.fullName ||
+                          `${selectedStudent?.firstName || ""} ${selectedStudent?.lastName || ""}`.trim() ||
+                          "-"}
+                      </p>
+                      <p>
+                        <strong>Admission:</strong>{" "}
+                        {resultSheet.studentInfo?.admissionNumber ||
+                          selectedStudent?.admissionNumber ||
+                          "-"}
+                      </p>
+                      <p>
+                        <strong>Class:</strong>{" "}
+                        {resultSheet.studentInfo?.studentClass ||
+                          resultSheet.studentInfo?.class ||
+                          selectedStudent?.studentClass ||
+                          "-"}{" "}
+                        {resultSheet.studentInfo?.classArm ||
+                          resultSheet.studentInfo?.arm ||
+                          selectedStudent?.classArm ||
+                          ""}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p>
+                        <strong>Session:</strong> {session}
+                      </p>
+                      <p>
+                        <strong>Term:</strong> {term}
+                      </p>
+                      <p>
+                        <strong>Date:</strong> {moment().format("DD/MM/YYYY")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-hover">
+                      <thead className="table-dark">
+                        <tr>
+                          <th>Subject</th>
+                          <th>RT (5)</th>
+                          <th>Ass (10)</th>
+                          <th>Proj (10)</th>
+                          <th>MT (10)</th>
+                          <th>2nd (5)</th>
+                          <th>CA Total</th>
+                          <th>Exam (60)</th>
+                          <th>Total (100)</th>
+                          <th>Grade</th>
+                          <th>Remark</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="row mt-4">
-                  <div className="col-md-3">
-                    <div className="card text-center">
-                      <div className="card-body">
-                        <h6 className="card-subtitle mb-2 text-muted">
-                          Total Score
-                        </h6>
-                        <h3 className="card-title text-primary mb-0">
-                          {safeNumber(resultSheet.summary?.totalScore)}
-                        </h3>
-                      </div>
-                    </div>
+                      </thead>
+                      <tbody>
+                        {resultSheet.subjects?.map((subject, index) => (
+                          <tr key={index}>
+                            <td className="fw-bold">
+                              {subject.subjectName || subject.subject}
+                            </td>
+                            <td className="text-center">
+                              {safeNumber(subject.resumptionTest)}
+                            </td>
+                            <td className="text-center">
+                              {safeNumber(subject.assignments)}
+                            </td>
+                            <td className="text-center">
+                              {safeNumber(subject.project)}
+                            </td>
+                            <td className="text-center">
+                              {safeNumber(subject.midtermTest)}
+                            </td>
+                            <td className="text-center">
+                              {safeNumber(subject.secondTest)}
+                            </td>
+                            <td className="text-center fw-bold text-primary">
+                              {safeNumber(subject.continuousAssessment)}
+                            </td>
+                            <td className="text-center">
+                              {safeNumber(subject.examination)}
+                            </td>
+                            <td className="text-center fw-bold">
+                              {safeNumber(subject.total)}
+                            </td>
+                            <td className="text-center">
+                              <span
+                                className={`badge ${getGradeBadge(subject.grade)}`}
+                              >
+                                {subject.grade}
+                              </span>
+                            </td>
+                            <td className="text-center">{subject.remarks}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
 
-                  <div className="col-md-3">
-                    <div className="card text-center">
-                      <div className="card-body">
-                        <h6 className="card-subtitle mb-2 text-muted">
-                          Average
-                        </h6>
-                        <h3 className="card-title text-success mb-0">
-                          {safeFixed(resultSheet.summary?.average, 2)}%
-                        </h3>
+                  <div className="row mt-4">
+                    <div className="col-md-3">
+                      <div className="card text-center">
+                        <div className="card-body">
+                          <h6 className="card-subtitle mb-2 text-muted">
+                            Total Score
+                          </h6>
+                          <h3 className="card-title text-primary mb-0">
+                            {safeNumber(resultSheet.summary?.totalScore)}
+                          </h3>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="col-md-3">
-                    <div className="card text-center">
-                      <div className="card-body">
-                        <h6 className="card-subtitle mb-2 text-muted">
-                          Class Position
-                        </h6>
-                        <h3 className="card-title text-warning mb-0">
-                          {resultSheet.summary?.positionInClass || "N/A"}
-                        </h3>
+                    <div className="col-md-3">
+                      <div className="card text-center">
+                        <div className="card-body">
+                          <h6 className="card-subtitle mb-2 text-muted">
+                            Average
+                          </h6>
+                          <h3 className="card-title text-success mb-0">
+                            {safeFixed(resultSheet.summary?.average, 2)}%
+                          </h3>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="col-md-3">
-                    <div className="card text-center">
-                      <div className="card-body">
-                        <h6 className="card-subtitle mb-2 text-muted">
-                          Arm Position
-                        </h6>
-                        <h3 className="card-title text-info mb-0">
-                          {resultSheet.summary?.positionInArm || "N/A"}
-                        </h3>
+                    <div className="col-md-3">
+                      <div className="card text-center">
+                        <div className="card-body">
+                          <h6 className="card-subtitle mb-2 text-muted">
+                            Class Position
+                          </h6>
+                          <h3 className="card-title text-warning mb-0">
+                            {resultSheet.summary?.positionInClass || "N/A"}
+                          </h3>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-md-3">
+                      <div className="card text-center">
+                        <div className="card-body">
+                          <h6 className="card-subtitle mb-2 text-muted">
+                            Arm Position
+                          </h6>
+                          <h3 className="card-title text-info mb-0">
+                            {resultSheet.summary?.positionInArm || "N/A"}
+                          </h3>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
         </div>
       )}

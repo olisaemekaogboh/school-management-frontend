@@ -40,7 +40,6 @@ const buildImageUrl = (value) => {
   const cleaned = String(value).trim();
   if (!cleaned) return "";
 
-  // Already full URL
   if (
     cleaned.startsWith("http://") ||
     cleaned.startsWith("https://") ||
@@ -54,7 +53,6 @@ const buildImageUrl = (value) => {
     process.env.REACT_APP_API_URL?.replace(/\/api\/?$/, "") ||
     "https://localhost:8443";
 
-  // If already contains /uploads
   if (cleaned.startsWith("/uploads/")) {
     return `${base}${cleaned}`;
   }
@@ -63,7 +61,6 @@ const buildImageUrl = (value) => {
     return `${base}/${cleaned}`;
   }
 
-  // 🔥 CRITICAL FIX (students/teachers folders)
   if (cleaned.startsWith("students/") || cleaned.startsWith("teachers/")) {
     return `${base}/uploads/${cleaned}`;
   }
@@ -72,7 +69,6 @@ const buildImageUrl = (value) => {
     return `${base}/uploads${cleaned}`;
   }
 
-  // fallback
   return `${base}/uploads/${cleaned}`;
 };
 
@@ -270,7 +266,10 @@ export const AuthProvider = ({ children }) => {
 
         try {
           const refreshResponse = await authAPI.refreshToken();
-          const refreshedAccessToken = refreshResponse?.data?.accessToken || null;
+          const refreshedAccessToken =
+            refreshResponse?.data?.accessToken || null;
+          const refreshedRefreshToken =
+            refreshResponse?.data?.refreshToken || null;
           const normalizedRefreshUser = normalizeUser(
             refreshResponse?.data?.user,
           );
@@ -280,7 +279,7 @@ export const AuthProvider = ({ children }) => {
           if (refreshedAccessToken) {
             setAuthToken(
               refreshedAccessToken,
-              refreshResponse?.data?.refreshToken,
+              refreshedRefreshToken,
               normalizedRefreshUser,
             );
           }
@@ -288,10 +287,7 @@ export const AuthProvider = ({ children }) => {
           if (normalizedRefreshUser) {
             setUser(normalizedRefreshUser);
             setIsAuthenticated(true);
-            localStorage.setItem(
-              "user",
-              JSON.stringify(normalizedRefreshUser),
-            );
+            localStorage.setItem("user", JSON.stringify(normalizedRefreshUser));
           } else {
             const meResponse = await authAPI.getCurrentUser();
             const meUser = normalizeUser(meResponse.data);
@@ -329,13 +325,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authAPI.login({ usernameOrEmail, password });
       const accessToken = response?.data?.accessToken || null;
+      const refreshToken = response?.data?.refreshToken || null;
       const normalizedUser = normalizeUser(response?.data?.user);
 
-      setAuthToken(
-        accessToken,
-        response?.data?.refreshToken,
-        normalizedUser,
-      );
+      setAuthToken(accessToken, refreshToken, normalizedUser);
       setUser(normalizedUser);
       setIsAuthenticated(true);
 
@@ -352,13 +345,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authAPI.register(userData);
       const accessToken = response?.data?.accessToken || null;
+      const refreshToken = response?.data?.refreshToken || null;
       const normalizedUser = normalizeUser(response?.data?.user);
 
-      setAuthToken(
-        accessToken,
-        response?.data?.refreshToken,
-        normalizedUser,
-      );
+      setAuthToken(accessToken, refreshToken, normalizedUser);
       setUser(normalizedUser);
       setIsAuthenticated(true);
 
