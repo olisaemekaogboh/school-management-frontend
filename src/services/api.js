@@ -248,11 +248,7 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (
-      (status === 401 || status === 403) &&
-      !originalRequest._retry &&
-      !isAuthRoute(requestUrl)
-    ) {
+    if (status === 401 && !originalRequest._retry && !isAuthRoute(requestUrl)) {
       if (refreshTokenInvalid) {
         redirectToLoginOnce("Your session has expired. Please login again.");
         return Promise.reject(error);
@@ -691,19 +687,38 @@ export const resultAPI = {
       params: { session, term },
     }),
 
-  getTermResult: (studentId, session, term) =>
+  getTermResult: (studentId, session, term, pin = null) =>
     api.get(`/results/student/${studentId}/term`, {
-      params: { session, term },
+      params: {
+        session,
+        term,
+        ...(pin ? { pin } : {}),
+      },
     }),
 
-  getMyTermResult: (session, term) =>
+  getMyTermResult: (session, term, pin = null) =>
     api.get("/results/me/term", {
-      params: { session, term },
+      params: {
+        session,
+        term,
+        ...(pin ? { pin } : {}),
+      },
     }),
 
-  getAnnualResult: (studentId, session) =>
+  getAnnualResult: (studentId, session, pin = null) =>
     api.get(`/results/student/${studentId}/annual`, {
-      params: { session },
+      params: {
+        session,
+        ...(pin ? { pin } : {}),
+      },
+    }),
+
+  getMyAnnualResult: (session, pin = null) =>
+    api.get("/results/me/annual", {
+      params: {
+        session,
+        ...(pin ? { pin } : {}),
+      },
     }),
 
   addOrUpdateResultDTO: (payload) =>
@@ -763,6 +778,122 @@ export const resultAPI = {
     }),
 };
 
+export const termResultAdminAPI = {
+  updateVisibility: (
+    studentId,
+    session,
+    term,
+    visibilityStatus,
+    visibilityMessage = "",
+  ) =>
+    api.patch(
+      `/result-visibility/student/${studentId}/term`,
+      {
+        visibilityStatus,
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  publishStudent: (studentId, session, term, visibilityMessage = "") =>
+    api.patch(
+      `/result-visibility/student/${studentId}/term`,
+      {
+        visibilityStatus: "PUBLISHED",
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  makePrintable: (studentId, session, term, visibilityMessage = "") =>
+    api.patch(
+      `/result-visibility/student/${studentId}/term`,
+      {
+        visibilityStatus: "PRINTABLE",
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  hideStudent: (studentId, session, term, visibilityMessage = "") =>
+    api.patch(
+      `/result-visibility/student/${studentId}/term`,
+      {
+        visibilityStatus: "HIDDEN",
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  staffOnlyStudent: (studentId, session, term, visibilityMessage = "") =>
+    api.patch(
+      `/result-visibility/student/${studentId}/term`,
+      {
+        visibilityStatus: "STAFF_ONLY",
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  publishClass: (classId, session, term, visibilityMessage = "") =>
+    api.patch(
+      `/result-visibility/class/${classId}/term`,
+      {
+        visibilityStatus: "PUBLISHED",
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  makeClassPrintable: (classId, session, term, visibilityMessage = "") =>
+    api.patch(
+      `/result-visibility/class/${classId}/term`,
+      {
+        visibilityStatus: "PRINTABLE",
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  hideClass: (classId, session, term, visibilityMessage = "") =>
+    api.patch(
+      `/result-visibility/class/${classId}/term`,
+      {
+        visibilityStatus: "HIDDEN",
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+
+  staffOnlyClass: (classId, session, term, visibilityMessage = "") =>
+    api.patch(
+      `/result-visibility/class/${classId}/term`,
+      {
+        visibilityStatus: "STAFF_ONLY",
+        visibilityMessage,
+      },
+      {
+        params: { session, term },
+      },
+    ),
+};
+
 export const sessionResultAPI = {
   calculateSessionResult: (studentId, session) =>
     api.post(`/session-results/calculate/student/${studentId}`, null, {
@@ -783,9 +914,20 @@ export const sessionResultAPI = {
       },
     ),
 
-  getSessionResult: (studentId, session) =>
+  getSessionResult: (studentId, session, pin = null) =>
     api.get(`/session-results/student/${studentId}`, {
-      params: { session },
+      params: {
+        session,
+        ...(pin ? { pin } : {}),
+      },
+    }),
+
+  getMySessionResult: (session, pin = null) =>
+    api.get(`/session-results/me`, {
+      params: {
+        session,
+        ...(pin ? { pin } : {}),
+      },
     }),
 
   getClassSessionResults: (className, session, arm) =>
@@ -819,9 +961,12 @@ export const sessionResultAPI = {
       params: { session },
     }),
 
-  generateSessionReport: (studentId, session) =>
+  generateSessionReport: (studentId, session, pin = null) =>
     api.get(`/session-results/report/${studentId}`, {
-      params: { session },
+      params: {
+        session,
+        ...(pin ? { pin } : {}),
+      },
     }),
 
   getSessionStatistics: (session) =>
@@ -855,8 +1000,48 @@ export const sessionResultAPI = {
         params: { session },
       },
     ),
+
+  updateSessionVisibility: (
+    studentId,
+    session,
+    visibilityStatus,
+    visibilityMessage = "",
+  ) =>
+    api.patch(
+      `/session-results/student/${studentId}/visibility`,
+      {
+        visibilityStatus,
+        visibilityMessage,
+      },
+      {
+        params: { session },
+      },
+    ),
 };
 
+export const resultPinAPI = {
+  generatePins: (payload) => api.post("/result-checker-pins/generate", payload),
+
+  getAllPins: () => api.get("/result-checker-pins"),
+
+  deactivatePin: (pinId) =>
+    api.patch(`/result-checker-pins/${pinId}/deactivate`),
+
+  verifyTermPin: (studentId, session, term, pin) =>
+    api.post("/result-checker-pins/verify/term", {
+      studentId,
+      session,
+      term,
+      pin,
+    }),
+
+  verifySessionPin: (studentId, session, pin) =>
+    api.post("/result-checker-pins/verify/session", {
+      studentId,
+      session,
+      pin,
+    }),
+};
 export const announcementAPI = {
   createAnnouncement: (data) => api.post("/announcements", data),
   getSmsHistory: (id) => api.get(`/announcements/${id}/sms-history`),
@@ -1074,36 +1259,38 @@ export const parentAPI = {
 
 /* compatibility alias expected by many components */
 export const parentPortalAPI = {
-  // ===== CORE =====
   getMyProfile: () => api.get("/parents/me"),
 
   getMyWards: () => api.get("/parents/me/wards"),
 
-  // ===== ATTENDANCE =====
   getWardAttendance: (studentId, session, term) =>
     api.get(`/attendance/student/${studentId}/summary`, {
       params: { session, term },
     }),
 
-  // ===== RESULTS =====
-  getWardSessionResult: (studentId, session) =>
+  getWardSessionResult: (studentId, session, pin = null) =>
     api.get(`/session-results/student/${studentId}`, {
-      params: { session },
+      params: {
+        session,
+        ...(pin ? { pin } : {}),
+      },
     }),
 
-  getWardTermResult: (studentId, session, term) =>
+  getWardTermResult: (studentId, session, term, pin = null) =>
     api.get(`/results/student/${studentId}/term`, {
-      params: { session, term },
+      params: {
+        session,
+        term,
+        ...(pin ? { pin } : {}),
+      },
     }),
 
-  // ===== FEES =====
+  getWardTimetable: (studentId) => api.get(`/timetable/student/${studentId}`),
+
   getWardFees: (studentId, session, term) =>
     api.get(`/fees/student/${studentId}`, {
       params: { session, term },
     }),
-
-  // ===== TIMETABLE =====
-  getWardTimetable: (studentId) => api.get(`/timetable/student/${studentId}`),
 };
 
 export const libraryAPI = {

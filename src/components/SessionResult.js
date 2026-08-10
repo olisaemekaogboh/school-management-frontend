@@ -12,6 +12,7 @@ import {
   sessionAPI,
   teacherAPI,
   parentPortalAPI,
+  resultPinAPI,
 } from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useDarkMode } from "../contexts/DarkModeContext";
@@ -30,6 +31,8 @@ import {
   FaPrint,
   FaLock,
   FaInfoCircle,
+  FaKey,
+  FaTimes,
 } from "react-icons/fa";
 import useActiveSession from "../hooks/useActiveSession";
 import "./SessionResult.css";
@@ -66,6 +69,11 @@ function SessionResult() {
   const [selectedArm, setSelectedArm] = useState("");
   const [teacherAssignments, setTeacherAssignments] = useState([]);
   const [lockedTeacherClassId, setLockedTeacherClassId] = useState(null);
+
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinValue, setPinValue] = useState("");
+  const [pinSubmitting, setPinSubmitting] = useState(false);
+  const [pendingPinAction, setPendingPinAction] = useState(null);
 
   const { session, setSession, loadingSession, refreshActiveSession } =
     useActiveSession();
@@ -442,7 +450,7 @@ function SessionResult() {
 
   useEffect(() => {
     if (!session) return;
-    if (selectedStudent) {
+    if (selectedStudent && !(isStudent || isParent)) {
       fetchSessionResult();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -653,7 +661,20 @@ function SessionResult() {
     }
   };
 
-  const fetchSessionResult = async () => {
+  const openPinModal = (actionType) => {
+    setPendingPinAction(actionType);
+    setPinValue("");
+    setPinModalOpen(true);
+  };
+
+  const closePinModal = () => {
+    if (pinSubmitting) return;
+    setPinModalOpen(false);
+    setPinValue("");
+    setPendingPinAction(null);
+  };
+
+  const fetchSessionResult = async (pin = null) => {
     if (!selectedStudent || !session) return;
 
     if (isTeacher && !teacherCanAccessStudent(selectedStudent)) {
@@ -674,7 +695,11 @@ function SessionResult() {
         response = await parentPortalAPI.getWardSessionResult(
           selectedStudent.id,
           session,
+          pin,
         );
+        resultData = normalizeSessionResult(response?.data);
+      } else if (isStudent) {
+        response = await sessionResultAPI.getMySessionResult(session, pin);
         resultData = normalizeSessionResult(response?.data);
       } else {
         response = await sessionResultAPI.getSessionResult(
@@ -697,6 +722,72 @@ function SessionResult() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLoadResultClick = async () => {
+    if (!selectedStudent) {
+      toast.error(t?.sessionResult?.selectStudent || "Please select a student");
+      return;
+    }
+
+    if (isStudent || isParent) {
+      openPinModal("view");
+      return;
+    }
+
+    fetchSessionResult();
+  };
+
+  const handlePinSubmit = async () => {
+    if (!selectedStudent || !session) {
+      toast.error(
+        t?.sessionResult?.selectStudentSession ||
+          "Please select student and session",
+      );
+      return;
+    }
+
+    if (!pinValue.trim()) {
+      toast.error(t?.sessionResult?.pinRequired || "PIN is required");
+      return;
+    }
+
+    setPinSubmitting(true);
+
+    try {
+      await resultPinAPI.verifySessionPin(
+        selectedStudent.id,
+        session,
+        pinValue.trim(),
+      );
+
+      setPinModalOpen(false);
+
+      if (pendingPinAction === "view") {
+        await fetchSessionResult(pinValue.trim());
+        toast.success(
+          t?.sessionResult?.pinVerified || "PIN verified successfully",
+        );
+      } else if (pendingPinAction === "print") {
+        navigate(
+          `/session-results/${selectedStudent.id}?session=${encodeURIComponent(
+            session,
+          )}&pin=${encodeURIComponent(pinValue.trim())}`,
+        );
+      }
+
+      setPinValue("");
+      setPendingPinAction(null);
+    } catch (error) {
+      toast.error(
+        getApiMessage(
+          error,
+          t?.sessionResult?.invalidPin || "Invalid or expired PIN",
+        ),
+      );
+    } finally {
+      setPinSubmitting(false);
     }
   };
 
@@ -1093,6 +1184,11 @@ function SessionResult() {
       return;
     }
 
+    if (isStudent || isParent) {
+      openPinModal("print");
+      return;
+    }
+
     navigate(
       `/session-results/${targetStudent.id}?session=${encodeURIComponent(session)}`,
     );
@@ -1382,36 +1478,30 @@ function SessionResult() {
                     >
                       <button
                         className="btn btn-success w-100"
-                        onClick={() => {
-                          if (selectedStudent) {
-                            fetchSessionResult();
-                          }
-                        }}
+                        onClick={handleLoadResultClick}
                         disabled={!selectedStudent || loading}
                       >
-                        {t?.sessionResult?.loadResult || "Load Result"}
+                        {loading ? (
+                          <FaSpinner className="spinner" />
+                        ) : (
+                          t?.sessionResult?.loadResult || "Load Result"
+                        )}
                       </button>
                     </div>
                   </div>
+
+                  {(isStudent || isParent) && (
+                    <div className="mt-3 text-muted small">
+                      <FaKey className="me-1" />
+                      {t?.sessionResult?.studentAccessMessage ||
+                        "Students and parents need a valid result PIN before session result can be viewed or printed."}
+                    </div>
+                  )}
 
                   {isTeacher && (
                     <div className="mt-3 text-muted small">
                       {t?.sessionResult?.teacherAccessMessage ||
                         "Teachers can only access and calculate session results for students in their assigned class arm."}
-                    </div>
-                  )}
-
-                  {isParent && (
-                    <div className="mt-3 text-muted small">
-                      {t?.sessionResult?.parentAccessMessage ||
-                        "Parents can only access session results for their linked wards, and only after school release."}
-                    </div>
-                  )}
-
-                  {isStudent && (
-                    <div className="mt-3 text-muted small">
-                      {t?.sessionResult?.studentAccessMessage ||
-                        "Students can view only their own session result, and only after school release."}
                     </div>
                   )}
                 </div>
@@ -2154,6 +2244,84 @@ function SessionResult() {
           </div>
         )}
       </div>
+
+      {pinModalOpen && (
+        <div
+          className="modal fade show"
+          style={{
+            display: "block",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            zIndex: 1050,
+          }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title d-flex align-items-center gap-2">
+                  <FaKey />
+                  Enter Result PIN
+                </h5>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={closePinModal}
+                  disabled={pinSubmitting}
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <p className="mb-3 text-muted">
+                  Enter the session result PIN to continue.
+                </p>
+
+                <div className="mb-3">
+                  <label className="form-label fw-bold">PIN</label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    value={pinValue}
+                    onChange={(e) => setPinValue(e.target.value)}
+                    placeholder="Enter PIN"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handlePinSubmit();
+                      }
+                    }}
+                    disabled={pinSubmitting}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={closePinModal}
+                  disabled={pinSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handlePinSubmit}
+                  disabled={pinSubmitting || !pinValue.trim()}
+                >
+                  {pinSubmitting ? (
+                    <>
+                      <FaSpinner className="spinner me-2" />
+                      Verifying...
+                    </>
+                  ) : (
+                    "Continue"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

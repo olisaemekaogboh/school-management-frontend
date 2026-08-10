@@ -14,6 +14,7 @@ import {
   FaCheckDouble,
   FaLock,
   FaInfoCircle,
+  FaKey,
 } from "react-icons/fa";
 import moment from "moment";
 import { useReactToPrint } from "react-to-print";
@@ -33,6 +34,7 @@ function ResultSheet() {
   const query = new URLSearchParams(location.search);
   const session = query.get("session") || "";
   const term = query.get("term") || "";
+  const pin = query.get("pin") || "";
 
   const [resultData, setResultData] = useState(null);
   const [student, setStudent] = useState(null);
@@ -109,6 +111,7 @@ function ResultSheet() {
       lastName: source.lastName ?? "",
       fullName:
         source.fullName ||
+        source.name ||
         buildName(source.firstName, source.middleName, source.lastName),
       admissionNumber: source.admissionNumber ?? "",
       studentClass:
@@ -129,11 +132,13 @@ function ResultSheet() {
   const normalizeSubjects = (rawResultData) => {
     const rawSubjects = Array.isArray(rawResultData?.subjects)
       ? rawResultData.subjects
-      : [];
+      : Array.isArray(rawResultData?.subjectResults)
+        ? rawResultData.subjectResults
+        : [];
 
     return rawSubjects.map((subject, index) => ({
       id: subject.id ?? index,
-      subject: subject.subject ?? "-",
+      subject: subject.subjectName || subject.subject || "-",
       resumptionTest: safeNumber(subject.resumptionTest),
       assignments: safeNumber(subject.assignments),
       secondTest: safeNumber(subject.secondTest),
@@ -143,7 +148,7 @@ function ResultSheet() {
       examination: safeNumber(subject.examination),
       total: safeNumber(subject.total),
       grade: subject.grade ?? "-",
-      remarks: subject.remarks ?? "-",
+      remarks: subject.remarks ?? subject.remark ?? "-",
       raw: subject,
     }));
   };
@@ -362,10 +367,14 @@ function ResultSheet() {
   const printDisabledReason = isFamilyUser
     ? accessState.printLockMessage ||
       accessState.visibilityMessage ||
+      t?.resultSheet?.printLocked ||
       "Printing is not enabled for this result."
     : !completed
-      ? "Result is incomplete. Required signatures are missing."
+      ? t?.resultSheet?.resultIncomplete ||
+        "Result is incomplete. Required signatures are missing."
       : "";
+
+  const needsPinForFamily = isFamilyUser;
 
   const getStudentName = () => {
     return (
@@ -387,7 +396,7 @@ function ResultSheet() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId, session, term]);
+  }, [studentId, session, term, pin]);
 
   useEffect(() => {
     if (!resultData) return;
@@ -424,7 +433,7 @@ function ResultSheet() {
       }
     }
 
-    if (!fetchedStudent && studentId) {
+    if (!fetchedStudent && !isParent && studentId) {
       try {
         const response = await studentAPI.getStudentById(studentId);
         fetchedStudent = response?.data || null;
@@ -469,7 +478,11 @@ function ResultSheet() {
 
   const fetchResultRecord = async () => {
     if (isStudent) {
-      const response = await resultAPI.getMyTermResult(session, term);
+      const response = await resultAPI.getMyTermResult(
+        session,
+        term,
+        pin || null,
+      );
       return response?.data || null;
     }
 
@@ -481,6 +494,7 @@ function ResultSheet() {
         studentId,
         session,
         term,
+        pin || null,
       );
       return response?.data || null;
     }
@@ -489,7 +503,12 @@ function ResultSheet() {
       throw new Error(t?.resultSheet?.missingStudentId || "Missing student id");
     }
 
-    const response = await resultAPI.getTermResult(studentId, session, term);
+    const response = await resultAPI.getTermResult(
+      studentId,
+      session,
+      term,
+      needsPinForFamily ? pin || null : null,
+    );
     return response?.data || null;
   };
 
@@ -515,6 +534,16 @@ function ResultSheet() {
     setImageError(false);
 
     try {
+      if (needsPinForFamily && !pin.trim()) {
+        setError(
+          t?.resultSheet?.pinRequired ||
+            "A valid result PIN is required to open this result sheet.",
+        );
+        setResultData(null);
+        setStudent(null);
+        return;
+      }
+
       const rawResult = await fetchResultRecord();
       setResultData(rawResult);
       setAccessState(extractAccessState(rawResult));
@@ -526,26 +555,31 @@ function ResultSheet() {
     } catch (err) {
       console.error("Error fetching result sheet:", err);
 
-      if (err.response?.status === 404) {
+      const status = err?.response?.status;
+      const apiMessage = getApiMessage(
+        err,
+        t?.resultSheet?.loadFailed || "Failed to load result sheet",
+      );
+
+      if (status === 404) {
         setError(
           t?.resultSheet?.noResultFound ||
             "No result found for this student in the selected term",
         );
-      } else if (err.response?.status === 403) {
+      } else if (status === 403) {
         setError(
-          getApiMessage(
-            err,
+          apiMessage ||
             t?.resultSheet?.accessDenied ||
-              "You are not allowed to view this result",
-          ),
+            "You are not allowed to view this result",
+        );
+      } else if (status === 400 && needsPinForFamily) {
+        setError(
+          apiMessage ||
+            t?.resultSheet?.invalidPin ||
+            "Invalid or expired result PIN",
         );
       } else {
-        setError(
-          getApiMessage(
-            err,
-            t?.resultSheet?.loadFailed || "Failed to load result sheet",
-          ),
-        );
+        setError(apiMessage);
       }
     } finally {
       setResultLoading(false);
@@ -837,10 +871,16 @@ function ResultSheet() {
   };
 
   const getExistingCaColumns = () => {
-    if (!normalizedSubjects.length) return [];
+    if (!normalizedSubjects.length) {
+      return getCaColumnOrder().map((col) => ({
+        ...col,
+        actualKey: col.key,
+      }));
+    }
+
     const firstSubject = normalizedSubjects[0];
 
-    return getCaColumnOrder()
+    const detected = getCaColumnOrder()
       .filter((col) =>
         col.possibleKeys.some((key) => typeof firstSubject[key] === "number"),
       )
@@ -853,6 +893,13 @@ function ResultSheet() {
           actualKey: actualKey || col.key,
         };
       });
+
+    return detected.length
+      ? detected
+      : getCaColumnOrder().map((col) => ({
+          ...col,
+          actualKey: col.key,
+        }));
   };
 
   const existingCaColumns = getExistingCaColumns();
@@ -903,6 +950,15 @@ function ResultSheet() {
         <div className="alert alert-danger">
           <h4>{t?.resultSheet?.errorTitle || "Error Loading Result"}</h4>
           <p>{error}</p>
+          {needsPinForFamily && (
+            <div className="mt-3 d-flex align-items-start gap-2">
+              <FaKey className="mt-1" />
+              <small>
+                {t?.resultSheet?.pinHelp ||
+                  "Go back and load the result again with a valid PIN."}
+              </small>
+            </div>
+          )}
           <button
             className="btn btn-primary mt-3"
             onClick={() => navigate("/results")}
@@ -1046,6 +1102,19 @@ function ResultSheet() {
         </div>
       </div>
 
+      {needsPinForFamily && pin && (
+        <div className="alert alert-secondary no-print d-flex align-items-start gap-2">
+          <FaKey className="mt-1" />
+          <div>
+            <strong>{t?.resultSheet?.pinProtected || "PIN Protected"}</strong>
+            <div>
+              {t?.resultSheet?.pinVerifiedMessage ||
+                "This result was opened using a result checker PIN."}
+            </div>
+          </div>
+        </div>
+      )}
+
       {(accessState.visibilityMessage || accessState.printLockMessage) && (
         <div className="alert alert-info no-print d-flex align-items-start gap-2">
           {canPrintDocument || canFamilyView || !isFamilyUser ? (
@@ -1093,6 +1162,13 @@ function ResultSheet() {
                 {String(visibilityStatus).replace(/_/g, " ")}
               </span>
             ) : null}
+            {printable ? (
+              <span className="badge bg-success ms-2">PRINTABLE</span>
+            ) : (
+              <span className="badge bg-warning text-dark ms-2">
+                PRINT LOCKED
+              </span>
+            )}
           </div>
 
           <div className="result-title">
@@ -1461,7 +1537,7 @@ function ResultSheet() {
 
           <div className="comments-section">
             <div className="comment-box">
-              <div className="comment-title">Class Teacher's Comment</div>
+              <div className="comment-title">Class Teacher&apos;s Comment</div>
               {canEditTeacherSection ? (
                 <textarea
                   className="form-control"
@@ -1482,7 +1558,7 @@ function ResultSheet() {
             </div>
 
             <div className="comment-box">
-              <div className="comment-title">Principal's Comment</div>
+              <div className="comment-title">Principal&apos;s Comment</div>
               {canEditAdminSection ? (
                 <textarea
                   className="form-control"
@@ -1542,7 +1618,9 @@ function ResultSheet() {
                   <div className="signature-line"></div>
                 )}
               </div>
-              <div className="signature-label">Class Teacher's Signature</div>
+              <div className="signature-label">
+                Class Teacher&apos;s Signature
+              </div>
               {resultData?.signatures?.classTeacherSigned && (
                 <div className="signature-date">
                   {classTeacherSignedAt && formatDate(classTeacherSignedAt)}

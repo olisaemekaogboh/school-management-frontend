@@ -145,6 +145,41 @@
   transform: translateY(0);
 }
 
+/* ========== SCROLLABLE ADMIN MENU - DESKTOP ========== */
+.dropdown-menu-custom.admin-menu-scrollable {
+  max-height: 70vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  right: 0;
+  left: auto;
+  width: 280px;
+}
+
+/* Custom scrollbar for desktop */
+.dropdown-menu-custom.admin-menu-scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdown-menu-custom.admin-menu-scrollable::-webkit-scrollbar-track {
+  background: var(--app-border);
+  border-radius: 10px;
+}
+
+.dropdown-menu-custom.admin-menu-scrollable::-webkit-scrollbar-thumb {
+  background: var(--app-accent);
+  border-radius: 10px;
+}
+
+.dropdown-menu-custom.admin-menu-scrollable::-webkit-scrollbar-thumb:hover {
+  background: var(--app-accent-dark, var(--app-accent));
+}
+
+/* Firefox support */
+.dropdown-menu-custom.admin-menu-scrollable {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-accent) var(--app-border);
+}
+
 .dropdown-item-custom {
   display: flex;
   align-items: center;
@@ -173,6 +208,7 @@
 
 .dropdown-icon {
   color: var(--app-accent);
+  flex-shrink: 0;
 }
 
 .dropdown-divider-custom {
@@ -220,6 +256,7 @@
   justify-content: center;
   color: #fff;
   font-size: 0.9rem;
+  flex-shrink: 0;
 }
 
 .user-name {
@@ -233,6 +270,7 @@
   min-width: 190px;
 }
 
+/* RTL Support */
 body[data-language="ar"] .navbar-school,
 body[data-language="ar"] .navbar-collapse,
 body[data-language="ar"] .navbar-nav {
@@ -244,6 +282,12 @@ body[data-language="ar"] .dropdown-menu-custom {
   right: 0;
 }
 
+body[data-language="ar"] .dropdown-menu-custom.admin-menu-scrollable {
+  left: 0;
+  right: auto;
+}
+
+/* ========== MOBILE RESPONSIVE FIXES ========== */
 @media (max-width: 991px) {
   .navbar-collapse {
     background-color: var(--app-card);
@@ -251,6 +295,8 @@ body[data-language="ar"] .dropdown-menu-custom {
     margin-top: 0.9rem;
     border-radius: 12px;
     border: 1px solid var(--app-border);
+    max-height: 80vh;
+    overflow-y: auto;
   }
 
   .navbar-nav {
@@ -267,6 +313,7 @@ body[data-language="ar"] .dropdown-menu-custom {
     justify-content: flex-start;
   }
 
+  /* Mobile dropdown menu - full width */
   .dropdown-menu-custom {
     position: static;
     min-width: 100%;
@@ -284,8 +331,16 @@ body[data-language="ar"] .dropdown-menu-custom {
     display: block;
   }
 
+  /* Mobile scrollable admin menu */
+  .dropdown-menu-custom.admin-menu-scrollable {
+    max-height: 50vh;
+    width: 100%;
+    overflow-y: auto;
+  }
+
   .dropdown-item-custom {
     color: var(--app-text);
+    padding: 0.6rem 0.75rem;
   }
 
   .dropdown-item-custom:hover,
@@ -325,5 +380,29 @@ body[data-language="ar"] .dropdown-menu-custom {
 
   .auth-buttons .btn {
     width: 100%;
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 576px) {
+  .navbar-school {
+    padding: 0.6rem 0.8rem;
+  }
+  
+  .school-logo {
+    font-size: 1rem;
+  }
+  
+  .brand-text {
+    font-size: 0.9rem;
+  }
+  
+  .dropdown-menu-custom.admin-menu-scrollable {
+    max-height: 60vh;
+  }
+  
+  .dropdown-item-custom {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.85rem;
   }
 }

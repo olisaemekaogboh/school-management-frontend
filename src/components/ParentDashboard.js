@@ -5,7 +5,6 @@ import { parentPortalAPI } from "../services/api";
 import {
   FaChild,
   FaMoneyBill,
-  FaChartBar,
   FaCalendarAlt,
   FaSpinner,
   FaSyncAlt,
@@ -22,8 +21,8 @@ import {
   FaGraduationCap,
   FaBell,
   FaUserCircle,
-  FaLock,
-  FaInfoCircle,
+  FaUsers,
+  FaArrowRight,
 } from "react-icons/fa";
 import useActiveSession from "../hooks/useActiveSession";
 import "./ParentDashboard.css";
@@ -59,52 +58,6 @@ function ParentDashboard() {
     error?.response?.data?.error ||
     error?.message ||
     fallback;
-
-  const normalizeVisibilityStatus = (value) => {
-    if (!value) return null;
-    return String(value).trim().toUpperCase();
-  };
-
-  const normalizeTermResultMeta = (data) => {
-    return {
-      visibilityStatus: normalizeVisibilityStatus(
-        data?.visibilityStatus || data?.resultVisibilityStatus,
-      ),
-      visibilityMessage: data?.visibilityMessage || data?.message || "",
-      printable: data?.printable === true,
-      printLockMessage: data?.printLockMessage || "",
-      completed: data?.completed === true,
-    };
-  };
-
-  const normalizeSessionResult = (data) => {
-    return {
-      annualAverage: Number(
-        data?.annualAverage ??
-          data?.annualSummary?.annualAverage ??
-          data?.average ??
-          0,
-      ),
-      annualTotal: Number(
-        data?.annualTotal ?? data?.annualSummary?.annualTotal ?? 0,
-      ),
-      attendancePercentage: Number(data?.attendancePercentage || 0),
-      promoted:
-        typeof data?.promoted === "boolean"
-          ? data.promoted
-          : data?.promotion?.promoted || false,
-      promotionRemark: data?.promotionRemark || data?.promotion?.remark || "",
-      firstTermAverage: Number(data?.firstTermAverage || 0),
-      secondTermAverage: Number(data?.secondTermAverage || 0),
-      thirdTermAverage: Number(data?.thirdTermAverage || 0),
-      visibilityStatus: normalizeVisibilityStatus(
-        data?.resultVisibilityStatus || data?.visibilityStatus,
-      ),
-      visibilityMessage: data?.visibilityMessage || data?.message || "",
-      printable: data?.printable === true,
-      printLockMessage: data?.printLockMessage || "",
-    };
-  };
 
   const getWardFullName = (ward) => {
     return (
@@ -183,162 +136,6 @@ function ParentDashboard() {
           ward?.schoolClass?.className,
       ),
     };
-  };
-
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    setErrorMessage("");
-
-    try {
-      const response = await parentPortalAPI.getMyWards();
-      const normalizedWards = normalizeWardsResponse(response?.data);
-
-      setWards(normalizedWards);
-
-      if (!Array.isArray(response?.data) && normalizedWards.length === 0) {
-        const backendMessage =
-          response?.data?.message ||
-          response?.data?.error ||
-          response?.data?.details ||
-          "";
-
-        if (backendMessage) {
-          setErrorMessage(backendMessage);
-        }
-      }
-
-      const statsEntries = await Promise.all(
-        normalizedWards.map(async (ward) => {
-          const wardId = ward?.id;
-          const stats = {
-            attendance: 0,
-            totalSchoolDays: 0,
-            daysPresent: 0,
-            daysAbsent: 0,
-            daysLate: 0,
-            daysExcused: 0,
-            annualAverage: 0,
-            annualTotal: 0,
-            promoted: false,
-            promotionRemark: "",
-            feeTotal: 0,
-            feePaid: 0,
-            feeBalance: 0,
-            feeCount: 0,
-            nextClass: getNextClass(
-              ward?.studentClass ||
-                ward?.className ||
-                ward?.class ||
-                ward?.schoolClass?.className,
-            ),
-            termResultVisibilityStatus: null,
-            termResultVisibilityMessage: "",
-            termResultPrintable: false,
-            termResultPrintLockMessage: "",
-            sessionResultVisibilityStatus: null,
-            sessionResultVisibilityMessage: "",
-            sessionResultPrintable: false,
-            sessionResultPrintLockMessage: "",
-          };
-
-          if (!wardId) {
-            return [String(Math.random()), stats];
-          }
-
-          try {
-            const attendanceRes = await parentPortalAPI.getWardAttendance(
-              wardId,
-              session,
-              term,
-            );
-            Object.assign(
-              stats,
-              normalizeAttendanceSummary(attendanceRes?.data, ward),
-            );
-          } catch (error) {
-            console.error(`Attendance load failed for ward ${wardId}`, error);
-          }
-
-          try {
-            const sessionResultRes = await parentPortalAPI.getWardSessionResult(
-              wardId,
-              session,
-            );
-            const normalized = normalizeSessionResult(sessionResultRes?.data);
-            Object.assign(stats, normalized);
-          } catch (error) {
-            console.error(
-              `Session result load failed for ward ${wardId}`,
-              error,
-            );
-          }
-
-          try {
-            const termResultRes = await parentPortalAPI.getWardTermResult(
-              wardId,
-              session,
-              term,
-            );
-            const meta = normalizeTermResultMeta(termResultRes?.data);
-            stats.termResultVisibilityStatus = meta.visibilityStatus;
-            stats.termResultVisibilityMessage = meta.visibilityMessage;
-            stats.termResultPrintable = meta.printable;
-            stats.termResultPrintLockMessage = meta.printLockMessage;
-          } catch (error) {
-            const message = getApiMessage(error, "");
-            if (
-              error?.response?.status !== 403 &&
-              error?.response?.status !== 404
-            ) {
-              console.error(
-                `Term result load failed for ward ${wardId}`,
-                error,
-              );
-            }
-            if (message) {
-              stats.termResultVisibilityMessage = message;
-              stats.termResultPrintLockMessage = message;
-            }
-          }
-
-          try {
-            if (parentPortalAPI.getWardFees) {
-              const feesRes = await parentPortalAPI.getWardFees(
-                wardId,
-                session,
-                term,
-              );
-              const feeSummary = normalizeFees(feesRes?.data);
-              stats.feeTotal = feeSummary.total;
-              stats.feePaid = feeSummary.paid;
-              stats.feeBalance = feeSummary.balance;
-              stats.feeCount = feeSummary.count;
-            }
-          } catch (error) {
-            console.error(`Fees load failed for ward ${wardId}`, error);
-          }
-
-          return [wardId, stats];
-        }),
-      );
-
-      setWardStats(Object.fromEntries(statsEntries));
-    } catch (error) {
-      console.error("Error fetching wards:", error);
-
-      const backendMessage =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to load wards.";
-
-      setErrorMessage(backendMessage);
-      setWards([]);
-      setWardStats({});
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
   };
 
   const normalizeFees = (data) => {
@@ -422,55 +219,119 @@ function ParentDashboard() {
     return "Graduating";
   };
 
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      const response = await parentPortalAPI.getMyWards();
+      const normalizedWards = normalizeWardsResponse(response?.data);
+
+      setWards(normalizedWards);
+
+      if (!Array.isArray(response?.data) && normalizedWards.length === 0) {
+        const backendMessage =
+          response?.data?.message ||
+          response?.data?.error ||
+          response?.data?.details ||
+          "";
+
+        if (backendMessage) {
+          setErrorMessage(backendMessage);
+        }
+      }
+
+      const statsEntries = await Promise.all(
+        normalizedWards.map(async (ward) => {
+          const wardId = ward?.id;
+          const stats = {
+            attendance: 0,
+            totalSchoolDays: 0,
+            daysPresent: 0,
+            daysAbsent: 0,
+            daysLate: 0,
+            daysExcused: 0,
+            feeTotal: 0,
+            feePaid: 0,
+            feeBalance: 0,
+            feeCount: 0,
+            nextClass: getNextClass(
+              ward?.studentClass ||
+                ward?.className ||
+                ward?.class ||
+                ward?.schoolClass?.className,
+            ),
+          };
+
+          if (!wardId) {
+            return [String(Math.random()), stats];
+          }
+
+          const [attendanceRes, feesRes] = await Promise.allSettled([
+            parentPortalAPI.getWardAttendance(wardId, session, term),
+            parentPortalAPI.getWardFees
+              ? parentPortalAPI.getWardFees(wardId, session, term)
+              : Promise.resolve({ data: [] }),
+          ]);
+
+          if (attendanceRes.status === "fulfilled") {
+            Object.assign(
+              stats,
+              normalizeAttendanceSummary(attendanceRes.value?.data, ward),
+            );
+          }
+
+          if (feesRes.status === "fulfilled") {
+            const feeSummary = normalizeFees(feesRes.value?.data);
+            stats.feeTotal = feeSummary.total;
+            stats.feePaid = feeSummary.paid;
+            stats.feeBalance = feeSummary.balance;
+            stats.feeCount = feeSummary.count;
+          }
+
+          return [wardId, stats];
+        }),
+      );
+
+      setWardStats(Object.fromEntries(statsEntries));
+    } catch (error) {
+      console.error("Error fetching wards:", error);
+
+      const backendMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to load wards.";
+
+      setErrorMessage(backendMessage);
+      setWards([]);
+      setWardStats({});
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchDashboardData();
   };
 
   const getPerformanceColor = (percentage) => {
-    if (percentage >= 90) return "#4CAF50";
-    if (percentage >= 80) return "#8BC34A";
-    if (percentage >= 70) return "#FFC107";
-    if (percentage >= 60) return "#FF9800";
-    return "#F44336";
-  };
-
-  const getResultStatusMeta = (stats) => {
-    const termStatus = stats?.termResultVisibilityStatus;
-    const sessionStatus = stats?.sessionResultVisibilityStatus;
-
-    const termVisible =
-      termStatus === "PUBLISHED" || termStatus === "PRINTABLE";
-    const sessionVisible =
-      sessionStatus === "PUBLISHED" || sessionStatus === "PRINTABLE";
-
-    const termPrintable =
-      termStatus === "PRINTABLE" && stats?.termResultPrintable === true;
-    const sessionPrintable =
-      sessionStatus === "PRINTABLE" && stats?.sessionResultPrintable === true;
-
-    return {
-      termVisible,
-      termPrintable,
-      sessionVisible,
-      sessionPrintable,
-      termMessage:
-        stats?.termResultPrintLockMessage ||
-        stats?.termResultVisibilityMessage ||
-        "Term result is not available yet.",
-      sessionMessage:
-        stats?.sessionResultPrintLockMessage ||
-        stats?.sessionResultVisibilityMessage ||
-        "Session result is not available yet.",
-    };
+    if (percentage >= 90) return "#22c55e";
+    if (percentage >= 80) return "#84cc16";
+    if (percentage >= 70) return "#f59e0b";
+    if (percentage >= 60) return "#f97316";
+    return "#ef4444";
   };
 
   const overviewStats = useMemo(() => {
     if (!wards.length) {
       return {
         avgAttendance: 0,
-        avgPerformance: 0,
         totalOutstanding: 0,
+        totalPaid: 0,
+        totalSchoolDays: 0,
       };
     }
 
@@ -480,21 +341,26 @@ function ParentDashboard() {
         0,
       ) / wards.length;
 
-    const avgPerformance =
-      wards.reduce(
-        (acc, ward) => acc + Number(wardStats[ward.id]?.annualAverage || 0),
-        0,
-      ) / wards.length;
-
     const totalOutstanding = wards.reduce(
       (acc, ward) => acc + Number(wardStats[ward.id]?.feeBalance || 0),
       0,
     );
 
+    const totalPaid = wards.reduce(
+      (acc, ward) => acc + Number(wardStats[ward.id]?.feePaid || 0),
+      0,
+    );
+
+    const totalSchoolDays = wards.reduce(
+      (acc, ward) => acc + Number(wardStats[ward.id]?.totalSchoolDays || 0),
+      0,
+    );
+
     return {
       avgAttendance: Math.round(avgAttendance),
-      avgPerformance: Math.round(avgPerformance),
       totalOutstanding,
+      totalPaid,
+      totalSchoolDays,
     };
   }, [wards, wardStats]);
 
@@ -511,26 +377,31 @@ function ParentDashboard() {
   }
 
   return (
-    <div className="parent-dashboard">
-      <div className="dashboard-header">
-        <div className="header-content">
-          <div className="header-left">
+    <div className="parent-dashboard modern-parent-dashboard">
+      <div className="dashboard-hero">
+        <div className="dashboard-hero-content">
+          <div className="hero-text">
+            <div className="hero-badge">
+              <FaUsers />
+              Parent Portal
+            </div>
             <h1>
               <FaChild className="header-icon" />
-              Welcome back, {user?.firstName}!
+              Welcome back, {user?.firstName || "Parent"}!
             </h1>
-            <p className="header-subtitle">
-              Monitor your wards&apos; academic progress and activities
+            <p>
+              Monitor your wards, track attendance, review fees, and keep up
+              with the current school session.
             </p>
           </div>
-          <div className="header-right">
-            <div className="session-info">
-              <span className="session-badge">
-                <FaCalendarAlt /> {session || "No Session"}
-              </span>
-              <span className="term-badge">{term || "N/A"} Term</span>
+
+          <div className="hero-meta">
+            <div className="session-chip">
+              <FaCalendarAlt />
+              <span>{session || "No Session"}</span>
             </div>
-            <div className="header-actions">
+            <div className="term-chip">{term || "N/A"} Term</div>
+            <div className="hero-actions">
               <button
                 className="btn-refresh"
                 onClick={handleRefresh}
@@ -543,7 +414,8 @@ function ParentDashboard() {
                 className="btn-session-refresh"
                 onClick={refreshActiveSession}
               >
-                <FaSyncAlt /> Update Session
+                <FaSyncAlt />
+                Update Session
               </button>
             </div>
           </div>
@@ -573,7 +445,7 @@ function ParentDashboard() {
         </div>
       ) : (
         <>
-          <div className="stats-overview">
+          <div className="stats-overview redesigned-overview">
             <div className="stat-card total-wards">
               <div className="stat-icon">
                 <FaUserGraduate />
@@ -589,26 +461,26 @@ function ParentDashboard() {
                 <FaClock />
               </div>
               <div className="stat-content">
-                <span className="stat-label">Avg Attendance</span>
+                <span className="stat-label">Average Attendance</span>
                 <span className="stat-value">
                   {overviewStats.avgAttendance}%
                 </span>
               </div>
             </div>
 
-            <div className="stat-card avg-performance">
+            <div className="stat-card fees-paid">
               <div className="stat-icon">
-                <FaChartBar />
+                <FaCheckCircle />
               </div>
               <div className="stat-content">
-                <span className="stat-label">Avg Performance</span>
+                <span className="stat-label">Total Fees Paid</span>
                 <span className="stat-value">
-                  {overviewStats.avgPerformance}%
+                  ₦{overviewStats.totalPaid.toLocaleString()}
                 </span>
               </div>
             </div>
 
-            <div className="stat-card active-session">
+            <div className="stat-card outstanding-fees">
               <div className="stat-icon">
                 <FaMoneyBill />
               </div>
@@ -621,15 +493,21 @@ function ParentDashboard() {
             </div>
           </div>
 
-          <div className="wards-grid">
+          <div className="dashboard-section-header">
+            <h2>Your Wards</h2>
+            <p>Click any card to see more details.</p>
+          </div>
+
+          <div className="wards-grid redesigned-wards-grid">
             {wards.map((ward) => {
               const stats = wardStats[ward.id] || {};
-              const resultMeta = getResultStatusMeta(stats);
 
               return (
                 <div
                   key={ward.id}
-                  className={`ward-card ${selectedWard === ward.id ? "expanded" : ""}`}
+                  className={`ward-card redesigned-ward-card ${
+                    selectedWard === ward.id ? "expanded" : ""
+                  }`}
                   onClick={() =>
                     setSelectedWard(selectedWard === ward.id ? null : ward.id)
                   }
@@ -677,10 +555,29 @@ function ParentDashboard() {
                     </div>
                   </div>
 
+                  <div className="ward-quick-metrics">
+                    <div className="quick-metric">
+                      <span className="quick-metric-label">Attendance</span>
+                      <strong>
+                        {Number(stats.attendance || 0).toFixed(1)}%
+                      </strong>
+                    </div>
+                    <div className="quick-metric">
+                      <span className="quick-metric-label">Fees Due</span>
+                      <strong>
+                        ₦{Number(stats.feeBalance || 0).toLocaleString()}
+                      </strong>
+                    </div>
+                    <div className="quick-metric">
+                      <span className="quick-metric-label">Next Class</span>
+                      <strong>{stats.nextClass || "N/A"}</strong>
+                    </div>
+                  </div>
+
                   <div className="ward-performance">
                     <div className="performance-item">
                       <div className="performance-label">
-                        <span>Attendance</span>
+                        <span>Attendance Progress</span>
                         <span className="performance-value">
                           {Number(stats.attendance || 0).toFixed(1)}%
                         </span>
@@ -700,54 +597,9 @@ function ParentDashboard() {
                         />
                       </div>
                     </div>
-
-                    <div className="performance-item">
-                      <div className="performance-label">
-                        <span>Academic Performance</span>
-                        <span className="performance-value">
-                          {Number(stats.annualAverage || 0).toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="progress-bar">
-                        <div
-                          className="progress-fill academic"
-                          style={{
-                            width: `${Math.min(
-                              Number(stats.annualAverage || 0),
-                              100,
-                            )}%`,
-                            backgroundColor: getPerformanceColor(
-                              stats.annualAverage || 0,
-                            ),
-                          }}
-                        />
-                      </div>
-                    </div>
                   </div>
 
-                  <div className="ward-actions">
-                    <Link
-                      to={`/results?student=${ward.id}&scope=parent`}
-                      className={`action-btn results ${
-                        resultMeta.termVisible ? "" : "disabled"
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!resultMeta.termVisible) {
-                          e.preventDefault();
-                        }
-                      }}
-                      title={
-                        resultMeta.termVisible
-                          ? "View term result"
-                          : resultMeta.termMessage
-                      }
-                      aria-disabled={!resultMeta.termVisible}
-                    >
-                      {resultMeta.termVisible ? <FaChartBar /> : <FaLock />}
-                      <span>Results</span>
-                    </Link>
-
+                  <div className="ward-actions redesigned-actions">
                     <Link
                       to={`/attendance?student=${ward.id}&scope=parent`}
                       className="action-btn attendance"
@@ -768,48 +620,7 @@ function ParentDashboard() {
                   </div>
 
                   {selectedWard === ward.id && (
-                    <div className="ward-details">
-                      {(resultMeta.termMessage ||
-                        resultMeta.sessionMessage) && (
-                        <div className="recent-updates mb-3">
-                          <h4>Result Access Status</h4>
-
-                          <div className="update-item">
-                            {resultMeta.termVisible ? (
-                              <FaInfoCircle className="update-icon info" />
-                            ) : (
-                              <FaLock className="update-icon warning" />
-                            )}
-                            <span>
-                              Term Result:{" "}
-                              {resultMeta.termVisible
-                                ? resultMeta.termPrintable
-                                  ? "Available and printable"
-                                  : "Available for viewing"
-                                : "Locked"}
-                            </span>
-                            <small>{resultMeta.termMessage}</small>
-                          </div>
-
-                          <div className="update-item">
-                            {resultMeta.sessionVisible ? (
-                              <FaInfoCircle className="update-icon info" />
-                            ) : (
-                              <FaLock className="update-icon warning" />
-                            )}
-                            <span>
-                              Session Result:{" "}
-                              {resultMeta.sessionVisible
-                                ? resultMeta.sessionPrintable
-                                  ? "Available and printable"
-                                  : "Available for viewing"
-                                : "Locked"}
-                            </span>
-                            <small>{resultMeta.sessionMessage}</small>
-                          </div>
-                        </div>
-                      )}
-
+                    <div className="ward-details redesigned-details">
                       <div className="details-grid">
                         <div className="detail-item">
                           <FaPhone className="detail-icon" />
@@ -857,9 +668,9 @@ function ParentDashboard() {
                         <div className="detail-item">
                           <FaBookOpen className="detail-icon" />
                           <div className="detail-content">
-                            <span className="detail-label">Annual Total</span>
+                            <span className="detail-label">School Days</span>
                             <span className="detail-value">
-                              {Number(stats.annualTotal || 0).toFixed(2)}
+                              {stats.totalSchoolDays || 0}
                             </span>
                           </div>
                         </div>
@@ -867,9 +678,19 @@ function ParentDashboard() {
                         <div className="detail-item">
                           <FaCheckCircle className="detail-icon" />
                           <div className="detail-content">
-                            <span className="detail-label">Promotion</span>
+                            <span className="detail-label">Present</span>
                             <span className="detail-value">
-                              {stats.promoted ? "Promoted" : "Retained"}
+                              {stats.daysPresent || 0}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaExclamationTriangle className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Absent</span>
+                            <span className="detail-value">
+                              {stats.daysAbsent || 0}
                             </span>
                           </div>
                         </div>
@@ -885,7 +706,17 @@ function ParentDashboard() {
                         </div>
 
                         <div className="detail-item">
-                          <FaExclamationTriangle className="detail-icon" />
+                          <FaBell className="detail-icon" />
+                          <div className="detail-content">
+                            <span className="detail-label">Fees Count</span>
+                            <span className="detail-value">
+                              {stats.feeCount || 0}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="detail-item">
+                          <FaMoneyBill className="detail-icon" />
                           <div className="detail-content">
                             <span className="detail-label">
                               Outstanding Fees
@@ -913,23 +744,18 @@ function ParentDashboard() {
                         </div>
 
                         <div className="update-item">
-                          <FaChartBar className="update-icon info" />
-                          <span>
-                            Annual Average:{" "}
-                            {Number(stats.annualAverage || 0).toFixed(1)}%
-                          </span>
-                          <small>
-                            {stats.promotionRemark || "No remark yet"}
-                          </small>
-                        </div>
-
-                        <div className="update-item">
                           <FaBell className="update-icon warning" />
-                          <span>Fees Count: {stats.feeCount || 0}</span>
+                          <span>Fee Items: {stats.feeCount || 0}</span>
                           <small>
                             Outstanding: ₦
                             {Number(stats.feeBalance || 0).toLocaleString()}
                           </small>
+                        </div>
+
+                        <div className="update-item">
+                          <FaArrowRight className="update-icon info" />
+                          <span>Promotion Path</span>
+                          <small>{stats.nextClass || "N/A"}</small>
                         </div>
                       </div>
                     </div>

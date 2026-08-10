@@ -1,0 +1,312 @@
+.result-pin-management {
+  padding: 1.5rem;
+  color: var(--app-text, #111827);
+}
+
+.rpm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.rpm-header h2 {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: var(--app-text, #111827);
+}
+
+.rpm-header p {
+  margin-top: 0.35rem;
+}
+
+.rpm-card {
+  background: var(--app-card, #ffffff);
+  border: 1px solid var(--app-border, #e5e7eb);
+  border-radius: 18px;
+  box-shadow: var(--app-shadow, 0 10px 25px rgba(0, 0, 0, 0.06));
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+
+.rpm-card-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--app-border, #e5e7eb);
+  background: var(--app-surface-2, #f8fafc);
+}
+
+.rpm-card-header h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--app-text, #111827);
+}
+
+.rpm-card-header-space {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.rpm-card-body {
+  padding: 1.25rem;
+}
+
+.rpm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.rpm-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.5fr) repeat(2, minmax(180px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.rpm-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.rpm-field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.45rem;
+  color: var(--app-text, #111827);
+}
+
+.rpm-field input,
+.rpm-field select,
+.rpm-search input,
+.rpm-filter-grid select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--app-border, #d1d5db);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  background: var(--app-card, #ffffff);
+  color: var(--app-text, #111827);
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.rpm-field input:focus,
+.rpm-field select:focus,
+.rpm-search input:focus,
+.rpm-filter-grid select:focus {
+  border-color: var(--app-accent, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.rpm-field input:disabled,
+.rpm-field select:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.rpm-search {
+  position: relative;
+}
+
+.rpm-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  pointer-events: none;
+}
+
+.rpm-search input {
+  padding-left: 2.4rem;
+}
+
+.rpm-actions,
+.rpm-header-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.rpm-actions {
+  margin-top: 1.25rem;
+}
+
+.rpm-actions .btn,
+.rpm-header-actions .btn,
+.rpm-header .btn {
+  min-height: 44px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+}
+
+.result-pin-management .table {
+  margin-bottom: 0;
+  vertical-align: middle;
+}
+
+.result-pin-management .table thead th {
+  white-space: nowrap;
+  background: var(--app-surface-2, #f8fafc);
+  color: var(--app-text, #111827);
+  border-bottom-width: 1px;
+  font-size: 0.92rem;
+}
+
+.result-pin-management .table td,
+.result-pin-management .table th {
+  padding: 0.9rem 0.8rem;
+  border-color: var(--app-border, #e5e7eb);
+}
+
+.result-pin-management .table tbody tr:hover {
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.result-pin-management .badge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0.45rem 0.65rem;
+  border-radius: 999px;
+}
+
+.result-pin-management .btn-sm {
+  border-radius: 10px;
+}
+
+.spin {
+  animation: rpm-spin 1s linear infinite;
+}
+
+@keyframes rpm-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dark-mode .result-pin-management {
+  color: #f9fafb;
+}
+
+.dark-mode .rpm-header h2,
+.dark-mode .rpm-card-header h4,
+.dark-mode .rpm-field label {
+  color: #f9fafb;
+}
+
+.dark-mode .rpm-card {
+  background: #111827;
+  border-color: #374151;
+}
+
+.dark-mode .rpm-card-header {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+.dark-mode .rpm-field input,
+.dark-mode .rpm-field select,
+.dark-mode .rpm-search input,
+.dark-mode .rpm-filter-grid select {
+  background: #0f172a;
+  border-color: #374151;
+  color: #f9fafb;
+}
+
+.dark-mode .rpm-field input::placeholder,
+.dark-mode .rpm-search input::placeholder {
+  color: #9ca3af;
+}
+
+.dark-mode .rpm-search svg {
+  color: #9ca3af;
+}
+
+.dark-mode .result-pin-management .table thead th {
+  background: #1f2937;
+  color: #f9fafb;
+}
+
+.dark-mode .result-pin-management .table td,
+.dark-mode .result-pin-management .table th {
+  border-color: #374151;
+  color: #f9fafb;
+}
+
+.dark-mode .result-pin-management .table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+@media (max-width: 992px) {
+  .rpm-filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .result-pin-management {
+    padding: 1rem;
+  }
+
+  .rpm-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rpm-card-header-space {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rpm-header-actions,
+  .rpm-actions {
+    width: 100%;
+  }
+
+  .rpm-header-actions .btn,
+  .rpm-actions .btn,
+  .rpm-header .btn {
+    width: 100%;
+  }
+
+  .rpm-grid,
+  .rpm-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .result-pin-management .table td,
+  .result-pin-management .table th {
+    padding: 0.75rem 0.65rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .rpm-header h2 {
+    font-size: 1.35rem;
+  }
+
+  .rpm-card-body,
+  .rpm-card-header {
+    padding: 1rem;
+  }
+}

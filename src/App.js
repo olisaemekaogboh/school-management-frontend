@@ -83,6 +83,7 @@ import SessionResultSheet from "./components/SessionResultSheet";
 import TimetableManagement from "./components/TimetableManagement";
 
 import "./App.css";
+import ResultPinManagement from "./components/ResultPinManagement";
 
 function App() {
   return (
@@ -130,14 +131,14 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-<Route
-  path="/reports"
-  element={
-    <ProtectedRoute requiredRole="ADMIN">
-      <Reports />
-    </ProtectedRoute>
-  }
-/>
+                  <Route
+                    path="/reports"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <Reports />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="/users"
                     element={
@@ -176,6 +177,14 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole="ADMIN">
                         <EmailQueueManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/result-pins"
+                    element={
+                      <ProtectedRoute requiredRole="ADMIN">
+                        <ResultPinManagement />
                       </ProtectedRoute>
                     }
                   />

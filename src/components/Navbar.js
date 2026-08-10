@@ -32,6 +32,7 @@ import {
   FaBullhorn,
   FaEnvelope,
   FaComments,
+  FaMapPin,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -211,6 +212,11 @@ function Navbar() {
           path: "/email-queue",
           label: "Email Queue",
           icon: <FaEnvelope />,
+        },
+        {
+          path: "/result-pins",
+          label: "Result PINs",
+          icon: <FaMapPin />,
         },
         { path: "/library", label: t.navbar.library, icon: <FaBook /> },
       ],

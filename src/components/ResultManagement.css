@@ -626,3 +626,55 @@
     grid-template-columns: 1fr;
   }
 }
+.pin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1rem;
+}
+
+.pin-modal-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--app-card, #ffffff);
+  color: var(--app-text, #1f2937);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.pin-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--app-border, #e5e7eb);
+}
+
+.pin-modal-body {
+  padding: 1.25rem;
+}
+
+.pin-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.pin-modal-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.result-management.dark-mode .pin-modal-card {
+  background: #111827;
+  color: #f9fafb;
+}

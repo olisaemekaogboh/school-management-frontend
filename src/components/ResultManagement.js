@@ -7,6 +7,7 @@ import {
   teacherAPI,
   parentPortalAPI,
   subjectAPI,
+  resultPinAPI,
 } from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useDarkMode } from "../contexts/DarkModeContext";
@@ -27,6 +28,8 @@ import {
   FaSyncAlt,
   FaLock,
   FaCheckCircle,
+  FaKey,
+  FaTimes,
 } from "react-icons/fa";
 import moment from "moment";
 import "./ResultManagement.css";
@@ -87,6 +90,12 @@ function ResultManagement() {
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedArm, setSelectedArm] = useState("");
 
+  const [pin, setPin] = useState("");
+  const [pinVerified, setPinVerified] = useState(false);
+  const [verifyingPin, setVerifyingPin] = useState(false);
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+
   const terms = ["FIRST", "SECOND", "THIRD"];
 
   const classes = [
@@ -142,6 +151,8 @@ function ResultManagement() {
   const normalizeResultSheet = (data) => {
     if (!data) return null;
 
+    const studentInfo = data.studentInfo || {};
+
     return {
       ...data,
       visibilityStatus:
@@ -150,13 +161,47 @@ function ResultManagement() {
       printable: data.printable === true,
       printLockMessage: data.printLockMessage || "",
       completed: data.completed === true,
+      publishedAt: data.publishedAt || null,
+      publishedByName: data.publishedByName || "",
       studentInfo: {
-        ...(data.studentInfo || {}),
-        fullName: data?.studentInfo?.fullName || data?.studentInfo?.name || "",
+        ...studentInfo,
+        fullName:
+          studentInfo.fullName || studentInfo.name || data.studentName || "",
+        admissionNumber:
+          studentInfo.admissionNumber || data.admissionNumber || "",
         studentClass:
-          data?.studentInfo?.studentClass || data?.studentInfo?.class || "",
-        classArm: data?.studentInfo?.classArm || data?.studentInfo?.arm || "",
+          studentInfo.studentClass ||
+          studentInfo.class ||
+          data.studentClass ||
+          "",
+        classArm:
+          studentInfo.classArm || studentInfo.arm || data.classArm || "",
       },
+      summary: {
+        totalScore: data?.summary?.totalScore ?? data?.totalScore ?? 0,
+        average: data?.summary?.average ?? data?.average ?? 0,
+        positionInClass:
+          data?.summary?.positionInClass ?? data?.positionInClass ?? null,
+        positionInArm:
+          data?.summary?.positionInArm ?? data?.positionInArm ?? null,
+        totalSchoolDays:
+          data?.summary?.totalSchoolDays ?? data?.totalSchoolDays ?? 0,
+        daysPresent: data?.summary?.daysPresent ?? data?.daysPresent ?? 0,
+        daysAbsent: data?.summary?.daysAbsent ?? data?.daysAbsent ?? 0,
+        attendancePercentage:
+          data?.summary?.attendancePercentage ??
+          data?.attendancePercentage ??
+          0,
+        teacherComment:
+          data?.summary?.teacherComment ?? data?.classTeacherComment ?? "",
+        principalComment:
+          data?.summary?.principalComment ?? data?.principalComment ?? "",
+      },
+      subjects: Array.isArray(data?.subjects)
+        ? data.subjects
+        : Array.isArray(data?.subjectResults)
+          ? data.subjectResults
+          : [],
     };
   };
 
@@ -261,6 +306,8 @@ function ResultManagement() {
     t?.resultManagement?.printLocked ||
     "Printing is not enabled for this result.";
 
+  const needsPinForFamily = isStudent || isParent;
+
   useEffect(() => {
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -275,6 +322,7 @@ function ResultManagement() {
   useEffect(() => {
     setResultSheet(null);
     setRankings(null);
+    setPinVerified(false);
   }, [
     session,
     term,
@@ -844,6 +892,85 @@ function ResultManagement() {
     return true;
   };
 
+  const ensurePinReady = async () => {
+    if (!needsPinForFamily) return true;
+
+    if (!selectedStudent?.id && !isStudent) {
+      toast.error(
+        t?.resultManagement?.selectStudent || "Please select a student",
+      );
+      return false;
+    }
+
+    if (!pin || pin.trim().length === 0) {
+      setPinModalOpen(true);
+      return false;
+    }
+
+    return true;
+  };
+
+  const verifyPinBeforeLoad = async () => {
+    if (!needsPinForFamily) return true;
+
+    const ready = await ensurePinReady();
+    if (!ready) return false;
+
+    const studentId =
+      selectedStudent?.id || students?.[0]?.id || user?.student?.id || null;
+
+    if (!studentId) {
+      toast.error(
+        t?.resultManagement?.selectStudent || "Please select a student",
+      );
+      return false;
+    }
+
+    setVerifyingPin(true);
+    try {
+      await resultPinAPI.verifyTermPin(studentId, session, term, pin.trim());
+      setPinVerified(true);
+      return true;
+    } catch (error) {
+      setPinVerified(false);
+      toast.error(
+        getApiMessage(
+          error,
+          t?.resultManagement?.invalidPin || "Invalid or expired result PIN",
+        ),
+      );
+      return false;
+    } finally {
+      setVerifyingPin(false);
+    }
+  };
+
+  const handleVerifyPinFromModal = async () => {
+    if (!pin || !pin.trim()) {
+      toast.error(t?.resultManagement?.pinRequired || "Result PIN is required");
+      return;
+    }
+
+    const ok = await verifyPinBeforeLoad();
+    if (!ok) return;
+
+    setPinModalOpen(false);
+
+    if (pendingAction === "loadResult") {
+      setPendingAction(null);
+      await fetchStudentResult(true);
+      return;
+    }
+
+    if (pendingAction === "printResult") {
+      setPendingAction(null);
+      viewResultSheet(true);
+      return;
+    }
+
+    setPendingAction(null);
+  };
+
   const handleSubmitResults = async () => {
     if (!(isAdmin || isTeacher)) {
       toast.error(
@@ -975,13 +1102,22 @@ function ResultManagement() {
     }
   };
 
-  const fetchStudentResult = async () => {
+  const fetchStudentResult = async (skipPinPrompt = false) => {
     if (!ensureSessionAndTerm()) return;
 
     setLoading(true);
     try {
       if (isStudent) {
-        const response = await resultAPI.getMyTermResult(session, term);
+        if (!skipPinPrompt) {
+          const pinOk = await verifyPinBeforeLoad();
+          if (!pinOk) return;
+        }
+
+        const response = await resultAPI.getMyTermResult(
+          session,
+          term,
+          pin.trim(),
+        );
         setResultSheet(normalizeResultSheet(response.data));
         toast.success(
           t?.resultManagement?.resultLoaded || "Result loaded successfully",
@@ -997,10 +1133,16 @@ function ResultManagement() {
           return;
         }
 
+        if (!skipPinPrompt) {
+          const pinOk = await verifyPinBeforeLoad();
+          if (!pinOk) return;
+        }
+
         const response = await parentPortalAPI.getWardTermResult(
           selectedStudent.id,
           session,
           term,
+          pin.trim(),
         );
         setResultSheet(normalizeResultSheet(response.data));
         toast.success(
@@ -1147,7 +1289,17 @@ function ResultManagement() {
     }
   };
 
-  const viewResultSheet = () => {
+  const openPinModalForLoad = () => {
+    setPendingAction("loadResult");
+    setPinModalOpen(true);
+  };
+
+  const openPinModalForPrint = () => {
+    setPendingAction("printResult");
+    setPinModalOpen(true);
+  };
+
+  const viewResultSheet = (skipPinPrompt = false) => {
     if (!resultSheet) {
       toast.error(
         t?.resultManagement?.loadResultFirst || "Load a result first",
@@ -1157,6 +1309,11 @@ function ResultManagement() {
 
     if ((isStudent || isParent) && !familyCanPrintResult) {
       toast.error(printableMessage);
+      return;
+    }
+
+    if (needsPinForFamily && !skipPinPrompt && !pin.trim()) {
+      openPinModalForPrint();
       return;
     }
 
@@ -1183,10 +1340,15 @@ function ResultManagement() {
       return;
     }
 
+    const pinQuery =
+      needsPinForFamily && pin.trim()
+        ? `&pin=${encodeURIComponent(pin.trim())}`
+        : "";
+
     navigate(
       `/results/${targetStudent.id}?session=${encodeURIComponent(
         session,
-      )}&term=${encodeURIComponent(term)}`,
+      )}&term=${encodeURIComponent(term)}${pinQuery}`,
     );
   };
 
@@ -1194,6 +1356,8 @@ function ResultManagement() {
     setSubjects([]);
     setResultSheet(null);
     setSearchTerm("");
+    setPin("");
+    setPinVerified(false);
     if (!isStudent && !isParent) setSelectedStudent(null);
   };
 
@@ -1253,6 +1417,92 @@ function ResultManagement() {
 
   return (
     <div className={`result-management ${darkMode ? "dark-mode" : ""}`}>
+      {pinModalOpen && (
+        <div className="pin-modal-overlay">
+          <div className="pin-modal-card">
+            <div className="pin-modal-header">
+              <h5 className="mb-0">
+                <FaKey className="me-2" />
+                {t?.resultManagement?.resultPin || "Result PIN"}
+              </h5>
+              <button
+                type="button"
+                className="pin-modal-close"
+                onClick={() => {
+                  setPinModalOpen(false);
+                  setPendingAction(null);
+                }}
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="pin-modal-body">
+              <p className="mb-3">
+                {t?.resultManagement?.pinSecurityMessage ||
+                  "Students and parents must enter a valid result PIN before viewing released results."}
+              </p>
+
+              <input
+                type="password"
+                className="form-control"
+                placeholder={
+                  t?.resultManagement?.enterResultPin || "Enter result PIN"
+                }
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value);
+                  setPinVerified(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleVerifyPinFromModal();
+                  }
+                }}
+              />
+
+              {pinVerified && (
+                <div className="alert alert-success mt-3 mb-0">
+                  {t?.resultManagement?.pinVerified ||
+                    "PIN verified successfully."}
+                </div>
+              )}
+            </div>
+
+            <div className="pin-modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setPinModalOpen(false);
+                  setPendingAction(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleVerifyPinFromModal}
+                disabled={verifyingPin}
+              >
+                {verifyingPin ? (
+                  <>
+                    <FaSpinner className="spin me-2" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <FaKey className="me-2" />
+                    Verify PIN
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="content-header d-flex justify-content-between align-items-start flex-wrap gap-3 no-print">
         <div>
           <h2>
@@ -1391,7 +1641,6 @@ function ResultManagement() {
                           setSelectedStudent(null);
                           setSubjects([]);
                         }}
-                        disabled={false}
                       >
                         <option value="">
                           {t?.common?.select || "Select Class"}
@@ -1467,6 +1716,7 @@ function ResultManagement() {
                       );
                       setSelectedStudent(selected || null);
                       setResultSheet(null);
+                      setPinVerified(false);
                     }}
                   >
                     <option value="">
@@ -1515,6 +1765,35 @@ function ResultManagement() {
                 ))}
               </select>
             </div>
+
+            {needsPinForFamily && activeTab === "view" && (
+              <div className="filter-group">
+                <label>
+                  <FaKey className="me-1" />
+                  {t?.resultManagement?.resultPin || "Result PIN"}
+                </label>
+                <div className="d-flex gap-2">
+                  <input
+                    type="password"
+                    placeholder={
+                      t?.resultManagement?.enterResultPin || "Enter result PIN"
+                    }
+                    value={pin}
+                    onChange={(e) => {
+                      setPin(e.target.value);
+                      setPinVerified(false);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={() => setPinModalOpen(true)}
+                  >
+                    <FaKey />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1740,10 +2019,18 @@ function ResultManagement() {
             <div className="header-actions">
               <button
                 className="btn btn-outline-primary"
-                onClick={fetchStudentResult}
-                disabled={loading || (!isStudent && !selectedStudent)}
+                onClick={() => {
+                  if (needsPinForFamily && !pin.trim()) {
+                    openPinModalForLoad();
+                    return;
+                  }
+                  fetchStudentResult();
+                }}
+                disabled={
+                  loading || verifyingPin || (!isStudent && !selectedStudent)
+                }
               >
-                {loading ? (
+                {loading || verifyingPin ? (
                   <FaSpinner className="spin me-2" />
                 ) : (
                   <FaEye className="me-2" />
@@ -1754,7 +2041,13 @@ function ResultManagement() {
               {resultSheet && (
                 <button
                   className="btn btn-success"
-                  onClick={viewResultSheet}
+                  onClick={() => {
+                    if (needsPinForFamily && !pin.trim()) {
+                      openPinModalForPrint();
+                      return;
+                    }
+                    viewResultSheet();
+                  }}
                   disabled={(isStudent || isParent) && !familyCanPrintResult}
                   title={
                     (isStudent || isParent) && !familyCanPrintResult
@@ -1767,6 +2060,25 @@ function ResultManagement() {
               )}
             </div>
           </div>
+
+          {needsPinForFamily && activeTab === "view" && (
+            <div className="alert alert-secondary no-print d-flex align-items-start gap-2">
+              <FaKey className="mt-1" />
+              <div>
+                <strong>
+                  {t?.resultManagement?.pinSecurityTitle ||
+                    "PIN protected access"}
+                </strong>
+                <div>
+                  {pinVerified
+                    ? t?.resultManagement?.pinVerified ||
+                      "PIN verified successfully."
+                    : t?.resultManagement?.pinSecurityMessage ||
+                      "Students and parents must enter a valid result PIN before viewing released results."}
+                </div>
+              </div>
+            </div>
+          )}
 
           {resultSheet && (
             <>
@@ -1820,6 +2132,14 @@ function ResultManagement() {
                         )}
                       </span>
                     ) : null}
+
+                    {resultSheet.printable ? (
+                      <span className="badge bg-success">PRINTABLE</span>
+                    ) : (
+                      <span className="badge bg-warning text-dark">
+                        PRINT LOCKED
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -1863,6 +2183,12 @@ function ResultManagement() {
                       <p>
                         <strong>Date:</strong> {moment().format("DD/MM/YYYY")}
                       </p>
+                      {resultSheet.publishedByName ? (
+                        <p>
+                          <strong>Published By:</strong>{" "}
+                          {resultSheet.publishedByName}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -1905,7 +2231,14 @@ function ResultManagement() {
                               {safeNumber(subject.secondTest)}
                             </td>
                             <td className="text-center fw-bold text-primary">
-                              {safeNumber(subject.continuousAssessment)}
+                              {safeNumber(
+                                subject.continuousAssessment,
+                                safeNumber(subject.resumptionTest) +
+                                  safeNumber(subject.assignments) +
+                                  safeNumber(subject.project) +
+                                  safeNumber(subject.midtermTest) +
+                                  safeNumber(subject.secondTest),
+                              )}
                             </td>
                             <td className="text-center">
                               {safeNumber(subject.examination)}
@@ -1920,7 +2253,9 @@ function ResultManagement() {
                                 {subject.grade}
                               </span>
                             </td>
-                            <td className="text-center">{subject.remarks}</td>
+                            <td className="text-center">
+                              {subject.remarks || subject.remark || "-"}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1976,6 +2311,52 @@ function ResultManagement() {
                           <h3 className="card-title text-info mb-0">
                             {resultSheet.summary?.positionInArm || "N/A"}
                           </h3>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="row mt-4">
+                    <div className="col-md-4">
+                      <div className="card">
+                        <div className="card-body">
+                          <h6 className="mb-2">Attendance</h6>
+                          <p className="mb-1">
+                            <strong>School Days:</strong>{" "}
+                            {safeNumber(resultSheet.summary?.totalSchoolDays)}
+                          </p>
+                          <p className="mb-1">
+                            <strong>Present:</strong>{" "}
+                            {safeNumber(resultSheet.summary?.daysPresent)}
+                          </p>
+                          <p className="mb-1">
+                            <strong>Absent:</strong>{" "}
+                            {safeNumber(resultSheet.summary?.daysAbsent)}
+                          </p>
+                          <p className="mb-0">
+                            <strong>Attendance %:</strong>{" "}
+                            {safeFixed(
+                              resultSheet.summary?.attendancePercentage,
+                              2,
+                            )}
+                            %
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-md-8">
+                      <div className="card">
+                        <div className="card-body">
+                          <h6 className="mb-2">Comments</h6>
+                          <p className="mb-2">
+                            <strong>Class Teacher:</strong>{" "}
+                            {resultSheet.summary?.teacherComment || "-"}
+                          </p>
+                          <p className="mb-0">
+                            <strong>Principal:</strong>{" "}
+                            {resultSheet.summary?.principalComment || "-"}
+                          </p>
                         </div>
                       </div>
                     </div>

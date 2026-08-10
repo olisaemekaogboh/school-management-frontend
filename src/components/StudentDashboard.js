@@ -1,25 +1,22 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
-import { useDarkMode } from "../contexts/DarkModeContext";
-import {
-  authAPI,
-  studentAPI,
-  resultAPI,
-  attendanceAPI,
-  feeAPI,
-} from "../services/api";
+import { authAPI, studentAPI, attendanceAPI, feeAPI } from "../services/api";
 import { Link } from "react-router-dom";
 import {
   FaUserGraduate,
   FaMoneyBill,
-  FaChartBar,
   FaCalendarAlt,
   FaSpinner,
   FaSyncAlt,
-  FaLock,
   FaCheckCircle,
-  FaInfoCircle,
+  FaUserCircle,
+  FaSchool,
+  FaIdCard,
+  FaEnvelope,
+  FaClock,
+  FaArrowRight,
+  FaBell,
 } from "react-icons/fa";
 import moment from "moment";
 import useActiveSession from "../hooks/useActiveSession";
@@ -44,7 +41,7 @@ const normalizeStudentLike = (...candidates) => {
   if (!source) return null;
 
   return {
-    id: source.id ?? null,
+    id: source.id ?? source.studentId ?? null,
     firstName: source.firstName ?? "",
     middleName: source.middleName ?? "",
     lastName: source.lastName ?? "",
@@ -66,30 +63,6 @@ const normalizeStudentLike = (...candidates) => {
   };
 };
 
-const normalizeResults = (payload) => {
-  const data = payload?.data ?? payload ?? {};
-  const items = Array.isArray(data?.subjects)
-    ? data.subjects
-    : Array.isArray(data)
-      ? data
-      : [];
-
-  return items.map((item, index) => ({
-    id: item.id ?? index,
-    subject: item.subject ?? "-",
-    continuousAssessment: toNumber(
-      item.continuousAssessment ??
-        item.ca ??
-        item.contAssessment ??
-        item.assessment,
-      0,
-    ),
-    examination: toNumber(item.examination ?? item.exam, 0),
-    total: toNumber(item.total, 0),
-    grade: item.grade ?? "-",
-  }));
-};
-
 const normalizeAttendance = (payload) => {
   const data = payload?.data ?? payload ?? null;
 
@@ -98,6 +71,9 @@ const normalizeAttendance = (payload) => {
       daysPresent: 0,
       daysAbsent: 0,
       attendancePercentage: 0,
+      totalSchoolDays: 0,
+      daysLate: 0,
+      daysExcused: 0,
     };
   }
 
@@ -106,6 +82,9 @@ const normalizeAttendance = (payload) => {
     daysPresent: toNumber(data.daysPresent, 0),
     daysAbsent: toNumber(data.daysAbsent, 0),
     attendancePercentage: toNumber(data.attendancePercentage, 0),
+    totalSchoolDays: toNumber(data.totalSchoolDays, 0),
+    daysLate: toNumber(data.daysLate, 0),
+    daysExcused: toNumber(data.daysExcused, 0),
   };
 };
 
@@ -128,21 +107,6 @@ const normalizeFees = (payload) => {
   }));
 };
 
-const getGradeBadgeClass = (grade) => {
-  switch (`${grade || ""}`.toUpperCase()) {
-    case "A":
-      return "success";
-    case "B":
-      return "primary";
-    case "C":
-      return "info";
-    case "D":
-      return "warning";
-    default:
-      return "danger";
-  }
-};
-
 const getStatusBadgeClass = (status) => {
   const normalized = `${status || ""}`.toUpperCase();
   if (["ACTIVE", "PAID", "CURRENT"].includes(normalized)) return "success";
@@ -156,25 +120,47 @@ const extractApiMessage = (error, fallback) =>
   error?.message ||
   fallback;
 
+const normalizeImageUrl = (url) => {
+  if (!url) return "";
+
+  const trimmed = String(url).trim();
+  if (!trimmed) return "";
+
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("data:")
+  ) {
+    return trimmed;
+  }
+
+  const apiBase =
+    process.env.REACT_APP_API_BASE_URL || "https://localhost:8443/api";
+  const origin = apiBase.replace(/\/api\/?$/, "");
+
+  if (trimmed.startsWith("/")) {
+    return `${origin}${trimmed}`;
+  }
+
+  return `${origin}/${trimmed}`;
+};
+
 function StudentDashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { darkMode } = useDarkMode();
 
   const [studentData, setStudentData] = useState(null);
-  const [recentResults, setRecentResults] = useState([]);
   const [attendance, setAttendance] = useState({
     daysPresent: 0,
     daysAbsent: 0,
     attendancePercentage: 0,
+    totalSchoolDays: 0,
+    daysLate: 0,
+    daysExcused: 0,
   });
   const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [resultAccess, setResultAccess] = useState({
-    canView: false,
-    locked: false,
-    message: "",
-  });
+  const [dashboardMessage, setDashboardMessage] = useState("");
 
   const { session, term, loadingSession, refreshActiveSession } =
     useActiveSession("FIRST");
@@ -182,49 +168,42 @@ function StudentDashboard() {
   const fetchStudentData = useCallback(async () => {
     if (!user) {
       setStudentData(null);
-      setRecentResults([]);
       setAttendance({
         daysPresent: 0,
         daysAbsent: 0,
         attendancePercentage: 0,
+        totalSchoolDays: 0,
+        daysLate: 0,
+        daysExcused: 0,
       });
       setFees([]);
-      setResultAccess({
-        canView: false,
-        locked: false,
-        message: "",
-      });
+      setDashboardMessage("");
       setLoading(false);
       return;
     }
 
     try {
       setLoading(true);
+      setDashboardMessage("");
 
       const requests = [
-        authAPI.getCurrentUser(),
-        studentAPI.getMyProfile(),
+        authAPI.getCurrentUser().catch(() => ({ data: null })),
+        studentAPI.getMyProfile().catch(() => ({ data: null })),
         session && term
-          ? resultAPI.getMyTermResult(session, term)
-          : Promise.resolve({ data: [] }),
-        session && term
-          ? attendanceAPI.getMyAttendanceSummary(session, term)
+          ? attendanceAPI
+              .getMyAttendanceSummary(session, term)
+              .catch(() => ({ data: null }))
           : Promise.resolve({ data: null }),
         session && term
-          ? feeAPI.getMyFees(session, term)
+          ? feeAPI.getMyFees(session, term).catch(() => ({ data: [] }))
           : Promise.resolve({ data: [] }),
       ];
 
-      const [meRes, profileRes, resultsRes, attendanceRes, feesRes] =
-        await Promise.allSettled(requests);
+      const [meRes, profileRes, attendanceRes, feesRes] =
+        await Promise.all(requests);
 
-      const meUser =
-        meRes.status === "fulfilled" ? meRes.value?.data || null : null;
-
-      const studentProfile =
-        profileRes.status === "fulfilled"
-          ? profileRes.value?.data || null
-          : null;
+      const meUser = meRes?.data || null;
+      const studentProfile = profileRes?.data || null;
 
       const resolvedProfile = normalizeStudentLike(
         studentProfile,
@@ -239,58 +218,8 @@ function StudentDashboard() {
       );
 
       setStudentData(resolvedProfile);
-
-      if (resultsRes.status === "fulfilled") {
-        const normalizedResults = normalizeResults(resultsRes.value);
-        setRecentResults(normalizedResults.slice(0, 5));
-        setResultAccess({
-          canView: true,
-          locked: false,
-          message: "",
-        });
-      } else {
-        const resultError = resultsRes.reason;
-        const status = resultError?.response?.status;
-
-        if (status === 403) {
-          setRecentResults([]);
-          setResultAccess({
-            canView: false,
-            locked: true,
-            message: extractApiMessage(
-              resultError,
-              t?.studentDashboard?.resultLocked ||
-                "Your result is not yet available. The school will release it when authorized.",
-            ),
-          });
-        } else {
-          setRecentResults([]);
-          setResultAccess({
-            canView: false,
-            locked: false,
-            message: extractApiMessage(
-              resultError,
-              t?.studentDashboard?.resultUnavailable ||
-                "Result data could not be loaded right now.",
-            ),
-          });
-        }
-      }
-
-      const normalizedAttendance =
-        attendanceRes.status === "fulfilled"
-          ? normalizeAttendance(attendanceRes.value)
-          : {
-              daysPresent: 0,
-              daysAbsent: 0,
-              attendancePercentage: 0,
-            };
-
-      const normalizedFees =
-        feesRes.status === "fulfilled" ? normalizeFees(feesRes.value) : [];
-
-      setAttendance(normalizedAttendance);
-      setFees(normalizedFees);
+      setAttendance(normalizeAttendance(attendanceRes));
+      setFees(normalizeFees(feesRes));
     } catch (error) {
       console.error("Error fetching student dashboard data:", error);
 
@@ -302,20 +231,22 @@ function StudentDashboard() {
           user,
         ),
       );
-      setRecentResults([]);
       setAttendance({
         daysPresent: 0,
         daysAbsent: 0,
         attendancePercentage: 0,
+        totalSchoolDays: 0,
+        daysLate: 0,
+        daysExcused: 0,
       });
       setFees([]);
-      setResultAccess({
-        canView: false,
-        locked: false,
-        message:
+      setDashboardMessage(
+        extractApiMessage(
+          error,
           t?.studentDashboard?.dashboardLoadError ||
-          "Some dashboard data could not be loaded.",
-      });
+            "Some dashboard data could not be loaded.",
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -355,6 +286,17 @@ function StudentDashboard() {
     return fees.reduce((sum, fee) => sum + toNumber(fee.balance, 0), 0);
   }, [fees]);
 
+  const totalPaidFees = useMemo(() => {
+    return fees.reduce((sum, fee) => sum + toNumber(fee.paidAmount, 0), 0);
+  }, [fees]);
+
+  const feeCount = useMemo(() => fees.length, [fees]);
+
+  const profileImage = useMemo(
+    () => normalizeImageUrl(studentData?.profilePictureUrl),
+    [studentData],
+  );
+
   if (loading || loadingSession) {
     return (
       <div className="student-dashboard text-center py-5">
@@ -365,307 +307,392 @@ function StudentDashboard() {
   }
 
   return (
-    <div className="student-dashboard container py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <h2 className="mb-0">
-          <FaUserGraduate className="me-2" />
-          {t?.studentDashboard?.welcome || "Welcome"}, {welcomeName}!
-        </h2>
+    <div className="student-dashboard container py-4 redesigned-student-dashboard">
+      <div className="student-hero card shadow-sm border-0 mb-4">
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div className="d-flex align-items-center gap-3">
+              <div className="student-avatar">
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt={displayName}
+                    className="student-avatar-img"
+                  />
+                ) : (
+                  <FaUserCircle size={64} />
+                )}
+              </div>
 
-        <button
-          className="btn btn-outline-primary"
-          onClick={refreshActiveSession}
-          type="button"
-        >
-          <FaSyncAlt className="me-2" />
-          {t?.common?.refresh || "Refresh Session"}
-        </button>
-      </div>
+              <div>
+                <h2 className="mb-1">
+                  <FaUserGraduate className="me-2" />
+                  {t?.studentDashboard?.welcome || "Welcome"}, {welcomeName}!
+                </h2>
+                <p className="mb-1 text-muted">
+                  {t?.studentDashboard?.studentPortalSubtitle ||
+                    "Track your attendance, fees, and personal school information."}
+                </p>
+                <div className="d-flex flex-wrap gap-2 mt-2">
+                  <span className="badge bg-primary-subtle text-dark">
+                    <FaSchool className="me-1" />
+                    {classDisplay}
+                  </span>
+                  <span className="badge bg-light text-dark border">
+                    <FaIdCard className="me-1" />
+                    {studentData?.admissionNumber || "N/A"}
+                  </span>
+                  <span
+                    className={`badge bg-${getStatusBadgeClass(
+                      studentData?.status,
+                    )}`}
+                  >
+                    {studentData?.status || "ACTIVE"}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-      <div className="mb-3 text-muted">
-        {t?.feeManagement?.activeSession || "Active Session"}:{" "}
-        <strong>
-          {session || t?.common?.noActiveSession || "No active session"}
-        </strong>{" "}
-        | {t?.feeManagement?.term || "Term"}: <strong>{term || "N/A"}</strong>
-      </div>
-
-      {resultAccess.message ? (
-        <div
-          className={`alert ${
-            resultAccess.locked ? "alert-warning" : "alert-info"
-          } d-flex align-items-start gap-2`}
-          role="alert"
-        >
-          {resultAccess.locked ? (
-            <FaLock className="mt-1 flex-shrink-0" />
-          ) : (
-            <FaInfoCircle className="mt-1 flex-shrink-0" />
-          )}
-          <div>
-            <strong>
-              {resultAccess.locked
-                ? t?.studentDashboard?.resultAccessRestricted ||
-                  "Result Access Restricted"
-                : t?.studentDashboard?.resultInfo || "Result Information"}
-            </strong>
-            <div>{resultAccess.message}</div>
+            <button
+              className="btn btn-outline-primary"
+              onClick={refreshActiveSession}
+              type="button"
+            >
+              <FaSyncAlt className="me-2" />
+              {t?.common?.refresh || "Refresh Session"}
+            </button>
           </div>
+
+          <div className="mt-3 text-muted">
+            {t?.feeManagement?.activeSession || "Active Session"}:{" "}
+            <strong>
+              {session || t?.common?.noActiveSession || "No active session"}
+            </strong>{" "}
+            | {t?.feeManagement?.term || "Term"}:{" "}
+            <strong>{term || "N/A"}</strong>
+          </div>
+        </div>
+      </div>
+
+      {dashboardMessage ? (
+        <div className="alert alert-info" role="alert">
+          {dashboardMessage}
         </div>
       ) : null}
 
-      <div className="row">
-        <div className="col-md-4 mb-4">
-          <div className="card h-100 shadow-sm">
+      <div className="row g-4 mb-4">
+        <div className="col-md-3">
+          <div className="card h-100 shadow-sm border-0 mini-stat-card">
+            <div className="card-body">
+              <div className="mini-stat-icon text-success">
+                <FaCalendarAlt />
+              </div>
+              <div className="mini-stat-label">
+                {t?.studentDashboard?.attendance || "Attendance"}
+              </div>
+              <div className="mini-stat-value">
+                {attendancePercentage.toFixed(1)}%
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-3">
+          <div className="card h-100 shadow-sm border-0 mini-stat-card">
+            <div className="card-body">
+              <div className="mini-stat-icon text-primary">
+                <FaCheckCircle />
+              </div>
+              <div className="mini-stat-label">
+                {t?.studentDashboard?.daysPresent || "Days Present"}
+              </div>
+              <div className="mini-stat-value">
+                {toNumber(attendance?.daysPresent, 0)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-3">
+          <div className="card h-100 shadow-sm border-0 mini-stat-card">
+            <div className="card-body">
+              <div className="mini-stat-icon text-warning">
+                <FaMoneyBill />
+              </div>
+              <div className="mini-stat-label">
+                {t?.studentDashboard?.feesPaid || "Fees Paid"}
+              </div>
+              <div className="mini-stat-value">
+                ₦{totalPaidFees.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-3">
+          <div className="card h-100 shadow-sm border-0 mini-stat-card">
+            <div className="card-body">
+              <div className="mini-stat-icon text-danger">
+                <FaBell />
+              </div>
+              <div className="mini-stat-label">
+                {t?.studentDashboard?.outstanding || "Outstanding"}
+              </div>
+              <div className="mini-stat-value">
+                ₦{totalOutstandingFees.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-4">
+        <div className="col-lg-4">
+          <div className="card shadow-sm border-0 h-100">
             <div className="card-header bg-primary text-white">
               <h5 className="mb-0">
                 {t?.studentDashboard?.myInfo || "My Information"}
               </h5>
             </div>
             <div className="card-body">
-              <p>
-                <strong>{t?.studentDashboard?.name || "Name"}:</strong>{" "}
-                {displayName || "N/A"}
-              </p>
-              <p>
-                <strong>
-                  {t?.studentDashboard?.admission || "Admission"}:
-                </strong>{" "}
-                {studentData?.admissionNumber || "N/A"}
-              </p>
-              <p>
-                <strong>{t?.studentDashboard?.class || "Class"}:</strong>{" "}
-                {classDisplay}
-              </p>
-              <p className="mb-0">
-                <strong>{t?.studentDashboard?.status || "Status"}:</strong>{" "}
+              <div className="dashboard-detail-row">
+                <span className="detail-label">Name</span>
+                <span className="detail-value">{displayName || "N/A"}</span>
+              </div>
+              <div className="dashboard-detail-row">
+                <span className="detail-label">Admission No.</span>
+                <span className="detail-value">
+                  {studentData?.admissionNumber || "N/A"}
+                </span>
+              </div>
+              <div className="dashboard-detail-row">
+                <span className="detail-label">Class</span>
+                <span className="detail-value">{classDisplay}</span>
+              </div>
+              <div className="dashboard-detail-row">
+                <span className="detail-label">Email</span>
+                <span className="detail-value">
+                  {studentData?.email || user?.email || "N/A"}
+                </span>
+              </div>
+              <div className="dashboard-detail-row mb-0">
+                <span className="detail-label">Status</span>
                 <span
-                  className={`badge bg-${getStatusBadgeClass(studentData?.status)}`}
+                  className={`badge bg-${getStatusBadgeClass(
+                    studentData?.status,
+                  )}`}
                 >
                   {studentData?.status || "ACTIVE"}
                 </span>
-              </p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="col-md-4 mb-4">
-          <div className="card h-100 shadow-sm">
+        <div className="col-lg-4">
+          <div className="card shadow-sm border-0 h-100">
             <div className="card-header bg-success text-white">
               <h5 className="mb-0">
                 {t?.studentDashboard?.attendance || "Attendance"}
               </h5>
             </div>
             <div className="card-body text-center">
-              <h1 className="display-1 text-success">
+              <h1 className="display-4 text-success mb-2">
                 {attendancePercentage.toFixed(1)}%
               </h1>
-              <p>{t?.studentDashboard?.attendanceRate || "Attendance Rate"}</p>
+              <p className="text-muted">
+                {t?.studentDashboard?.attendanceRate || "Attendance Rate"}
+              </p>
 
-              <div className="progress" style={{ height: "10px" }}>
+              <div className="progress mb-4" style={{ height: "10px" }}>
                 <div
                   className="progress-bar bg-success"
                   style={{ width: `${attendancePercentage}%` }}
                 />
               </div>
 
-              <p className="mt-3 mb-0">
-                {t?.studentDashboard?.present || "Present"}:{" "}
-                {toNumber(attendance?.daysPresent, 0)} |{" "}
-                {t?.studentDashboard?.absent || "Absent"}:{" "}
-                {toNumber(attendance?.daysAbsent, 0)}
-              </p>
+              <div className="attendance-summary-grid">
+                <div className="attendance-box">
+                  <span className="attendance-box-label">Present</span>
+                  <strong>{toNumber(attendance?.daysPresent, 0)}</strong>
+                </div>
+                <div className="attendance-box">
+                  <span className="attendance-box-label">Absent</span>
+                  <strong>{toNumber(attendance?.daysAbsent, 0)}</strong>
+                </div>
+                <div className="attendance-box">
+                  <span className="attendance-box-label">Late</span>
+                  <strong>{toNumber(attendance?.daysLate, 0)}</strong>
+                </div>
+                <div className="attendance-box">
+                  <span className="attendance-box-label">School Days</span>
+                  <strong>{toNumber(attendance?.totalSchoolDays, 0)}</strong>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="col-md-4 mb-4">
-          <div className="card h-100 shadow-sm">
+        <div className="col-lg-4">
+          <div className="card shadow-sm border-0 h-100">
             <div className="card-header bg-warning">
               <h5 className="mb-0">
                 {t?.studentDashboard?.feeStatus || "Fee Status"}
               </h5>
             </div>
             <div className="card-body">
+              <div className="dashboard-detail-row">
+                <span className="detail-label">Fee Items</span>
+                <span className="detail-value">{feeCount}</span>
+              </div>
+              <div className="dashboard-detail-row">
+                <span className="detail-label">Total Paid</span>
+                <span className="detail-value text-success">
+                  ₦{totalPaidFees.toLocaleString()}
+                </span>
+              </div>
+              <div className="dashboard-detail-row">
+                <span className="detail-label">Outstanding</span>
+                <span className="detail-value text-danger">
+                  ₦{totalOutstandingFees.toLocaleString()}
+                </span>
+              </div>
+
+              <hr />
+
               {fees.length === 0 ? (
                 <p className="text-muted mb-0">
                   {t?.studentDashboard?.noFeeRecords || "No fee records found."}
                 </p>
               ) : (
-                <>
-                  <div className="mb-3">
-                    <strong>
-                      {t?.studentDashboard?.outstanding || "Outstanding"}:
-                    </strong>{" "}
-                    <span className="text-danger">
-                      ₦{totalOutstandingFees.toLocaleString()}
-                    </span>
-                  </div>
+                fees.slice(0, 4).map((fee) => {
+                  const paidPercent =
+                    fee.amount > 0
+                      ? Math.min((fee.paidAmount / fee.amount) * 100, 100)
+                      : 0;
 
-                  {fees.map((fee) => {
-                    const paidPercent =
-                      fee.amount > 0
-                        ? Math.min((fee.paidAmount / fee.amount) * 100, 100)
-                        : 0;
-
-                    return (
-                      <div key={fee.id} className="mb-3">
-                        <div className="d-flex justify-content-between">
-                          <span>{fee.feeType}</span>
-                          <span
-                            className={
-                              `${fee.paymentStatus}`.toUpperCase() === "PAID"
-                                ? "text-success"
-                                : "text-danger"
-                            }
-                          >
-                            ₦{toNumber(fee.balance, 0).toLocaleString()}
-                          </span>
-                        </div>
-
-                        <div className="progress" style={{ height: "5px" }}>
-                          <div
-                            className="progress-bar bg-success"
-                            style={{ width: `${paidPercent}%` }}
-                          />
-                        </div>
-
-                        <small className="text-muted">
-                          {t?.studentDashboard?.due || "Due"}:{" "}
-                          {fee.dueDate
-                            ? moment(fee.dueDate).format("DD/MM/YYYY")
-                            : "-"}
-                        </small>
+                  return (
+                    <div key={fee.id} className="mb-3">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <span>{fee.feeType}</span>
+                        <span
+                          className={`badge bg-${getStatusBadgeClass(
+                            fee.paymentStatus,
+                          )}`}
+                        >
+                          {fee.paymentStatus}
+                        </span>
                       </div>
-                    );
-                  })}
-                </>
+
+                      <div className="progress mt-2" style={{ height: "6px" }}>
+                        <div
+                          className="progress-bar bg-success"
+                          style={{ width: `${paidPercent}%` }}
+                        />
+                      </div>
+
+                      <small className="text-muted d-block mt-1">
+                        Due:{" "}
+                        {fee.dueDate
+                          ? moment(fee.dueDate).format("DD/MM/YYYY")
+                          : "-"}
+                      </small>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="row mt-4">
-        <div className="col-12">
-          <div className="card shadow-sm">
-            <div className="card-header bg-info text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <h5 className="mb-0">
-                {t?.studentDashboard?.recentResults || "Recent Results"}
-              </h5>
-
-              {resultAccess.canView ? (
-                <span className="badge bg-light text-dark d-inline-flex align-items-center gap-1">
-                  <FaCheckCircle />
-                  {t?.studentDashboard?.released || "Released"}
-                </span>
-              ) : resultAccess.locked ? (
-                <span className="badge bg-dark d-inline-flex align-items-center gap-1">
-                  <FaLock />
-                  {t?.studentDashboard?.locked || "Locked"}
-                </span>
-              ) : null}
+      <div className="row mt-4 g-4">
+        <div className="col-lg-6">
+          <div className="card shadow-sm border-0 h-100">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">Current Summary</h5>
             </div>
-
             <div className="card-body">
-              {!resultAccess.canView ? (
-                <div className="text-center py-3">
-                  <FaLock size={28} className="mb-3 text-warning" />
-                  <p className="mb-1 fw-semibold">
-                    {t?.studentDashboard?.resultsUnavailable ||
-                      "Results are not available for viewing right now."}
+              <div className="summary-item">
+                <FaCheckCircle className="summary-icon text-success" />
+                <div>
+                  <strong>Attendance</strong>
+                  <p className="mb-0 text-muted">
+                    {attendancePercentage.toFixed(1)}% attendance rate this term
                   </p>
-                  <small className="text-muted">
-                    {resultAccess.message ||
-                      t?.studentDashboard?.waitForRelease ||
-                      "Please wait until the school releases your result."}
-                  </small>
                 </div>
-              ) : (
-                <div className="table-responsive">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>{t?.studentDashboard?.subject || "Subject"}</th>
-                        <th>{t?.studentDashboard?.ca || "CA"}</th>
-                        <th>{t?.studentDashboard?.exam || "Exam"}</th>
-                        <th>{t?.studentDashboard?.total || "Total"}</th>
-                        <th>{t?.studentDashboard?.grade || "Grade"}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentResults.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="text-center text-muted">
-                            {t?.studentDashboard?.noResults ||
-                              "No result available yet."}
-                          </td>
-                        </tr>
-                      ) : (
-                        recentResults.map((subject) => (
-                          <tr key={subject.id}>
-                            <td>{subject.subject || "-"}</td>
-                            <td>{toNumber(subject.continuousAssessment, 0)}</td>
-                            <td>{toNumber(subject.examination, 0)}</td>
-                            <td>
-                              <strong>{toNumber(subject.total, 0)}</strong>
-                            </td>
-                            <td>
-                              <span
-                                className={`badge bg-${getGradeBadgeClass(subject.grade)}`}
-                              >
-                                {subject.grade || "-"}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+              </div>
+
+              <div className="summary-item">
+                <FaMoneyBill className="summary-icon text-warning" />
+                <div>
+                  <strong>Fees</strong>
+                  <p className="mb-0 text-muted">
+                    ₦{totalOutstandingFees.toLocaleString()} outstanding across{" "}
+                    {feeCount} fee item{feeCount === 1 ? "" : "s"}
+                  </p>
                 </div>
-              )}
+              </div>
+
+              <div className="summary-item">
+                <FaSchool className="summary-icon text-primary" />
+                <div>
+                  <strong>Academic Placement</strong>
+                  <p className="mb-0 text-muted">Currently in {classDisplay}</p>
+                </div>
+              </div>
+
+              <div className="summary-item mb-0">
+                <FaArrowRight className="summary-icon text-info" />
+                <div>
+                  <strong>Session</strong>
+                  <p className="mb-0 text-muted">
+                    {session || "No active session"} — {term || "N/A"} Term
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="row mt-4">
-        <div className="col-12">
-          <div className="card shadow-sm">
-            <div className="card-body">
-              <h5 className="mb-3">
+        <div className="col-lg-6">
+          <div className="card shadow-sm border-0 h-100">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">
                 {t?.studentDashboard?.quickLinks || "Quick Links"}
               </h5>
-              <div className="d-flex gap-2 flex-wrap">
-                <Link
-                  to="/results"
-                  className={`btn ${
-                    resultAccess.canView
-                      ? "btn-outline-primary"
-                      : "btn-outline-secondary"
-                  }`}
-                >
-                  <FaChartBar className="me-2" />
-                  {t?.studentDashboard?.viewResults || "View My Results"}
+            </div>
+            <div className="card-body">
+              <div className="d-grid gap-3">
+                <Link to="/attendance" className="dashboard-link-card">
+                  <div className="dashboard-link-icon bg-success-subtle text-success">
+                    <FaCalendarAlt />
+                  </div>
+                  <div className="dashboard-link-text">
+                    <strong>
+                      {t?.studentDashboard?.myAttendance || "My Attendance"}
+                    </strong>
+                    <small>View your attendance details and summaries</small>
+                  </div>
                 </Link>
 
-                <Link to="/attendance" className="btn btn-outline-success">
-                  <FaCalendarAlt className="me-2" />
-                  {t?.studentDashboard?.myAttendance || "My Attendance"}
-                </Link>
-
-                <Link to="/fees" className="btn btn-outline-warning">
-                  <FaMoneyBill className="me-2" />
-                  {t?.studentDashboard?.feeDetails || "Fee Details"}
+                <Link to="/fees" className="dashboard-link-card">
+                  <div className="dashboard-link-icon bg-warning-subtle text-warning">
+                    <FaMoneyBill />
+                  </div>
+                  <div className="dashboard-link-text">
+                    <strong>
+                      {t?.studentDashboard?.feeDetails || "Fee Details"}
+                    </strong>
+                    <small>Check payments, balances, and due dates</small>
+                  </div>
                 </Link>
               </div>
 
-              {!resultAccess.canView && resultAccess.locked ? (
-                <small className="text-muted d-block mt-3">
-                  {t?.studentDashboard?.resultReleasedBySchool ||
-                    "Your result link may still open the result page, but the backend will block access until the school releases it."}
-                </small>
-              ) : null}
+              <small className="text-muted d-block mt-4">
+                This dashboard was simplified to avoid blocked result endpoint
+                calls.
+              </small>
             </div>
           </div>
         </div>
